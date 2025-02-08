@@ -4,4 +4,4 @@ matplotlib
 numpy
 altair
 plotly
-st_aggrid
+st-aggrid
