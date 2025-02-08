@@ -1,29 +1,84 @@
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import math as mt
-import numpy as np
-import plotly.express as px
-from st_aggrid import AgGrid, GridOptionsBuilder
-import os
+# Import libraries
+import streamlit as st #version 1.42.0
+import pandas as pd #version 2.2.2.
+import matplotlib.pyplot as plt  # Correct import for matplotlib
+import matplotlib.patches as patches #version 3.9.2.
+import math as mt 
+import numpy as np #version 2.1.0
+import altair as alt #version 5.4.1.
+import plotly.express as px #6.0.0
+from st_aggrid import AgGrid,GridOptionsBuilder #version 1.1.0
+import os 
 
-# Load data
-def load_data(file_path):
+# File paths
+file_path = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-H-Shape.csv"
+file_path_mat = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-Material.csv"
+
+# Check if the files exist before loading them
+if os.path.exists(file_path) and os.path.exists(file_path_mat):
     try:
-        return pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
+        # Read the CSV files
+        df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
+        df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
+
+        # Print columns to verify
+        print("Columns in df:", df.columns)
+        print("Columns in df_mat:", df_mat.columns)
+
+        # Generate section list based on whether "Section" is a column or index
+        if "Section" in df.columns:
+            section_list = df["Section"].tolist()
+        else:
+            section_list = df.index.tolist()  # Use the index if "Section" is not found
+
+        # Generate section list based on whether "Grade" is a column or index
+        if "Grade" in df_mat.columns:
+            section_list_mat = df_mat["Grade"].tolist()
+        else:
+            section_list_mat = df_mat.index.tolist()  # Use the index if "Grade" is not found
+        
+        # Initialize variables with default values to prevent errors
+        option = "W-100x50x5x7 (9.3 kg/m)"
+        option_mat = 'SS400'
+        bending_axis = None
+
+        # Print the results
+        print("Files loaded successfully!")
+        print("Section list:", section_list)
+        print("Material section list:", section_list_mat)
+
     except Exception as e:
-        st.error(f"Error loading data: {e}")
-        return None
+        print(f"An error occurred while loading the files: {e}")
+else:
+    print("One or both files do not exist at the given paths. Please check the file paths.")
 
-file_path = os.path.join("data", "2003-Steel-Beam-DataBase-H-Shape.csv")
-file_path_mat = os.path.join("data", "2003-Steel-Beam-DataBase-Material.csv")
 
-df = load_data(file_path)
-df_mat = load_data(file_path_mat)
+# Toggle for enabling Chapter F Strength input
+ChapterF_Strength = st.sidebar.toggle("For Chapter F Strength")
 
-if df is None or df_mat is None:
-    st.stop()
+if ChapterF_Strength:
+    # Dropdown to select a section
+    option = st.sidebar.selectbox("Choose a Steel Section:", section_list)
+
+    # Dropdown to select a material grade
+    option_mat = st.sidebar.selectbox("Choose a Steel Grade:", section_list_mat)
+
+    # Dropdown to select a bending axis
+    bending_axis = st.sidebar.selectbox(
+        "Select Bending Axis:",  # More appropriate label
+        ("Major axis bending", "Minor axis bending"),
+        index=None,  # No default selection
+        placeholder="Select bending axis..."  # Relevant placeholder text
+    )
+
+# Toggle for enabling Chapter F Strength input
+ChapterF_Design = st.sidebar.toggle("For Chapter F Design")
+if ChapterF_Design:
+    # Dropdown to select a section
+    Mu = st.sidebar.number_input("input Ultimate Bending Moment:")
+
+    # Dropdown to select a material grade
+    Vu = st.sidebar.number_input("input Ultimate Shear Force:")
 
 # Streamlit Interface
 st.subheader("Structural Steel Design", divider="red")
