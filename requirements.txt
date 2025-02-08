@@ -4,4 +4,4 @@ matplotlib
 numpy
 altair
 plotly
-st-aggrid
+streamlit-aggrid
