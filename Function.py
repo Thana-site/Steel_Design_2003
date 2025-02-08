@@ -35,6 +35,8 @@ if os.path.exists(file_path) and os.path.exists(file_path_mat):
 else:
     print("One or both files do not exist at the given paths. Please check the file paths.")
 
+Section = "W-100x50x5x7 (9.3 kg/m)"
+
 # Generate section list based on whether "Section" is a column or index
 if "Section" in df.columns:
     section_list = df["Section"].tolist()
