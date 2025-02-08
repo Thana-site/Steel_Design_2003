@@ -9,13 +9,19 @@ import altair as alt
 import plotly.express as px
 from st_aggrid import AgGrid,GridOptionsBuilder
 
-# Import Database
+# File paths (ensure these are correct for your environment)
 file_path = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-Material.csv"
 
-# Read the CSV and set the first column as the index
-df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
-df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
+# Try to read the CSV files and set the first column as the index
+try:
+    df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
+    df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
+    print("Files loaded successfully!")
+except FileNotFoundError as e:
+    print(f"File not found: {e}")
+except Exception as e:
+    print(f"An error occurred: {e}")
 
 # Generate section list based on whether "Section" is a column or index
 if "Section" in df.columns:
