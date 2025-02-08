@@ -1,14 +1,14 @@
 # Import libraries
-import streamlit as st
-import pandas as pd
+import streamlit as st #version 1.42.0
+import pandas as pd #version 2.2.2.
 import matplotlib.pyplot as plt  # Correct import for matplotlib
-import matplotlib.patches as patches
-import math as mt
-import numpy as np
-import altair as alt
-import plotly.express as px
-from st_aggrid import AgGrid,GridOptionsBuilder
-import os
+import matplotlib.patches as patches #version 3.9.2.
+import math as mt 
+import numpy as np #version 2.1.0
+import altair as alt #version 5.4.1.
+import plotly.express as px #6.0.0
+from st_aggrid import AgGrid,GridOptionsBuilder #version 1.1.0
+import os 
 
 # File paths
 file_path = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-H-Shape.csv"
