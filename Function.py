@@ -14,8 +14,8 @@ file_path = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel D
 file_path_mat = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-Material.csv"
 
 # Read the CSV and set the first column as the index
-df = pd.read_csv(file_path, index_col=0)
-df_mat = pd.read_csv(file_path_mat, index_col=0)
+df = pd.read_csv(file_path, index_col=0, encoding='utf-8')
+df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='utf-8')
 
 # Generate section list based on whether "Section" is a column or index
 if "Section" in df.columns:
