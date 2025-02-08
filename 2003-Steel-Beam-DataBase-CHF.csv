@@ -1,0 +1,13 @@
+Chapter F,Note,Classify_flange_flexural,Classify_Web_flexural,Bending axis,Y,LTB,FLB,CFY,TFY,WLB
+F2,F2. Doubly Symmetric Compact I-Shaped Members and Channels Bent about Their Major Axis,Compact Flange,Compact Web,Element Bent about Their Major Axis,1,1,0,0,0,0
+F3(NC-C),F3. Doubly Symmetric I-Shaped Members with Compact Webs and Noncompact or Slender Flanges Bent about Their Major Axis,Non-Compact Flange,Compact Web,Element Bent about Their Major Axis,0,1,1,0,0,0
+F3(S-C),F3. Doubly Symmetric I-Shaped Members with Compact Webs and Noncompact or Slender Flanges Bent about Their Major Axis,Slender Flange,Compact Web,Element Bent about Their Major Axis,0,1,1,0,0,0
+F4(C-NC),F4. Other I-Shaped Members with Compact or Noncompact Webs Bent about Their Major Axis,Compact Flange,Non-Compact Web,Element Bent about Their Major Axis,0,1,1,1,1,0
+F4(NC-NC),F4. Other I-Shaped Members with Compact or Noncompact Webs Bent about Their Major Axis,Non-Compact Flange,Non-Compact Web,Element Bent about Their Major Axis,0,1,1,1,1,0
+F4(S-NC),F4. Other I-Shaped Members with Compact or Noncompact Webs Bent about Their Major Axis,Slender Flange,Non-Compact Web,Element Bent about Their Major Axis,0,1,1,1,1,0
+F5(C-S),F5. Doubly Symmetric and Singly Symmetric I-Shaped Members with Slender Webs Bent about Their Major Axis,Compact Flange,Slender Web,Element Bent about Their Major Axis,0,1,1,1,1,0
+F5(NC-S),F5. Doubly Symmetric and Singly Symmetric I-Shaped Members with Slender Webs Bent about Their Major Axis,Non-Compact Flange,Slender Web,Element Bent about Their Major Axis,0,1,1,1,1,0
+F5(S-S),F5. Doubly Symmetric and Singly Symmetric I-Shaped Members with Slender Webs Bent about Their Major Axis,Slender Flange,Slender Web,Element Bent about Their Major Axis,0,1,1,1,1,0
+F6(C-All),F6. I-Shaped Members and Channels Bent about Their Minor Axis,Compact Flange,N/A,Element Bent about Their Minor Axis,1,0,1,0,0,0
+F6(NC-All),F6. I-Shaped Members and Channels Bent about Their Minor Axis,Non-Compact Flange,N/A,Element Bent about Their Minor Axis,1,0,1,0,0,0
+F6(S-All),F6. I-Shaped Members and Channels Bent about Their Minor Axis,Slender Flange,N/A,Element Bent about Their Minor Axis,1,0,1,0,0,0
