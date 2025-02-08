@@ -8,20 +8,32 @@ import numpy as np
 import altair as alt
 import plotly.express as px
 from st_aggrid import AgGrid,GridOptionsBuilder
+import os
 
-# File paths (ensure these are correct for your environment)
+# File paths
 file_path = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-Material.csv"
 
-# Try to read the CSV files and set the first column as the index
-try:
-    df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
-    df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
-    print("Files loaded successfully!")
-except FileNotFoundError as e:
-    print(f"File not found: {e}")
-except Exception as e:
-    print(f"An error occurred: {e}")
+# Check if the files exist before loading them
+if os.path.exists(file_path) and os.path.exists(file_path_mat):
+    try:
+        # Read the CSV files
+        df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
+        df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
+
+        # Check if 'Section' column exists in df
+        if "Section" in df.columns:
+            section_list = df["Section"].tolist()
+        else:
+            section_list = df.index.tolist()  # Use the index if "Section" is not found
+        
+        print("Files loaded successfully!")
+        print("Section list:", section_list)
+
+    except Exception as e:
+        print(f"An error occurred while loading the files: {e}")
+else:
+    print("One or both files do not exist at the given paths. Please check the file paths.")
 
 # Generate section list based on whether "Section" is a column or index
 if "Section" in df.columns:
