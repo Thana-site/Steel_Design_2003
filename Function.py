@@ -766,7 +766,6 @@ with tab4:
         Lbd = st.slider("Input Unbraced Length (Lb).", 0, 20)
     else:
         Lbd = st.number_input("Input Unbraced Length (Lb).")
-
     st.write("The current number is:", Lbd)
    
     if df_Selected is None or df_Selected.empty:
@@ -774,7 +773,11 @@ with tab4:
         st.stop()
 
     # Create tabs for each selected section
-    section_names = df_Selected["Section"].unique()
+    if 'Section' in df_Selected.columns:
+        section_names = df_Selected["Section"].unique()
+    else:
+        print("The 'Section' column is missing.")
+    
     tabs = st.tabs([f"Results for {section}" for section in section_names])
 
     for idx, section in enumerate(section_names):
