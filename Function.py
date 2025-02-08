@@ -21,38 +21,33 @@ if os.path.exists(file_path) and os.path.exists(file_path_mat):
         df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
         df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
 
-        # Check if 'Section' column exists in df
+        # Generate section list based on whether "Section" is a column or index
         if "Section" in df.columns:
             section_list = df["Section"].tolist()
         else:
             section_list = df.index.tolist()  # Use the index if "Section" is not found
+
+        # Generate section list based on whether "Grade" is a column or index
+        if "Grade" in df_mat.columns:
+            section_list_mat = df_mat["Grade"].tolist()
+        else:
+            section_list_mat = df_mat.index.tolist()  # Use the index if "Grade" is not found
         
+        # Initialize variables with default values to prevent errors
+        option = "W-100x50x5x7 (9.3 kg/m)"
+        option_mat = 'SS400'
+        bending_axis = None
+
+        # Print the results
         print("Files loaded successfully!")
         print("Section list:", section_list)
+        print("Material section list:", section_list_mat)
 
     except Exception as e:
         print(f"An error occurred while loading the files: {e}")
 else:
     print("One or both files do not exist at the given paths. Please check the file paths.")
 
-Section = "W-100x50x5x7 (9.3 kg/m)"
-
-# Generate section list based on whether "Section" is a column or index
-if "Section" in df.columns:
-    section_list = df["Section"].tolist()
-else:
-    section_list = df.index.tolist()  # Use the index if "Section" is not a column
-
-# Generate section list based on whether "Section" is a column or index
-if "Grade" in df_mat.columns:
-    section_list_mat = df_mat["Grade"].tolist()
-else:
-    section_list_mat = df_mat.index.tolist()  # Use the index if "Section" is not a column
-
-# Initialize variables with default values to prevent errors
-option = "W-100x50x5x7 (9.3 kg/m)"
-option_mat = 'SS400'
-bending_axis = None
 
 # Toggle for enabling Chapter F Strength input
 ChapterF_Strength = st.sidebar.toggle("For Chapter F Strength")
