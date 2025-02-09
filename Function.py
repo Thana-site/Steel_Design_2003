@@ -10,60 +10,51 @@ import plotly.express as px #6.0.0
 from st_aggrid import AgGrid,GridOptionsBuilder #version 1.1.0
 import os 
 
+import os
+import pandas as pd
+import streamlit as st
+
 # File paths
 file_path = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-Material.csv"
 
+# Initialize empty DataFrames
+df = pd.DataFrame()
+df_mat = pd.DataFrame()
+section_list = []
+section_list_mat = []
+
 # Check if the files exist before loading them
 if os.path.exists(file_path) and os.path.exists(file_path_mat):
     try:
-        # Read the CSV files
-        df = pd.read_csv(file_path, encoding='ISO-8859-1')
-        df_mat = pd.read_csv(file_path_mat, encoding='ISO-8859-1')
+        # Read the CSV files with index_col as 'Section' and 'Grade'
+        df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
+        df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
         
-        # Ensure 'Section' is set as index
-        if "Section" in df.columns:
-            df.set_index("Section", inplace=True)
-        
-        # Ensure 'Grade' is set as index for materials
-        if "Grade" in df_mat.columns:
-            df_mat.set_index("Grade", inplace=True)
-        
-        # Generate section and material lists
+        # Check if the expected index exists
         section_list = list(df.index)
         section_list_mat = list(df_mat.index)
-        
-        print("Files loaded successfully!")
+
+        st.success("Files loaded successfully!")
     except Exception as e:
         st.error(f"An error occurred while loading the files: {e}")
 else:
     st.error("One or both files do not exist at the given paths. Please check the file paths.")
 
 # Streamlit Interface
-st.subheader("Structural Steel Design", divider="red")
+st.subheader("Structural Steel Design")
 
 # Default selected options
-option = "W-100x50x5x7 (9.3 kg/m)"  # Initial default value for section
-option_mat = 'SS400'  # Initial default value for material
+option = section_list[0] if section_list else ""
+option_mat = section_list_mat[0] if section_list_mat else ""
 bending_axis = "Major axis bending"
 
 # Toggle for enabling Chapter F Strength input
 ChapterF_Strength = st.sidebar.checkbox("For Chapter F Strength")
-
 if ChapterF_Strength:
-    # Dropdown to select a section
-    option = st.sidebar.selectbox("Choose a Steel Section:", section_list, index=section_list.index(option) if option in section_list else 0)
-    
-    # Dropdown to select a material grade
-    option_mat = st.sidebar.selectbox("Choose a Steel Grade:", section_list_mat, index=section_list_mat.index(option_mat) if option_mat in section_list_mat else 0)
-    
-    # Dropdown to select a bending axis
-    bending_axis = st.sidebar.selectbox(
-        "Select Bending Axis:",  
-        ("Major axis bending", "Minor axis bending"),
-        index=None,  
-        placeholder="Select bending axis..."  
-    )
+    option = st.sidebar.selectbox("Choose a Steel Section:", section_list, index=0 if option in section_list else 0)
+    option_mat = st.sidebar.selectbox("Choose a Steel Grade:", section_list_mat, index=0 if option_mat in section_list_mat else 0)
+    bending_axis = st.sidebar.selectbox("Select Bending Axis:", ["Major axis bending", "Minor axis bending"], index=0)
 
 Mu = 100
 Vu = 100
@@ -71,10 +62,7 @@ Vu = 100
 # Toggle for enabling Chapter F Design input
 ChapterF_Design = st.sidebar.checkbox("For Chapter F Design")
 if ChapterF_Design:
-    # Input for Ultimate Bending Moment
     Mu = st.sidebar.number_input("Input Ultimate Bending Moment:")
-    
-    # Input for Ultimate Shear Force
     Vu = st.sidebar.number_input("Input Ultimate Shear Force:")
 
 # Tabs
@@ -83,21 +71,14 @@ tab1, tab2, tab3, tab4 = st.tabs(["Structural Steel Catalogue", "Chapter F (Stre
 with tab1:
     cols = st.columns(3)
     with cols[0]:
-        # Debug: Check if option is defined and valid
-        if option in df.index:
-            st.write(f"Details for **{option}**:")
-            st.write(df.loc[option])
+        if option and not df.empty:
+            if option in df.index:
+                st.write(f"Details for **{option}**:")
+                st.write(df.loc[option])
+            else:
+                st.warning("Selected section not found in the database!")
         else:
-            st.warning("Selected section not found in the database!")
-
-
-        # Display details for the selected material section
-        st.write(f"Details for **{option_mat}**:")
-
-        if option_mat in df_mat.index:
-            st.write(df_mat.loc[option_mat])
-        else:
-            st.warning("Selected section not found in the database!")
+            st.warning("No section selected or database is empty.")
 
     with cols[1]:
         # Assuming the necessary dataframe (df) and option are defined elsewhere in the code
