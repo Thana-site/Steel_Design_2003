@@ -779,117 +779,94 @@ with tab3:
     st.write(selected_rows)
     st.write(len(df_Selected))
 
-# Tab3: Filtering and Selection
-tab3, tab4 = st.tabs(["Section Selection", "Section Analysis"])
-
-with tab3:
-    if 'df_Selected' not in st.session_state:
-        st.session_state.df_Selected = pd.DataFrame()
-
-    if file_path:
-        # User input for filtering Zx
-        zx_min = st.number_input("Show values greater than or equal to Zx [cm³]:", min_value=0, value=0, step=10)
-
-        # Apply filtering
-        filtered_data = data[data["Zx [cm3]"] >= zx_min]
-
-        # Configure AgGrid
-        gb = GridOptionsBuilder.from_dataframe(filtered_data)
-        gb.configure_selection("multiple", use_checkbox=True)  # Enable multi-select with checkboxes
-        gb.configure_grid_options(enableCellTextSelection=True)
-        grid_options = gb.build()
-
-        # Display AgGrid
-        grid_response = AgGrid(
-            filtered_data,
-            gridOptions=grid_options,
-            height=300,
-            width="100%",
-            theme="streamlit"
-        )
-
-        # Get selected rows
-        selected_rows = grid_response["selected_rows"]
-        st.session_state.df_Selected = pd.DataFrame(selected_rows)
-
-        # Display selected data
-        st.write("Selected Rows Data:")
-        st.write(st.session_state.df_Selected)
-        st.write(len(st.session_state.df_Selected))
-
-# Tab4: Structural Analysis
 with tab4:
-    def display_input_section():
-        """Handle the input section of the application."""
-        input_mode = st.radio("Select Input Mode:", ["slider", "number input"])
-        if input_mode == "slider":
-            Lbd = st.slider("Input Unbraced Length (Lb).", 0, 20)
-        else:
-            Lbd = st.number_input("Input Unbraced Length (Lb).")
-        st.write("The current number is:", Lbd)
-        return Lbd
-
-    def calculate_section_results(df, df_mat, section, option_mat, Lbd):
-        """Calculate results for a given section."""
-        try:
-            Mn, Lb, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat=df_mat, option=section, option_mat=option_mat, Lb=Lbd)
-            Fib = 0.9
-            FibMn = Fib * Mn
-
-            result_data = {
-                "Parameter": ["Mn (t-m.)", "Lb (m.)", "Lp (m.)", "Lr (m.)", "Mp (t-m.)", "Case", "Fib", "FibMn (t-m.)"],
-                "Value": [Mn, Lb, Lp, Lr, Mp, Case, Fib, FibMn]
-            }
-            return pd.DataFrame(result_data), Mn, Lb, Mni, Lni
-        except Exception as e:
-            st.error(f"Error calculating results for section {section}: {str(e)}")
-            return None, None, None, None, None
-
-    def create_moment_plot(section, Lb, Mn, Mni, Lni):
-        """Create a plotly plot for moment vs length."""
-        try:
-            Mni_flat = Mni[:3] + [Mni[3]] if len(Mni) > 3 else Mni
-            Lni_flat = Lni[:3] + [Lni[3]] if len(Lni) > 3 else Lni
-
-            data = pd.DataFrame({
-                "Lni (Length, m)": Lni_flat,
-                "Mni (Moment, t-m)": Mni_flat
-            })
-
-            fig = px.line(data, 
-                        x="Lni (Length, m)", 
-                        y="Mni (Moment, t-m)",
-                        title=f"Nominal Moment (Mn) vs. Unbraced Length (Lb) for {section}",
-                        labels={"Lni (Length, m)": "Length (m)", "Mni (Moment, t-m)": "Moment (t-m)"})
-
-            fig.add_vline(x=Lb, 
-                        line=dict(color="red", dash="dot"),
-                        annotation_text="Lb", 
-                        annotation_position="top")
-
-            fig.update_layout(xaxis_title="Unbraced Length (Lb)", yaxis_title="Nominal Moment (Mn)")
-            return fig
-        except Exception as e:
-            st.error(f"Error in plotting for section {section}: {str(e)}")
-            return None
-
-    if st.session_state.df_Selected.empty:
-        st.warning("No sections selected in Tab 3. Please select sections first.")
+    # Display the appropriate input widget
+    if st.session_state.input_mode == "slider":
+        Lbd = st.slider("Input Unbraced Length (Lb).", 0, 20)
     else:
-        Lbd = display_input_section()
+        Lbd = st.number_input("Input Unbraced Length (Lb).")
+    st.write("The current number is:", Lbd)
+   
+    if df_Selected is None or df_Selected.empty:
+        st.error("No data available in df_Selected.")
+        st.stop()
 
-        section_names = st.session_state.df_Selected["Section"].unique()
-        tabs = st.tabs([f"Results for {section}" for section in section_names])
+    # Create tabs for each selected section
+    if 'Section' in df_Selected.columns:
+        section_names = df_Selected["Section"].unique()
+    else:
+        print("The 'Section' column is missing.")
+    
+    tabs = st.tabs([f"Results for {section}" for section in section_names])
 
-        for idx, section in enumerate(section_names):
-            with tabs[idx]:
-                section_data = st.session_state.df_Selected[st.session_state.df_Selected["Section"] == section]
-                df_mat = None  # Define `df_mat` or pass it as a function argument
+    for idx, section in enumerate(section_names):
+        with tabs[idx]:
+            # Filter rows for the current section
+            section_data = df_Selected[df_Selected["Section"] == section]
+            colc = st.columns([2,4])
+            # Calculate values and display table for the selected section
+            with colc[0]:
+                with st.expander(f"Results Table for Section {section}"):
+                    try:
+                        Mn, Lb, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat=df_mat, option=section, option_mat=option_mat, Lb=Lbd)
+                        Fib = 0.9
+                        FibMn = 0.9 * Mn
 
-                Mn, Lb, Mni, Lni = calculate_section_results(data, df_mat, section, None, Lbd)
+                        # Create DataFrame for results
+                        result_data = {
+                            "Parameter": ["Mn (t-m.)", "Lb (m.)", "Lp (m.)", "Lr (m.)", "Mp (t-m.)", "Case", "Fib", "FibMp (t-m.)"],
+                            "Value": [Mn, Lb, Lp, Lr, Mp, Case, Fib, FibMn]
+                        }
+                        result_df = pd.DataFrame(result_data)
+                        st.write(f"Results for Section {section}:")
+                        st.dataframe(result_df)
 
-                if all(v is not None for v in [Mn, Lb, Mni, Lni]):
-                    with st.expander(f"Plot for Section {section}"):
-                        fig = create_moment_plot(section, Lb, Mn, Mni, Lni)
-                        if fig:
-                            st.plotly_chart(fig)
+                    except Exception as e:
+                        st.error(f"Error in calculation for section {section}: {str(e)}")
+
+            with colc[1]:
+                # Plotting data for the current section
+                with st.expander(f"Plot for Section {section}"):
+                    try:
+                        # Flatten the nested lists for plotting
+                        Mni_flat = Mni[:3] + Mni[3]
+                        Lni_flat = Lni[:3] + Lni[3]
+
+                        # Initialize flat lists
+                        Lb_flat = []
+                        Mn_flat = []
+
+                        # Create lists for Lb_flat and Mn_flat
+                        for i in range(len(Mni_flat)):
+                            Lb_flat.append(Lb)  # Assuming Lb is a constant
+                            Mn_flat.append(Mn)  # Assuming Mn is a constant
+
+                        # Convert data to a pandas DataFrame for plotting
+                        data = pd.DataFrame({
+                            "Lni (Length, m)": Lni_flat,
+                            "Lb (Length, m)": Lb_flat,
+                            "Mni (Moment, t-m)": Mni_flat,
+                            "Mn (Moment t-m)": Mn_flat,
+                        })
+
+                        # Plot the graph using Plotly Express
+                        fig = px.line(data, x="Lni (Length, m)", y=["Mni (Moment, t-m)", "Mn (Moment t-m)"],
+                                    title=f"Nominal Moment (Mn) vs. Unbraced Length (Lb) for {section}",
+                                    labels={"Lni (Length, m)": "Length (m)",
+                                            "Mni (Moment, t-m)": "Moment (t-m)",
+                                            "Mn (Moment t-m)": "Moment (t-m)"})
+
+                        # Add vertical line for Lb (constant)
+                        fig.add_vline(x=Lb, line=dict(color="red", dash="dot"), 
+                                    annotation_text="Lb", annotation_position="top")
+
+                        # Add axis titles using update_layout
+                        fig.update_layout(
+                            xaxis_title="Unbraced Length (Lb)",  # Title for the x-axis
+                            yaxis_title="Nominal Moment (Mn)",  # Title for the y-axis
+                        )
+
+                        st.plotly_chart(fig)
+
+                    except Exception as e:
+                        st.error(f"Error in plotting for section {section}: {str(e)}")
