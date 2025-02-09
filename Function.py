@@ -37,6 +37,11 @@ if os.path.exists(file_path) and os.path.exists(file_path_mat):
         else:
             section_list_mat = df_mat.index.tolist()  # Use the index if "Grade" is not found
         
+        # Initialize variables with default values to prevent errors
+        option = "W-100x50x5x7 (9.3 kg/m)"
+        option_mat = 'SS400'
+        bending_axis = None
+
         # Print the results
         print("Files loaded successfully!")
         print("Section list:", section_list)
@@ -47,22 +52,16 @@ if os.path.exists(file_path) and os.path.exists(file_path_mat):
 else:
     print("One or both files do not exist at the given paths. Please check the file paths.")
 
-# Streamlit Interface
-st.subheader("Structural Steel Design", divider="red")
-
-# Default selected options
-option = "W-100x50x5x7 (9.3 kg/m)"  # Initial default value for section
-option_mat = 'SS400'  # Initial default value for material
 
 # Toggle for enabling Chapter F Strength input
-ChapterF_Strength = st.sidebar.checkbox("For Chapter F Strength")
+ChapterF_Strength = st.sidebar.toggle("For Chapter F Strength")
 
 if ChapterF_Strength:
     # Dropdown to select a section
-    option = st.sidebar.selectbox("Choose a Steel Section:", section_list, index=section_list.index(option))
+    option = st.sidebar.selectbox("Choose a Steel Section:", section_list)
 
     # Dropdown to select a material grade
-    option_mat = st.sidebar.selectbox("Choose a Steel Grade:", section_list_mat, index=section_list_mat.index(option_mat))
+    option_mat = st.sidebar.selectbox("Choose a Steel Grade:", section_list_mat)
 
     # Dropdown to select a bending axis
     bending_axis = st.sidebar.selectbox(
@@ -72,16 +71,17 @@ if ChapterF_Strength:
         placeholder="Select bending axis..."  # Relevant placeholder text
     )
 
-# Toggle for enabling Chapter F Design input
-ChapterF_Design = st.sidebar.checkbox("For Chapter F Design")
+# Toggle for enabling Chapter F Strength input
+ChapterF_Design = st.sidebar.toggle("For Chapter F Design")
 if ChapterF_Design:
-    # Input for Ultimate Bending Moment
-    Mu = st.sidebar.number_input("Input Ultimate Bending Moment:")
+    # Dropdown to select a section
+    Mu = st.sidebar.number_input("input Ultimate Bending Moment:")
 
-    # Input for Ultimate Shear Force
-    Vu = st.sidebar.number_input("Input Ultimate Shear Force:")
+    # Dropdown to select a material grade
+    Vu = st.sidebar.number_input("input Ultimate Shear Force:")
 
-# Tabs
+# Streamlit Interface
+st.subheader("Structural Steel Design", divider="red")
 tab1, tab2, tab3, tab4 = st.tabs(["Structural Steel Catalogue", "Chapter F (Strength)", "Steel Catalogue", "Chapter F (Design)"])
 
 with tab1:
