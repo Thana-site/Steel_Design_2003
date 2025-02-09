@@ -18,34 +18,26 @@ file_path_mat = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Ste
 if os.path.exists(file_path) and os.path.exists(file_path_mat):
     try:
         # Read the CSV files
-        df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
-        df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
-
-        # Print columns to verify
-        print("Columns in df:", df.columns)
-        print("Columns in df_mat:", df_mat.columns)
-
-        # Generate section list based on whether "Section" is a column or index
-        if "Section" in df.columns:
-            section_list = df["Section"].tolist()
-        else:
-            section_list = df.index.tolist()  # Use the index if "Section" is not found
-
-        # Generate section list based on whether "Grade" is a column or index
-        if "Grade" in df_mat.columns:
-            section_list_mat = df_mat["Grade"].tolist()
-        else:
-            section_list_mat = df_mat.index.tolist()  # Use the index if "Grade" is not found
+        df = pd.read_csv(file_path, encoding='ISO-8859-1')
+        df_mat = pd.read_csv(file_path_mat, encoding='ISO-8859-1')
         
-        # Print the results
+        # Ensure 'Section' is set as index
+        if "Section" in df.columns:
+            df.set_index("Section", inplace=True)
+        
+        # Ensure 'Grade' is set as index for materials
+        if "Grade" in df_mat.columns:
+            df_mat.set_index("Grade", inplace=True)
+        
+        # Generate section and material lists
+        section_list = list(df.index)
+        section_list_mat = list(df_mat.index)
+        
         print("Files loaded successfully!")
-        print("Section list:", section_list)
-        print("Material section list:", section_list_mat)
-
     except Exception as e:
-        print(f"An error occurred while loading the files: {e}")
+        st.error(f"An error occurred while loading the files: {e}")
 else:
-    print("One or both files do not exist at the given paths. Please check the file paths.")
+    st.error("One or both files do not exist at the given paths. Please check the file paths.")
 
 # Streamlit Interface
 st.subheader("Structural Steel Design", divider="red")
@@ -61,18 +53,17 @@ ChapterF_Strength = st.sidebar.checkbox("For Chapter F Strength")
 if ChapterF_Strength:
     # Dropdown to select a section
     option = st.sidebar.selectbox("Choose a Steel Section:", section_list, index=section_list.index(option) if option in section_list else 0)
-
+    
     # Dropdown to select a material grade
     option_mat = st.sidebar.selectbox("Choose a Steel Grade:", section_list_mat, index=section_list_mat.index(option_mat) if option_mat in section_list_mat else 0)
-
+    
     # Dropdown to select a bending axis
     bending_axis = st.sidebar.selectbox(
-        "Select Bending Axis:",  # More appropriate label
+        "Select Bending Axis:",  
         ("Major axis bending", "Minor axis bending"),
-        index=None,  # No default selection
-        placeholder="Select bending axis..."  # Relevant placeholder text
+        index=None,  
+        placeholder="Select bending axis..."  
     )
-
 
 Mu = 100
 Vu = 100
@@ -82,7 +73,7 @@ ChapterF_Design = st.sidebar.checkbox("For Chapter F Design")
 if ChapterF_Design:
     # Input for Ultimate Bending Moment
     Mu = st.sidebar.number_input("Input Ultimate Bending Moment:")
-
+    
     # Input for Ultimate Shear Force
     Vu = st.sidebar.number_input("Input Ultimate Shear Force:")
 
@@ -93,14 +84,12 @@ with tab1:
     cols = st.columns(3)
     with cols[0]:
         # Debug: Check if option is defined and valid
-        if option:
-            if option in df.index:
-                st.write(f"Details for **{option}**:")
-                st.write(df.loc[option])
-            else:
-                st.warning("Selected section not found in the database!")
+        if option in df.index:
+            st.write(f"Details for **{option}**:")
+            st.write(df.loc[option])
         else:
-            st.warning("No section selected.")
+            st.warning("Selected section not found in the database!")
+
 
         # Display details for the selected material section
         st.write(f"Details for **{option_mat}**:")
@@ -795,28 +784,26 @@ with tab4:
     else:
         Lbd = st.number_input("Input Unbraced Length (Lb).")
     st.write("The current number is:", Lbd)
-   
+
     if df_Selected is None or df_Selected.empty:
         st.error("No data available in df_Selected.")
         st.stop()
 
-    # Create tabs for each selected section
-    if 'Section' in df_Selected.columns:
-        section_names = df_Selected["Section"].unique()
-    else:
-        print("The 'Section' column is missing.")
+    # Check if 'Section' column exists
+    if 'Section' not in df_Selected.columns:
+        st.error("The 'Section' column is missing.")
+        st.stop()
     
-    tabsp = []
-    for section in section_names:
-        tab_title = f"Results for {section}"
-        tab_content = data.get(section)  # Assuming `data` is a dictionary or similar structure
-        if not tab_content:  # Check if the data for this section is empty or None
-            tab_content = "No Data Available"
-        tabsp.append(st.tab(tab_title, tab_content))
+    # Get unique section names
+    section_names = df_Selected["Section"].unique()
 
-    # Use `tabs` to display them in Streamlit
-    st.tabs(tabsp)
+    # Create tabs
+    tabsp = st.tabs([f"Results for {section}" for section in section_names])
 
+    for tab, section in zip(tabsp, section_names):
+        with tab:
+            tab_content = data.get(section, "No Data Available")  # Default to "No Data Available"
+            st.write(tab_content)
 
     for idx, section in enumerate(section_names):
         with tabsp[idx]:
