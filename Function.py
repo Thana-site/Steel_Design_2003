@@ -819,7 +819,7 @@ with tab4:
 
 
     for idx, section in enumerate(section_names):
-        with tabs[idx]:
+        with tabsp[idx]:
             # Filter rows for the current section
             section_data = df_Selected[df_Selected["Section"] == section]
             colc = st.columns([2,4])
