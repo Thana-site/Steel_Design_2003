@@ -9,10 +9,11 @@ import altair as alt #version 5.4.1.
 import plotly.express as px #6.0.0
 from st_aggrid import AgGrid,GridOptionsBuilder #version 1.1.0
 import os 
+import requests
 
 # File paths
-file_path = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-H-Shape.csv"
-file_path_mat = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-Material.csv"
+file_path = r"https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
+file_path_mat = r"https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
 
 # Initialize empty DataFrames
 df = pd.DataFrame()
@@ -20,10 +21,20 @@ df_mat = pd.DataFrame()
 section_list = []
 section_list_mat = []
 
-# Check if the files exist before loading them
-if os.path.exists(file_path) and os.path.exists(file_path_mat):
+# Function to check if URL is accessible
+def check_url(url):
     try:
-        # Read the CSV files with index_col as 'Section' and 'Grade'
+        response = requests.get(url)
+        # Return True if response is OK (status code 200)
+        return response.status_code == 200
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error: {e}")
+        return False
+
+# Check if the files exist at the URLs
+if check_url(file_path) and check_url(file_path_mat):
+    try:
+        # Read the CSV files directly from the URLs
         df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
         df_mat = pd.read_csv(file_path_mat, index_col=0, encoding="utf-8")
         
@@ -35,7 +46,7 @@ if os.path.exists(file_path) and os.path.exists(file_path_mat):
     except Exception as e:
         st.error(f"An error occurred while loading the files: {e}")
 else:
-    st.error("One or both files do not exist at the given paths. Please check the file paths.")
+    st.error("One or both files do not exist at the given URLs. Please check the URLs.")
 
 # Streamlit Interface
 st.subheader("Structural Steel Design")
