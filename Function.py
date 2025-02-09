@@ -10,10 +10,6 @@ import plotly.express as px #6.0.0
 from st_aggrid import AgGrid,GridOptionsBuilder #version 1.1.0
 import os 
 
-import os
-import pandas as pd
-import streamlit as st
-
 # File paths
 file_path = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = r"C:\Users\Lenovo\OneDrive\Project to the moon\2003_APP\2003-Steel Design\2003-Steel-Beam\Steel_Design_2003\2003-Steel-Beam-DataBase-Material.csv"
@@ -29,7 +25,7 @@ if os.path.exists(file_path) and os.path.exists(file_path_mat):
     try:
         # Read the CSV files with index_col as 'Section' and 'Grade'
         df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
-        df_mat = pd.read_csv(file_path_mat, index_col=0, encoding='ISO-8859-1')
+        df_mat = pd.read_csv(file_path_mat, index_col=0, encoding="utf-8")
         
         # Check if the expected index exists
         section_list = list(df.index)
@@ -135,11 +131,17 @@ with tab1:
         else:
             st.warning("Please select a valid section!")
         
-        # (Flexural) Table 4.1b : Compression Elements Member Subject to Flexure
         def Flexural_classify(df, df_mat, option, option_mat):
-            #call the data subjected to grade of Structural Steel
-            Fy = float(df_mat.loc[option_mat,"Yield Point (ksc)"])
-            E = float(df_mat.loc[option_mat,"E"])
+            # ตรวจสอบว่า option_mat มีอยู่ใน df_mat หรือไม่
+            if option_mat not in df_mat.index:
+                raise KeyError(f"Option '{option_mat}' not found in the DataFrame.")
+            
+            # ตรวจสอบว่า 'Yield Point (ksc)' และ 'E' มีอยู่ใน df_mat หรือไม่
+            if "Yield Point (ksc)" not in df_mat.columns or "E" not in df_mat.columns:
+                raise KeyError("'Yield Point (ksc)' or 'E' column not found in the DataFrame.")
+
+            Fy = float(df_mat.loc[option_mat, "Yield Point (ksc)"])
+            E = float(df_mat.loc[option_mat, "E"])
 
             # Convert DataFrame values to float
             lamw = float(df.loc[option, 'h/tw'])
@@ -170,7 +172,10 @@ with tab1:
             return lamf, lamw, lamf_limp, lamf_limr, lamw_limp, lamw_limr, Classify_flange_Flexural, Classify_Web_Flexural
 
         # Call the function and capture the returned values
-        lamf, lamw, lamf_limp, lamf_limr, lamw_limp, lamw_limr, Classify_flange_flexural, Classify_Web_flexural = Flexural_classify(df, df_mat, option, option_mat)
+        try:
+            lamf, lamw, lamf_limp, lamf_limr, lamw_limp, lamw_limr, Classify_flange_flexural, Classify_Web_flexural = Flexural_classify(df, df_mat, option, option_mat)
+        except KeyError as e:
+            print(f"KeyError: {e}")
 
         # (Compression) Table 4.1a : Compression Elements Member Subject to Axial Compression
         def compression_classify(df, df_mat, option, option_mat):
