@@ -1518,6 +1518,19 @@ with tab2:
         st.warning("⚠️ Please select section and material in the sidebar.")
 
 with tab3:
+    if 'Section' not in df_selected.columns:
+    if df_selected.index.name == 'Section' or 'Section' in df_selected.index:
+        df_selected.reset_index(inplace=True)
+    elif 'Nominal Size [mm]' in df_selected.columns:
+        df_selected.rename(columns={'Nominal Size [mm]': 'Section'}, inplace=True)
+
+    # Show all selected section data instead of summary subset
+    with st.expander("📋 Selected Sections Summary", expanded=True):
+        try:
+            st.dataframe(df_selected, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error displaying summary: {e}")
+
     st.markdown('<h2 class="sub-header">Steel Section Selection Tool</h2>', unsafe_allow_html=True)
     
     # Filter controls
@@ -1603,7 +1616,7 @@ with tab4:
     st.markdown('<h2 class="sub-header">Comparative Analysis Dashboard</h2>', unsafe_allow_html=True)
     
     # Safe checking for selected sections
-    has_selected_sections = False
+    has_selected_sections = not df_selected.empty and 'Section' in df_selected.columns
     selected_sections_data = []
     
     try:
