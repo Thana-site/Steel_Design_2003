@@ -13,6 +13,37 @@ from st_aggrid import AgGrid,GridOptionsBuilder #version 1.1.0
 import os 
 import requests
 
+
+# เพิ่มที่ส่วนต้นของไฟล์
+def validate_section_data(df_selected):
+    """ตรวจสอบความถูกต้องของข้อมูลที่เลือก"""
+    required_columns = ['Section']
+    missing_columns = [col for col in required_columns if col not in df_selected.columns]
+    
+    if missing_columns:
+        return False, f"Missing required columns: {missing_columns}"
+    
+    return True, "Data validation passed"
+
+def safe_analysis(section, df, df_mat, option_mat, lb_value):
+    """ทำการวิเคราะห์อย่างปลอดภัยพร้อมการจัดการ Error"""
+    try:
+        if section not in df.index:
+            return None, f"Section {section} not found in database"
+        
+        result = F2(df, df_mat, section, option_mat, lb_value)
+        return result, None
+    except Exception as e:
+        return None, f"Analysis error for {section}: {str(e)}"
+
+# Initialize session state ที่ต้องเพิ่ม
+if 'section_lb_values' not in st.session_state:
+    st.session_state.section_lb_values = {}
+
+if 'selected_sections' not in st.session_state:
+    st.session_state.selected_sections = []
+
+
 # Configure page
 st.set_page_config(
     page_title="Steel Design Analysis",
@@ -605,19 +636,22 @@ with tab3:
         if weight_max < 1000:
             filtered_data = filtered_data[filtered_data["Unit Weight [kg/m]"] <= weight_max]
 
-        st.markdown(f"**📋 Filtered Results: {len(filtered_data)} sections**")
+        # Reset index เพื่อให้ Section กลายเป็น column
+        filtered_data_display = filtered_data.reset_index()
+        
+        st.markdown(f"**📋 Filtered Results: {len(filtered_data_display)} sections**")
 
-        # Configure AgGrid for better selection
-        gb = GridOptionsBuilder.from_dataframe(filtered_data)
+        # Configure AgGrid
+        gb = GridOptionsBuilder.from_dataframe(filtered_data_display)
         gb.configure_selection("multiple", use_checkbox=True, groupSelectsChildren=False)
         gb.configure_grid_options(enableCellTextSelection=True)
         gb.configure_column("Section", headerCheckboxSelection=True)
         grid_options = gb.build()
 
-        # Display grid with error handling
+        # Display grid
         try:
             grid_response = AgGrid(
-                filtered_data,
+                filtered_data_display,
                 gridOptions=grid_options,
                 height=400,
                 width="100%",
@@ -625,137 +659,140 @@ with tab3:
                 allow_unsafe_jscode=True,
                 update_mode='SELECTION_CHANGED'
             )
-        except Exception as e:
-            st.error(f"Error displaying grid: {e}")
-            grid_response = {"selected_rows": []}
-
-        # Get selected rows with safe checking
-        selected_rows = grid_response.get("selected_rows", [])
-        
-        if selected_rows is not None and len(selected_rows) > 0:
-            # Initialize session state for selected sections safely
-            try:
-                if 'selected_sections' not in st.session_state:
-                    st.session_state.selected_sections = []
-                
-                # Store as list to avoid DataFrame boolean issues
-                st.session_state.selected_sections = list(selected_rows)
+            
+            # จัดการ selected rows อย่างถูกต้อง
+            selected_rows = grid_response.get("selected_rows", [])
+            
+            if selected_rows is not None and len(selected_rows) > 0:
+                # แปลงเป็น DataFrame และตรวจสอบ columns
                 df_selected = pd.DataFrame(selected_rows)
                 
-                st.success(f"✅ Selected {len(selected_rows)} sections for analysis")
-            except Exception as e:
-                st.error(f"Error storing selected sections: {e}")
-                st.session_state.selected_sections = []
-            
-            # Show selected sections summary with comprehensive error handling
-            with st.expander("📋 Selected Sections Summary", expanded=True):
-                try:
-                    summary_cols = ['Section', 'Zx [cm3]', 'd [mm]', 'Unit Weight [kg/m]']
-                    available_cols = [col for col in summary_cols if col in df_selected.columns]
-                    if available_cols and not df_selected.empty:
-                        st.dataframe(df_selected[available_cols], use_container_width=True)
-                    else:
-                        st.warning("⚠️ Summary data not available or no columns found")
-                except Exception as e:
-                    st.error(f"Error displaying summary: {e}")
-        else:
-            st.info("ℹ️ Please select sections for comparative analysis")
+                # ตรวจสอบว่ามี column 'Section' หรือไม่
+                if 'Section' in df_selected.columns:
+                    # เก็บใน session state
+                    st.session_state.selected_sections = df_selected.to_dict('records')
+                    st.success(f"✅ Selected {len(selected_rows)} sections for analysis")
+                    
+                    # แสดง summary ที่ครบถ้วน
+                    with st.expander("📋 Selected Sections Summary", expanded=True):
+                        # เลือกคอลัมน์ที่สำคัญทั้งหมด
+                        summary_cols = ['Section', 'Zx [cm3]', 'Zy [cm3]', 'd [mm]', 'bf [mm]', 
+                                      'tf [mm]', 'tw [mm]', 'Unit Weight [kg/m]', 'Sx [cm3]', 
+                                      'Sy [cm3]', 'Ix [cm4]', 'Iy [cm4]']
+                        available_cols = [col for col in summary_cols if col in df_selected.columns]
+                        
+                        if available_cols:
+                            st.dataframe(df_selected[available_cols], use_container_width=True)
+                            
+                            # แสดง individual Lb inputs
+                            st.markdown("### 📏 Individual Unbraced Length Settings")
+                            
+                            # สร้าง dictionary สำหรับเก็บ Lb แต่ละหน้าตัด
+                            if 'section_lb_values' not in st.session_state:
+                                st.session_state.section_lb_values = {}
+                            
+                            # สร้าง input สำหรับ Lb แต่ละหน้าตัด
+                            for idx, row in df_selected.iterrows():
+                                section_name = row['Section']
+                                col_lb1, col_lb2 = st.columns([2, 1])
+                                
+                                with col_lb1:
+                                    lb_value = st.number_input(
+                                        f"📏 Lb for {section_name} [m]:", 
+                                        min_value=0.0, 
+                                        value=st.session_state.section_lb_values.get(section_name, 6.0),
+                                        step=0.5,
+                                        key=f"lb_{section_name}"
+                                    )
+                                    st.session_state.section_lb_values[section_name] = lb_value
+                                
+                                with col_lb2:
+                                    st.metric(f"Current Lb", f"{lb_value} m")
+                        else:
+                            st.warning("⚠️ Summary data not available")
+                else:
+                    st.error("❌ Selected data does not contain 'Section' column")
+            else:
+                st.info("ℹ️ Please select sections for comparative analysis")
+                
+        except Exception as e:
+            st.error(f"Error displaying grid: {e}")
     else:
         st.error("❌ No data available")
 
 with tab4:
     st.markdown('<h2 class="sub-header">Comparative Analysis Dashboard</h2>', unsafe_allow_html=True)
     
-    # Safe checking for selected sections
+    # ตรวจสอบ selected sections
     has_selected_sections = False
     selected_sections_data = []
     
-    try:
-        if 'selected_sections' in st.session_state:
-            selected_sections_raw = st.session_state.selected_sections
-            
-            # Handle different data types
-            if selected_sections_raw is not None:
-                if isinstance(selected_sections_raw, (list, tuple)):
-                    selected_sections_data = list(selected_sections_raw)
-                    has_selected_sections = len(selected_sections_data) > 0
-                elif isinstance(selected_sections_raw, pd.DataFrame):
-                    if not selected_sections_raw.empty:
-                        selected_sections_data = selected_sections_raw.to_dict('records')
-                        has_selected_sections = True
-                else:
-                    # Try to convert to list
-                    try:
-                        selected_sections_data = list(selected_sections_raw)
-                        has_selected_sections = len(selected_sections_data) > 0
-                    except:
-                        selected_sections_data = []
-                        has_selected_sections = False
-    except Exception as e:
-        st.error(f"Error processing selected sections: {e}")
-        selected_sections_data = []
-        has_selected_sections = False
+    if 'selected_sections' in st.session_state and st.session_state.selected_sections:
+        selected_sections_data = st.session_state.selected_sections
+        has_selected_sections = True
     
     if has_selected_sections:
-        try:
-            df_selected = pd.DataFrame(selected_sections_data)
-        except Exception as e:
-            st.error(f"Error creating DataFrame from selected sections: {e}")
-            df_selected = pd.DataFrame()
+        df_selected = pd.DataFrame(selected_sections_data)
         
         # Input controls for analysis
         col_input1, col_input2, col_input3 = st.columns(3)
         
         with col_input1:
-            if st.session_state.input_mode == "slider":
-                Lbd = st.slider("📏 Design Unbraced Length [m]", 0.0, 20.0, 6.0, 0.5)
-            else:
-                Lbd = st.number_input("📏 Design Unbraced Length [m]", value=6.0, step=0.5)
+            # Global Lb setting
+            use_global_lb = st.checkbox("🌐 Use Global Lb for all sections", value=False)
+            if use_global_lb:
+                if st.session_state.input_mode == "slider":
+                    global_lb = st.slider("📏 Global Unbraced Length [m]", 0.0, 20.0, 6.0, 0.5)
+                else:
+                    global_lb = st.number_input("📏 Global Unbraced Length [m]", value=6.0, step=0.5)
         
         with col_input2:
             analysis_type = st.selectbox("🔍 Analysis Type", 
-                                       ["Moment Capacity", "Weight Comparison", "Efficiency Ratio"])
+                                       ["Moment Capacity", "Weight Comparison", "Efficiency Ratio", "Detailed Comparison"])
         
         with col_input3:
             show_details = st.checkbox("📊 Show Detailed Results", value=True)
-
+        
+        # ตรวจสอบว่ามี Section column
         if 'Section' in df_selected.columns and len(df_selected) > 0:
-            try:
-                section_names = df_selected["Section"].unique()
-            except Exception as e:
-                st.error(f"Error getting section names: {e}")
-                section_names = []
+            section_names = df_selected["Section"].unique()
             
             # Initialize results storage
             comparison_results = []
-            plot_data = {'sections': [], 'Mp': [], 'Mn': [], 'phi_Mn': [], 'weight': [], 'efficiency': []}
+            plot_data = {'sections': [], 'Mp': [], 'Mn': [], 'phi_Mn': [], 'weight': [], 
+                        'efficiency': [], 'lb_used': []}
             
-            # Analyze each section with comprehensive error handling
+            # Analyze each section
             for section in section_names:
                 try:
-                    # Check if section exists in main dataframe
                     if section not in df.index:
                         st.warning(f"⚠️ Section {section} not found in database")
                         continue
-                        
+                    
+                    # กำหนด Lb ที่จะใช้
+                    if use_global_lb:
+                        lb_to_use = global_lb
+                    else:
+                        lb_to_use = st.session_state.section_lb_values.get(section, 6.0)
+                    
                     # Perform F2 analysis
-                    Mn, Lb_calc, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat, section, option_mat, Lbd)
+                    Mn, Lb_calc, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat, section, option_mat, lb_to_use)
                     
                     Fib = 0.9
                     FibMn = Fib * Mn
                     
-                    # Safely get weight
+                    # Get weight
                     try:
                         weight = float(df.loc[section, 'Unit Weight [kg/m]'])
                     except (KeyError, ValueError):
                         weight = 0.0
-                        st.warning(f"⚠️ Weight data not available for {section}")
                     
                     efficiency = FibMn / weight if weight > 0 else 0
                     
                     # Store results
                     comparison_results.append({
                         'Section': section,
+                        'Lb Used (m)': lb_to_use,
                         'Mp (t⋅m)': Mp,
                         'Mn (t⋅m)': Mn,
                         'φMn (t⋅m)': FibMn,
@@ -763,7 +800,8 @@ with tab4:
                         'Efficiency': efficiency,
                         'Lp (m)': Lp,
                         'Lr (m)': Lr,
-                        'Case': Case
+                        'Case': Case,
+                        'Capacity Ratio': Mn/Mp if Mp > 0 else 0
                     })
                     
                     # Store plot data
@@ -773,6 +811,7 @@ with tab4:
                     plot_data['phi_Mn'].append(FibMn)
                     plot_data['weight'].append(weight)
                     plot_data['efficiency'].append(efficiency)
+                    plot_data['lb_used'].append(lb_to_use)
                     
                 except Exception as e:
                     st.error(f"❌ Error analyzing section {section}: {e}")
@@ -780,261 +819,223 @@ with tab4:
             
             if comparison_results:
                 results_df = pd.DataFrame(comparison_results)
-                
-                # Sort by efficiency (highest first)
                 results_df = results_df.sort_values('Efficiency', ascending=False)
                 
-                # Display summary table
-                st.markdown("### 📊 Comparative Analysis Results")
+                # Display enhanced results table
+                st.markdown("### 📊 Enhanced Comparative Analysis Results")
                 
-                # Create styled dataframe
-                def highlight_best(s):
+                # Create color-coded styling
+                def highlight_performance(s):
                     if s.name == 'Efficiency':
                         max_val = s.max()
-                        return ['background-color: #d4edda' if v == max_val else '' for v in s]
-                    elif s.name == 'Weight (kg/m)':
-                        min_val = s.min()
-                        return ['background-color: #d4edda' if v == min_val else '' for v in s]
+                        return ['background-color: #d4edda; font-weight: bold' if v == max_val else 
+                               'background-color: #fff3cd' if v >= max_val * 0.9 else '' for v in s]
                     elif s.name == 'φMn (t⋅m)':
                         max_val = s.max()
-                        return ['background-color: #d4edda' if v == max_val else '' for v in s]
+                        return ['background-color: #d4edda; font-weight: bold' if v == max_val else 
+                               'background-color: #fff3cd' if v >= max_val * 0.9 else '' for v in s]
+                    elif s.name == 'Weight (kg/m)':
+                        min_val = s.min()
+                        return ['background-color: #d4edda; font-weight: bold' if v == min_val else 
+                               'background-color: #fff3cd' if v <= min_val * 1.1 else '' for v in s]
+                    elif s.name == 'Capacity Ratio':
+                        return ['background-color: #d4edda' if v >= 0.9 else
+                               'background-color: #fff3cd' if v >= 0.7 else
+                               'background-color: #f8d7da' for v in s]
                     return [''] * len(s)
                 
-                styled_results = results_df.style.apply(highlight_best, axis=0)
+                styled_results = results_df.style.apply(highlight_performance, axis=0)
                 st.dataframe(styled_results, use_container_width=True)
                 
-                # Create comparison plots
-                st.markdown("### 📈 Visual Comparison")
+                # Enhanced plotting section
+                st.markdown("### 📈 Enhanced Visual Analysis")
                 
-                if analysis_type == "Moment Capacity":
-                    # Moment capacity comparison
+                if analysis_type == "Detailed Comparison":
+                    # Create comprehensive dashboard
                     fig = make_subplots(
-                        rows=2, cols=2,
-                        subplot_titles=('Plastic vs Nominal Moment', 'Design Moment Capacity', 
-                                      'Moment Breakdown', 'Efficiency Ranking'),
+                        rows=3, cols=2,
+                        subplot_titles=('Moment Capacity vs Lb Used', 'Weight vs Efficiency', 
+                                      'Capacity Utilization', 'Design Cases Distribution',
+                                      'Lb Settings Overview', 'Performance Ranking'),
                         specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                               [{"secondary_y": False}, {"secondary_y": False}],
                                [{"secondary_y": False}, {"secondary_y": False}]]
                     )
                     
-                    # Plot 1: Mp vs Mn
-                    fig.add_trace(
-                        go.Bar(name='Mp', x=plot_data['sections'], y=plot_data['Mp'], 
-                               marker_color='orange', opacity=0.7),
-                        row=1, col=1
-                    )
-                    fig.add_trace(
-                        go.Bar(name='Mn', x=plot_data['sections'], y=plot_data['Mn'], 
-                               marker_color='blue', opacity=0.7),
-                        row=1, col=1
-                    )
+                    # Plot 1: Moment vs Lb
+                    colors = px.colors.qualitative.Set3[:len(plot_data['sections'])]
+                    for i, (section, lb, mn) in enumerate(zip(plot_data['sections'], plot_data['lb_used'], plot_data['phi_Mn'])):
+                        fig.add_trace(
+                            go.Scatter(x=[lb], y=[mn], mode='markers+text', 
+                                     name=section, text=[section], textposition="top center",
+                                     marker=dict(size=12, color=colors[i])),
+                            row=1, col=1
+                        )
                     
-                    # Plot 2: Design capacity
+                    # Plot 2: Weight vs Efficiency scatter
                     fig.add_trace(
-                        go.Bar(name='φMn', x=plot_data['sections'], y=plot_data['phi_Mn'], 
-                               marker_color='green', opacity=0.7),
+                        go.Scatter(x=plot_data['weight'], y=plot_data['efficiency'],
+                                 mode='markers+text', text=plot_data['sections'],
+                                 textposition="top center", name='Weight vs Efficiency',
+                                 marker=dict(size=10, color='blue')),
                         row=1, col=2
                     )
                     
-                    # Plot 3: Stacked comparison
+                    # Plot 3: Capacity utilization
+                    capacity_ratios = [r['Capacity Ratio'] for r in comparison_results]
                     fig.add_trace(
-                        go.Bar(name='Mp', x=plot_data['sections'], y=plot_data['Mp'], 
-                               marker_color='orange'),
-                        row=2, col=1
-                    )
-                    fig.add_trace(
-                        go.Bar(name='Mn', x=plot_data['sections'], y=plot_data['Mn'], 
-                               marker_color='blue'),
-                        row=2, col=1
-                    )
-                    fig.add_trace(
-                        go.Bar(name='φMn', x=plot_data['sections'], y=plot_data['phi_Mn'], 
-                               marker_color='green'),
+                        go.Bar(x=plot_data['sections'], y=capacity_ratios,
+                               name='Mn/Mp Ratio', marker_color='orange'),
                         row=2, col=1
                     )
                     
-                    # Plot 4: Efficiency
+                    # Plot 4: Cases pie chart
+                    cases = [r['Case'] for r in comparison_results]
+                    case_counts = pd.Series(cases).value_counts()
                     fig.add_trace(
-                        go.Bar(name='Efficiency', x=plot_data['sections'], y=plot_data['efficiency'], 
-                               marker_color='purple', opacity=0.7),
+                        go.Pie(labels=case_counts.index, values=case_counts.values,
+                               name='Design Cases'),
                         row=2, col=2
                     )
                     
-                    fig.update_layout(height=800, showlegend=True, 
-                                    title_text=f"Moment Capacity Comparison (Lb = {Lbd}m)")
+                    # Plot 5: Lb settings
+                    fig.add_trace(
+                        go.Bar(x=plot_data['sections'], y=plot_data['lb_used'],
+                               name='Lb Used', marker_color='green'),
+                        row=3, col=1
+                    )
+                    
+                    # Plot 6: Performance ranking
+                    fig.add_trace(
+                        go.Bar(x=plot_data['sections'], y=plot_data['efficiency'],
+                               name='Efficiency Ranking', marker_color='purple'),
+                        row=3, col=2
+                    )
+                    
+                    fig.update_layout(height=1200, showlegend=False, 
+                                    title_text="Comprehensive Steel Section Analysis Dashboard")
                     fig.update_xaxes(tickangle=45)
                     
                     st.plotly_chart(fig, use_container_width=True)
                 
-                elif analysis_type == "Weight Comparison":
-                    # Weight vs capacity scatter plot
-                    fig = px.scatter(
-                        x=plot_data['weight'], 
+                elif analysis_type == "Moment Capacity":
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(
+                        x=plot_data['sections'],
                         y=plot_data['phi_Mn'],
-                        text=plot_data['sections'],
-                        labels={'x': 'Weight (kg/m)', 'y': 'Design Moment φMn (t⋅m)'},
-                        title='Weight vs Design Moment Capacity'
+                        name='φMn',
+                        marker_color='lightblue',
+                        text=[f'{v:.2f}' for v in plot_data['phi_Mn']],
+                        textposition='auto'
+                    ))
+                    fig.update_layout(
+                        title="Design Moment Capacity Comparison",
+                        xaxis_title="Steel Sections",
+                        yaxis_title="φMn (t⋅m)",
+                        showlegend=False
                     )
-                    fig.update_traces(textposition="top center", marker_size=12)
-                    fig.update_layout(height=500)
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                elif analysis_type == "Weight Comparison":
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(
+                        x=plot_data['sections'],
+                        y=plot_data['weight'],
+                        name='Weight',
+                        marker_color='orange',
+                        text=[f'{v:.1f}' for v in plot_data['weight']],
+                        textposition='auto'
+                    ))
+                    fig.update_layout(
+                        title="Unit Weight Comparison",
+                        xaxis_title="Steel Sections",
+                        yaxis_title="Weight (kg/m)",
+                        showlegend=False
+                    )
                     st.plotly_chart(fig, use_container_width=True)
                 
                 elif analysis_type == "Efficiency Ratio":
-                    # Efficiency comparison
-                    fig = px.bar(
-                        x=plot_data['sections'], 
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(
+                        x=plot_data['sections'],
                         y=plot_data['efficiency'],
-                        labels={'x': 'Steel Section', 'y': 'Efficiency (t⋅m/kg/m)'},
-                        title='Structural Efficiency Comparison',
-                        color=plot_data['efficiency'],
-                        color_continuous_scale='Viridis'
+                        name='Efficiency',
+                        marker_color='green',
+                        text=[f'{v:.3f}' for v in plot_data['efficiency']],
+                        textposition='auto'
+                    ))
+                    fig.update_layout(
+                        title="Efficiency Ratio (φMn/Weight)",
+                        xaxis_title="Steel Sections",
+                        yaxis_title="Efficiency (t⋅m)/(kg/m)",
+                        showlegend=False
                     )
-                    fig.update_layout(height=500)
                     st.plotly_chart(fig, use_container_width=True)
                 
-                # Detailed individual analysis
-                if show_details:
-                    st.markdown("### 🔍 Detailed Section Analysis")
-                    
-                    # Create tabs for each section
-                    if len(section_names) <= 5:  # Limit tabs to avoid UI clutter
-                        section_tabs = st.tabs([f"📊 {section}" for section in section_names])
-                        
-                        for idx, section in enumerate(section_names):
-                            with section_tabs[idx]:
-                                col_detail1, col_detail2 = st.columns([1, 2])
-                                
-                                with col_detail1:
-                                    # Section details
-                                    section_result = results_df[results_df['Section'] == section].iloc[0]
-                                    
-                                    st.markdown(f"#### 📋 {section} Analysis")
-                                    detail_data = {
-                                        'Parameter': ['Plastic Moment (Mp)', 'Nominal Moment (Mn)', 
-                                                    'Design Moment (φMn)', 'Weight', 'Efficiency',
-                                                    'Compact Length (Lp)', 'LTB Length (Lr)', 'Governing Case'],
-                                        'Value': [f"{section_result['Mp (t⋅m)']:.2f} t⋅m",
-                                                f"{section_result['Mn (t⋅m)']:.2f} t⋅m",
-                                                f"{section_result['φMn (t⋅m)']:.2f} t⋅m",
-                                                f"{section_result['Weight (kg/m)']:.1f} kg/m",
-                                                f"{section_result['Efficiency']:.3f} t⋅m/(kg/m)",
-                                                f"{section_result['Lp (m)']:.2f} m",
-                                                f"{section_result['Lr (m)']:.2f} m",
-                                                section_result['Case']]
-                                    }
-                                    
-                                    detail_df = pd.DataFrame(detail_data)
-                                    st.dataframe(detail_df, use_container_width=True)
-                                
-                                with col_detail2:
-                                    # Individual capacity curve
-                                    try:
-                                        Mn_plot, Lb_calc, Lp_plot, Lr_plot, Mp_plot, Mni_plot, Lni_plot, Case_plot = F2(df, df_mat, section, option_mat, Lbd)
-                                        
-                                        # Flatten plot data
-                                        Mni_flat = Mni_plot[:3] + (Mni_plot[3] if len(Mni_plot) > 3 else [])
-                                        Lni_flat = Lni_plot[:3] + (Lni_plot[3] if len(Lni_plot) > 3 else [])
-                                        
-                                        fig_individual = go.Figure()
-                                        
-                                        # Capacity curve
-                                        fig_individual.add_trace(go.Scatter(
-                                            x=Lni_flat, y=Mni_flat,
-                                            mode='lines+markers',
-                                            name='Capacity Curve',
-                                            line=dict(color='blue', width=2),
-                                            marker=dict(size=4)
-                                        ))
-                                        
-                                        # Current design point
-                                        fig_individual.add_trace(go.Scatter(
-                                            x=[Lbd], y=[Mn_plot],
-                                            mode='markers',
-                                            name=f'Design Point',
-                                            marker=dict(color='red', size=10, symbol='diamond')
-                                        ))
-                                        
-                                        # Add limiting lengths
-                                        fig_individual.add_vline(x=Lp_plot, line=dict(color="purple", dash="dash"), 
-                                                               annotation_text="Lp")
-                                        fig_individual.add_vline(x=Lr_plot, line=dict(color="brown", dash="dash"), 
-                                                               annotation_text="Lr")
-                                        
-                                        fig_individual.update_layout(
-                                            title=f"Capacity Curve - {section}",
-                                            xaxis_title="Unbraced Length (m)",
-                                            yaxis_title="Moment (t⋅m)",
-                                            height=400
-                                        )
-                                        
-                                        st.plotly_chart(fig_individual, use_container_width=True)
-                                        
-                                    except Exception as e:
-                                        st.error(f"Error plotting {section}: {e}")
-                    else:
-                        st.info("ℹ️ Too many sections selected. Showing summary only.")
-                
                 # Export functionality
-                st.markdown("### 💾 Export Results")
-                col_export1, col_export2 = st.columns(2)
-                
-                with col_export1:
-                    if st.button("📊 Download Comparison Table", use_container_width=True):
-                        csv = results_df.to_csv(index=False)
+                if show_details:
+                    st.markdown("### 📤 Export Options")
+                    
+                    # Create export data
+                    export_data = results_df.copy()
+                    csv_data = export_data.to_csv(index=False)
+                    
+                    col_export1, col_export2 = st.columns(2)
+                    
+                    with col_export1:
                         st.download_button(
-                            label="Download CSV",
-                            data=csv,
-                            file_name=f"steel_comparison_Lb_{Lbd}m.csv",
+                            label="📊 Download CSV Report",
+                            data=csv_data,
+                            file_name=f"steel_analysis_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
                             mime="text/csv"
                         )
-                
-                with col_export2:
-                    if st.button("📈 Generate Report", use_container_width=True):
-                        # Create summary report
-                        best_section = results_df.iloc[0]
-                        report = f"""
-                        Steel Section Comparison Report
-                        ================================
-                        
-                        Analysis Parameters:
-                        - Unbraced Length: {Lbd} m
-                        - Material Grade: {option_mat}
-                        - Number of Sections: {len(section_names)}
-                        
-                        Best Performing Section: {best_section['Section']}
-                        - Design Moment: {best_section['φMn (t⋅m)']:.2f} t⋅m
-                        - Weight: {best_section['Weight (kg/m)']:.1f} kg/m
-                        - Efficiency: {best_section['Efficiency']:.3f} t⋅m/(kg/m)
-                        - Case: {best_section['Case']}
-                        
-                        Generated on: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
-                        """
+                    
+                    with col_export2:
+                        # Create detailed report
+                        report_text = f"""
+# Steel Section Comparative Analysis Report
+
+## Analysis Parameters
+- Analysis Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+- Number of Sections Analyzed: {len(results_df)}
+- Material Grade: {option_mat}
+
+## Summary Results
+Best Overall Performance: {results_df.iloc[0]['Section']}
+- Efficiency: {results_df.iloc[0]['Efficiency']:.3f} t⋅m/(kg/m)
+- Design Moment: {results_df.iloc[0]['φMn (t⋅m)']:.2f} t⋅m
+- Unbraced Length Used: {results_df.iloc[0]['Lb Used (m)']} m
+
+## Individual Lb Settings
+{chr(10).join([f"- {row['Section']}: {row['Lb Used (m)']} m" for _, row in results_df.iterrows()])}
+
+## Detailed Results
+{results_df.to_string(index=False)}
+"""
                         
                         st.download_button(
-                            label="Download Report",
-                            data=report,
-                            file_name=f"steel_analysis_report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.txt",
+                            label="📋 Download Report",
+                            data=report_text,
+                            file_name=f"steel_report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.txt",
                             mime="text/plain"
                         )
-            
+                
             else:
                 st.warning("⚠️ No analysis results available")
         else:
-            st.error("❌ Selected data does not contain 'Section' column")
+            st.error("❌ Selected data does not contain 'Section' column or no sections available")
     else:
         st.info("ℹ️ Please select sections in the 'Section Selection' tab first")
         
-        # Show instruction card
+        # Show instructions
         st.markdown("""
-        <div class="warning-card">
-            <h4>📋 How to use Comparative Analysis:</h4>
-            <ol>
-                <li>Go to the <strong>"Section Selection"</strong> tab</li>
-                <li>Filter sections based on your requirements</li>
-                <li>Select multiple sections using checkboxes</li>
-                <li>Return to this tab to see comparative analysis</li>
-            </ol>
-        </div>
-        """, unsafe_allow_html=True)
+        ### 📖 How to use:
+        1. Go to **Section Selection** tab
+        2. Apply filters to narrow down sections
+        3. Select multiple sections using checkboxes
+        4. Set individual Lb values for each section
+        5. Come back to this tab for comparative analysis
+        """)
 
 # Footer
 st.markdown("---")
