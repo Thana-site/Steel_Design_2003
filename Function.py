@@ -71,17 +71,24 @@ st.markdown("""
 file_path = r"https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = r"https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
 
-# Initialize session state
+# Initialize session state with better safety checks
 if 'selected_sections' not in st.session_state:
     st.session_state.selected_sections = []
 if 'input_mode' not in st.session_state:
     st.session_state.input_mode = "slider"
 
-# Initialize empty DataFrames
-df = pd.DataFrame()
-df_mat = pd.DataFrame()
-section_list = []
-section_list_mat = []
+# Initialize empty DataFrames with error handling
+try:
+    df = pd.DataFrame()
+    df_mat = pd.DataFrame()
+    section_list = []
+    section_list_mat = []
+except Exception as e:
+    st.error(f"Error initializing data structures: {e}")
+    df = pd.DataFrame()
+    df_mat = pd.DataFrame()
+    section_list = []
+    section_list_mat = []
 
 # Function to check if URL is accessible
 @st.cache_data
@@ -93,28 +100,38 @@ def check_url(url):
         st.error(f"Error: {e}")
         return False
 
-# Load data with caching
+# Load data with better error handling
 @st.cache_data
 def load_data():
     try:
         df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
         df_mat = pd.read_csv(file_path_mat, index_col=0, encoding="utf-8")
+        # Ensure data is not empty
+        if df.empty or df_mat.empty:
+            return pd.DataFrame(), pd.DataFrame(), False
         return df, df_mat, True
     except Exception as e:
         st.error(f"An error occurred while loading the files: {e}")
         return pd.DataFrame(), pd.DataFrame(), False
 
-# Load data
-if check_url(file_path) and check_url(file_path_mat):
-    df, df_mat, success = load_data()
-    if success:
-        section_list = list(df.index)
-        section_list_mat = list(df_mat.index)
-        st.success("✅ Files loaded successfully!")
+# Load data with comprehensive error handling
+try:
+    if check_url(file_path) and check_url(file_path_mat):
+        df, df_mat, success = load_data()
+        if success and not df.empty and not df_mat.empty:
+            section_list = list(df.index)
+            section_list_mat = list(df_mat.index)
+            st.success("✅ Files loaded successfully!")
+        else:
+            st.error("❌ Failed to load data files or files are empty.")
     else:
-        st.error("❌ Failed to load data files.")
-else:
-    st.error("❌ One or both files do not exist at the given URLs. Please check the URLs.")
+        st.error("❌ One or both files do not exist at the given URLs. Please check the URLs.")
+except Exception as e:
+    st.error(f"❌ Unexpected error during data loading: {e}")
+    df = pd.DataFrame()
+    df_mat = pd.DataFrame()
+    section_list = []
+    section_list_mat = []
 
 # Main header
 st.markdown('<h1 class="main-header">🏗️ Structural Steel Design Analysis</h1>', unsafe_allow_html=True)
@@ -589,31 +606,42 @@ with tab3:
         gb.configure_column("Section", headerCheckboxSelection=True)
         grid_options = gb.build()
 
-        # Display grid
-        grid_response = AgGrid(
-            filtered_data,
-            gridOptions=grid_options,
-            height=400,
-            width="100%",
-            theme="streamlit",
-            allow_unsafe_jscode=True,
-            update_mode='SELECTION_CHANGED'
-        )
+        # Display grid with error handling
+        try:
+            grid_response = AgGrid(
+                filtered_data,
+                gridOptions=grid_options,
+                height=400,
+                width="100%",
+                theme="streamlit",
+                allow_unsafe_jscode=True,
+                update_mode='SELECTION_CHANGED'
+            )
+        except Exception as e:
+            st.error(f"Error displaying grid: {e}")
+            grid_response = {"selected_rows": []}
 
-        # Get selected rows
-        selected_rows = grid_response["selected_rows"]
+        # Get selected rows with safe checking
+        selected_rows = grid_response.get("selected_rows", [])
         
-        if selected_rows:
+        if selected_rows is not None and len(selected_rows) > 0:
+            # Initialize session state for selected sections
+            if 'selected_sections' not in st.session_state:
+                st.session_state.selected_sections = []
+            
             st.session_state.selected_sections = selected_rows
             df_selected = pd.DataFrame(selected_rows)
             
             st.success(f"✅ Selected {len(selected_rows)} sections for analysis")
             
-            # Show selected sections summary
+            # Show selected sections summary with safe column checking
             with st.expander("📋 Selected Sections Summary", expanded=True):
                 summary_cols = ['Section', 'Zx [cm3]', 'd [mm]', 'Unit Weight [kg/m]']
-                if all(col in df_selected.columns for col in summary_cols):
-                    st.dataframe(df_selected[summary_cols], use_container_width=True)
+                available_cols = [col for col in summary_cols if col in df_selected.columns]
+                if available_cols:
+                    st.dataframe(df_selected[available_cols], use_container_width=True)
+                else:
+                    st.warning("⚠️ Summary columns not available")
         else:
             st.info("ℹ️ Please select sections for comparative analysis")
     else:
@@ -622,7 +650,7 @@ with tab3:
 with tab4:
     st.markdown('<h2 class="sub-header">Comparative Analysis Dashboard</h2>', unsafe_allow_html=True)
     
-    if 'selected_sections' in st.session_state and st.session_state.selected_sections:
+    if 'selected_sections' in st.session_state and st.session_state.selected_sections and len(st.session_state.selected_sections) > 0:
         df_selected = pd.DataFrame(st.session_state.selected_sections)
         
         # Input controls for analysis
@@ -641,7 +669,7 @@ with tab4:
         with col_input3:
             show_details = st.checkbox("📊 Show Detailed Results", value=True)
 
-        if 'Section' in df_selected.columns:
+        if 'Section' in df_selected.columns and len(df_selected) > 0:
             section_names = df_selected["Section"].unique()
             
             # Initialize results storage
