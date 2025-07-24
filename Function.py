@@ -650,7 +650,7 @@ with tab3:
             # Show selected sections summary with comprehensive error handling
             with st.expander("📋 Selected Sections Summary", expanded=True):
                 try:
-                    summary_cols = ['Section', 'Zx [cm3]', 'd [mm]', 'Unit Weight [kg/m]']
+                    summary_cols = ['Nominal Size [mm]', 'Zx [cm3]', 'd [mm]', 'Unit Weight [kg/m]']
                     available_cols = [col for col in summary_cols if col in df_selected.columns]
                     if available_cols and not df_selected.empty:
                         st.dataframe(df_selected[available_cols], use_container_width=True)
