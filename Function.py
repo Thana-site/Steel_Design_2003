@@ -71,11 +71,19 @@ st.markdown("""
 file_path = r"https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = r"https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
 
-# Initialize session state with better safety checks
-if 'selected_sections' not in st.session_state:
-    st.session_state.selected_sections = []
-if 'input_mode' not in st.session_state:
-    st.session_state.input_mode = "slider"
+# Initialize session state with comprehensive safety checks
+def safe_session_state_init():
+    """Safely initialize session state variables"""
+    try:
+        if 'selected_sections' not in st.session_state:
+            st.session_state.selected_sections = []
+        if 'input_mode' not in st.session_state:
+            st.session_state.input_mode = "slider"
+    except Exception as e:
+        st.error(f"Error initializing session state: {e}")
+
+# Call safe initialization
+safe_session_state_init()
 
 # Initialize empty DataFrames with error handling
 try:
@@ -625,23 +633,31 @@ with tab3:
         selected_rows = grid_response.get("selected_rows", [])
         
         if selected_rows is not None and len(selected_rows) > 0:
-            # Initialize session state for selected sections
-            if 'selected_sections' not in st.session_state:
+            # Initialize session state for selected sections safely
+            try:
+                if 'selected_sections' not in st.session_state:
+                    st.session_state.selected_sections = []
+                
+                # Store as list to avoid DataFrame boolean issues
+                st.session_state.selected_sections = list(selected_rows)
+                df_selected = pd.DataFrame(selected_rows)
+                
+                st.success(f"✅ Selected {len(selected_rows)} sections for analysis")
+            except Exception as e:
+                st.error(f"Error storing selected sections: {e}")
                 st.session_state.selected_sections = []
             
-            st.session_state.selected_sections = selected_rows
-            df_selected = pd.DataFrame(selected_rows)
-            
-            st.success(f"✅ Selected {len(selected_rows)} sections for analysis")
-            
-            # Show selected sections summary with safe column checking
+            # Show selected sections summary with comprehensive error handling
             with st.expander("📋 Selected Sections Summary", expanded=True):
-                summary_cols = ['Section', 'Zx [cm3]', 'd [mm]', 'Unit Weight [kg/m]']
-                available_cols = [col for col in summary_cols if col in df_selected.columns]
-                if available_cols:
-                    st.dataframe(df_selected[available_cols], use_container_width=True)
-                else:
-                    st.warning("⚠️ Summary columns not available")
+                try:
+                    summary_cols = ['Section', 'Zx [cm3]', 'd [mm]', 'Unit Weight [kg/m]']
+                    available_cols = [col for col in summary_cols if col in df_selected.columns]
+                    if available_cols and not df_selected.empty:
+                        st.dataframe(df_selected[available_cols], use_container_width=True)
+                    else:
+                        st.warning("⚠️ Summary data not available or no columns found")
+                except Exception as e:
+                    st.error(f"Error displaying summary: {e}")
         else:
             st.info("ℹ️ Please select sections for comparative analysis")
     else:
@@ -650,8 +666,42 @@ with tab3:
 with tab4:
     st.markdown('<h2 class="sub-header">Comparative Analysis Dashboard</h2>', unsafe_allow_html=True)
     
-    if 'selected_sections' in st.session_state and st.session_state.selected_sections and len(st.session_state.selected_sections) > 0:
-        df_selected = pd.DataFrame(st.session_state.selected_sections)
+    # Safe checking for selected sections
+    has_selected_sections = False
+    selected_sections_data = []
+    
+    try:
+        if 'selected_sections' in st.session_state:
+            selected_sections_raw = st.session_state.selected_sections
+            
+            # Handle different data types
+            if selected_sections_raw is not None:
+                if isinstance(selected_sections_raw, (list, tuple)):
+                    selected_sections_data = list(selected_sections_raw)
+                    has_selected_sections = len(selected_sections_data) > 0
+                elif isinstance(selected_sections_raw, pd.DataFrame):
+                    if not selected_sections_raw.empty:
+                        selected_sections_data = selected_sections_raw.to_dict('records')
+                        has_selected_sections = True
+                else:
+                    # Try to convert to list
+                    try:
+                        selected_sections_data = list(selected_sections_raw)
+                        has_selected_sections = len(selected_sections_data) > 0
+                    except:
+                        selected_sections_data = []
+                        has_selected_sections = False
+    except Exception as e:
+        st.error(f"Error processing selected sections: {e}")
+        selected_sections_data = []
+        has_selected_sections = False
+    
+    if has_selected_sections:
+        try:
+            df_selected = pd.DataFrame(selected_sections_data)
+        except Exception as e:
+            st.error(f"Error creating DataFrame from selected sections: {e}")
+            df_selected = pd.DataFrame()
         
         # Input controls for analysis
         col_input1, col_input2, col_input3 = st.columns(3)
@@ -670,22 +720,38 @@ with tab4:
             show_details = st.checkbox("📊 Show Detailed Results", value=True)
 
         if 'Section' in df_selected.columns and len(df_selected) > 0:
-            section_names = df_selected["Section"].unique()
+            try:
+                section_names = df_selected["Section"].unique()
+            except Exception as e:
+                st.error(f"Error getting section names: {e}")
+                section_names = []
             
             # Initialize results storage
             comparison_results = []
             plot_data = {'sections': [], 'Mp': [], 'Mn': [], 'phi_Mn': [], 'weight': [], 'efficiency': []}
             
-            # Analyze each section
+            # Analyze each section with comprehensive error handling
             for section in section_names:
                 try:
+                    # Check if section exists in main dataframe
+                    if section not in df.index:
+                        st.warning(f"⚠️ Section {section} not found in database")
+                        continue
+                        
                     # Perform F2 analysis
                     Mn, Lb_calc, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat, section, option_mat, Lbd)
                     
                     Fib = 0.9
                     FibMn = Fib * Mn
-                    weight = float(df.loc[section, 'Unit Weight [kg/m]'])
-                    efficiency = FibMn / weight  # Design moment per unit weight
+                    
+                    # Safely get weight
+                    try:
+                        weight = float(df.loc[section, 'Unit Weight [kg/m]'])
+                    except (KeyError, ValueError):
+                        weight = 0.0
+                        st.warning(f"⚠️ Weight data not available for {section}")
+                    
+                    efficiency = FibMn / weight if weight > 0 else 0
                     
                     # Store results
                     comparison_results.append({
@@ -710,6 +776,7 @@ with tab4:
                     
                 except Exception as e:
                     st.error(f"❌ Error analyzing section {section}: {e}")
+                    continue
             
             if comparison_results:
                 results_df = pd.DataFrame(comparison_results)
