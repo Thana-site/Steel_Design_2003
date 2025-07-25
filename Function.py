@@ -721,6 +721,118 @@ with tab3:
         st.error("❌ No data available")
 
 with tab4:
+# ฟังก์ชันเสริมที่ต้องเพิ่มก่อน Tab 4
+def standardize_column_names(df):
+    """แปลงชื่อ column ให้เป็นมาตรฐาน"""
+    column_mapping = {
+        'w [kg/m]': 'Unit Weight [kg/m]',
+        'Weight [kg/m]': 'Unit Weight [kg/m]',
+        'Unit weight [kg/m]': 'Unit Weight [kg/m]'
+    }
+    
+    for old_name, new_name in column_mapping.items():
+        if old_name in df.columns:
+            df = df.rename(columns={old_name: new_name})
+    
+    return df
+
+def safe_get_weight(df, section):
+    """ดึงค่า weight อย่างปลอดภัย"""
+    weight_columns = ['Unit Weight [kg/m]', 'w [kg/m]', 'Weight [kg/m]']
+    
+    for col in weight_columns:
+        if col in df.columns:
+            try:
+                weight = float(df.loc[section, col])
+                return weight
+            except (KeyError, ValueError, TypeError):
+                continue
+    
+    st.warning(f"⚠️ Weight not found for section {section}")
+    return 0.0
+
+def create_safe_subplot_dashboard(plot_data, comparison_results):
+    """สร้าง subplot อย่างปลอดภัย"""
+    try:
+        # ตรวจสอบข้อมูลก่อน
+        if not plot_data['sections'] or len(plot_data['sections']) == 0:
+            st.warning("⚠️ No data available for plotting")
+            return None
+        
+        # สร้าง subplot แบบปลอดภัย
+        fig = make_subplots(
+            rows=2, cols=2,  # ลดจาก 3x2 เป็น 2x2 เพื่อป้องกัน error
+            subplot_titles=('Moment Capacity vs Lb Used', 'Weight vs Efficiency', 
+                          'Capacity Utilization', 'Performance Ranking'),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                   [{"secondary_y": False}, {"secondary_y": False}]]
+        )
+        
+        # Plot 1: Moment vs Lb (ปลอดภัย)
+        if len(plot_data['sections']) > 0:
+            colors = px.colors.qualitative.Set3[:len(plot_data['sections'])]
+            for i, (section, lb, mn) in enumerate(zip(plot_data['sections'], plot_data['lb_used'], plot_data['phi_Mn'])):
+                if mn is not None and lb is not None:  # ตรวจสอบข้อมูล
+                    fig.add_trace(
+                        go.Scatter(x=[lb], y=[mn], mode='markers+text', 
+                                 name=section, text=[section], textposition="top center",
+                                 marker=dict(size=12, color=colors[i % len(colors)])),
+                        row=1, col=1
+                    )
+        
+        # Plot 2: Weight vs Efficiency (ปลอดภัย)
+        valid_weights = [w for w in plot_data['weight'] if w is not None and w > 0]
+        valid_efficiency = [e for e in plot_data['efficiency'] if e is not None and e > 0]
+        valid_sections = [s for i, s in enumerate(plot_data['sections']) 
+                         if plot_data['weight'][i] is not None and plot_data['weight'][i] > 0 
+                         and plot_data['efficiency'][i] is not None and plot_data['efficiency'][i] > 0]
+        
+        if valid_weights and valid_efficiency:
+            fig.add_trace(
+                go.Scatter(x=valid_weights, y=valid_efficiency,
+                         mode='markers+text', text=valid_sections,
+                         textposition="top center", name='Weight vs Efficiency',
+                         marker=dict(size=10, color='blue')),
+                row=1, col=2
+            )
+        
+        # Plot 3: Capacity utilization (ปลอดภัย)
+        if comparison_results:
+            capacity_ratios = [r.get('Capacity Ratio', 0) for r in comparison_results if r.get('Capacity Ratio') is not None]
+            sections_with_ratios = [r.get('Section', '') for r in comparison_results if r.get('Capacity Ratio') is not None]
+            
+            if capacity_ratios and sections_with_ratios:
+                fig.add_trace(
+                    go.Bar(x=sections_with_ratios, y=capacity_ratios,
+                           name='Mn/Mp Ratio', marker_color='orange'),
+                    row=2, col=1
+                )
+        
+        # Plot 4: Performance ranking (ปลอดภัย)
+        valid_efficiency_for_ranking = [e for e in plot_data['efficiency'] if e is not None and e > 0]
+        valid_sections_for_ranking = [s for i, s in enumerate(plot_data['sections']) 
+                                    if plot_data['efficiency'][i] is not None and plot_data['efficiency'][i] > 0]
+        
+        if valid_efficiency_for_ranking and valid_sections_for_ranking:
+            fig.add_trace(
+                go.Bar(x=valid_sections_for_ranking, y=valid_efficiency_for_ranking,
+                       name='Efficiency Ranking', marker_color='purple'),
+                row=2, col=2
+            )
+        
+        # อัพเดต layout
+        fig.update_layout(height=800, showlegend=False, 
+                        title_text="Steel Section Analysis Dashboard")
+        fig.update_xaxes(tickangle=45)
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error creating subplot: {e}")
+        return None
+
+# TAB 4: Comparative Analysis Dashboard
+with tab4:
     st.markdown('<h2 class="sub-header">Comparative Analysis Dashboard</h2>', unsafe_allow_html=True)
     
     # ตรวจสอบ selected sections
@@ -733,6 +845,9 @@ with tab4:
     
     if has_selected_sections:
         df_selected = pd.DataFrame(selected_sections_data)
+        
+        # แก้ไขปัญหา column names
+        df = standardize_column_names(df)
         
         # Input controls for analysis
         col_input1, col_input2, col_input3 = st.columns(3)
@@ -781,34 +896,32 @@ with tab4:
                     Fib = 0.9
                     FibMn = Fib * Mn
                     
-                    # Get weight
-                    try:
-                        weight = float(df.loc[section, 'Unit Weight [kg/m]'])
-                    except (KeyError, ValueError):
-                        weight = 0.0
+                    # Get weight อย่างปลอดภัย
+                    weight = safe_get_weight(df, section)
                     
+                    # คำนวณ efficiency
                     efficiency = FibMn / weight if weight > 0 else 0
                     
-                    # Store results
+                    # Store results (ตรวจสอบค่า None)
                     comparison_results.append({
                         'Section': section,
                         'Lb Used (m)': lb_to_use,
-                        'Mp (t⋅m)': Mp,
-                        'Mn (t⋅m)': Mn,
-                        'φMn (t⋅m)': FibMn,
+                        'Mp (t⋅m)': Mp if Mp is not None else 0,
+                        'Mn (t⋅m)': Mn if Mn is not None else 0,
+                        'φMn (t⋅m)': FibMn if FibMn is not None else 0,
                         'Weight (kg/m)': weight,
                         'Efficiency': efficiency,
-                        'Lp (m)': Lp,
-                        'Lr (m)': Lr,
-                        'Case': Case,
-                        'Capacity Ratio': Mn/Mp if Mp > 0 else 0
+                        'Lp (m)': Lp if Lp is not None else 0,
+                        'Lr (m)': Lr if Lr is not None else 0,
+                        'Case': Case if Case is not None else 'Unknown',
+                        'Capacity Ratio': (Mn/Mp if Mp is not None and Mp > 0 and Mn is not None else 0)
                     })
                     
-                    # Store plot data
+                    # Store plot data (ตรวจสอบค่า None)
                     plot_data['sections'].append(section)
-                    plot_data['Mp'].append(Mp)
-                    plot_data['Mn'].append(Mn)
-                    plot_data['phi_Mn'].append(FibMn)
+                    plot_data['Mp'].append(Mp if Mp is not None else 0)
+                    plot_data['Mn'].append(Mn if Mn is not None else 0)
+                    plot_data['phi_Mn'].append(FibMn if FibMn is not None else 0)
                     plot_data['weight'].append(weight)
                     plot_data['efficiency'].append(efficiency)
                     plot_data['lb_used'].append(lb_to_use)
@@ -851,126 +964,86 @@ with tab4:
                 st.markdown("### 📈 Enhanced Visual Analysis")
                 
                 if analysis_type == "Detailed Comparison":
-                    # Create comprehensive dashboard
-                    fig = make_subplots(
-                        rows=3, cols=2,
-                        subplot_titles=('Moment Capacity vs Lb Used', 'Weight vs Efficiency', 
-                                      'Capacity Utilization', 'Design Cases Distribution',
-                                      'Lb Settings Overview', 'Performance Ranking'),
-                        specs=[[{"secondary_y": False}, {"secondary_y": False}],
-                               [{"secondary_y": False}, {"secondary_y": False}],
-                               [{"secondary_y": False}, {"secondary_y": False}]]
-                    )
-                    
-                    # Plot 1: Moment vs Lb
-                    colors = px.colors.qualitative.Set3[:len(plot_data['sections'])]
-                    for i, (section, lb, mn) in enumerate(zip(plot_data['sections'], plot_data['lb_used'], plot_data['phi_Mn'])):
-                        fig.add_trace(
-                            go.Scatter(x=[lb], y=[mn], mode='markers+text', 
-                                     name=section, text=[section], textposition="top center",
-                                     marker=dict(size=12, color=colors[i])),
-                            row=1, col=1
-                        )
-                    
-                    # Plot 2: Weight vs Efficiency scatter
-                    fig.add_trace(
-                        go.Scatter(x=plot_data['weight'], y=plot_data['efficiency'],
-                                 mode='markers+text', text=plot_data['sections'],
-                                 textposition="top center", name='Weight vs Efficiency',
-                                 marker=dict(size=10, color='blue')),
-                        row=1, col=2
-                    )
-                    
-                    # Plot 3: Capacity utilization
-                    capacity_ratios = [r['Capacity Ratio'] for r in comparison_results]
-                    fig.add_trace(
-                        go.Bar(x=plot_data['sections'], y=capacity_ratios,
-                               name='Mn/Mp Ratio', marker_color='orange'),
-                        row=2, col=1
-                    )
-                    
-                    # Plot 4: Cases pie chart
-                    cases = [r['Case'] for r in comparison_results]
-                    case_counts = pd.Series(cases).value_counts()
-                    fig.add_trace(
-                        go.Pie(labels=case_counts.index, values=case_counts.values,
-                               name='Design Cases'),
-                        row=2, col=2
-                    )
-                    
-                    # Plot 5: Lb settings
-                    fig.add_trace(
-                        go.Bar(x=plot_data['sections'], y=plot_data['lb_used'],
-                               name='Lb Used', marker_color='green'),
-                        row=3, col=1
-                    )
-                    
-                    # Plot 6: Performance ranking
-                    fig.add_trace(
-                        go.Bar(x=plot_data['sections'], y=plot_data['efficiency'],
-                               name='Efficiency Ranking', marker_color='purple'),
-                        row=3, col=2
-                    )
-                    
-                    fig.update_layout(height=1200, showlegend=False, 
-                                    title_text="Comprehensive Steel Section Analysis Dashboard")
-                    fig.update_xaxes(tickangle=45)
-                    
-                    st.plotly_chart(fig, use_container_width=True)
+                    fig = create_safe_subplot_dashboard(plot_data, comparison_results)
+                    if fig is not None:
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.error("❌ Unable to create detailed comparison chart")
                 
                 elif analysis_type == "Moment Capacity":
-                    fig = go.Figure()
-                    fig.add_trace(go.Bar(
-                        x=plot_data['sections'],
-                        y=plot_data['phi_Mn'],
-                        name='φMn',
-                        marker_color='lightblue',
-                        text=[f'{v:.2f}' for v in plot_data['phi_Mn']],
-                        textposition='auto'
-                    ))
-                    fig.update_layout(
-                        title="Design Moment Capacity Comparison",
-                        xaxis_title="Steel Sections",
-                        yaxis_title="φMn (t⋅m)",
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    try:
+                        fig = go.Figure()
+                        fig.add_trace(go.Bar(
+                            x=plot_data['sections'],
+                            y=plot_data['phi_Mn'],
+                            name='φMn',
+                            marker_color='lightblue',
+                            text=[f'{v:.2f}' for v in plot_data['phi_Mn']],
+                            textposition='auto'
+                        ))
+                        fig.update_layout(
+                            title="Design Moment Capacity Comparison",
+                            xaxis_title="Steel Sections",
+                            yaxis_title="φMn (t⋅m)",
+                            showlegend=False
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error creating moment capacity chart: {e}")
                 
                 elif analysis_type == "Weight Comparison":
-                    fig = go.Figure()
-                    fig.add_trace(go.Bar(
-                        x=plot_data['sections'],
-                        y=plot_data['weight'],
-                        name='Weight',
-                        marker_color='orange',
-                        text=[f'{v:.1f}' for v in plot_data['weight']],
-                        textposition='auto'
-                    ))
-                    fig.update_layout(
-                        title="Unit Weight Comparison",
-                        xaxis_title="Steel Sections",
-                        yaxis_title="Weight (kg/m)",
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    try:
+                        valid_weights = [w for w in plot_data['weight'] if w > 0]
+                        valid_sections = [s for i, s in enumerate(plot_data['sections']) if plot_data['weight'][i] > 0]
+                        
+                        if valid_weights and valid_sections:
+                            fig = go.Figure()
+                            fig.add_trace(go.Bar(
+                                x=valid_sections,
+                                y=valid_weights,
+                                name='Weight',
+                                marker_color='orange',
+                                text=[f'{v:.1f}' for v in valid_weights],
+                                textposition='auto'
+                            ))
+                            fig.update_layout(
+                                title="Unit Weight Comparison",
+                                xaxis_title="Steel Sections",
+                                yaxis_title="Weight (kg/m)",
+                                showlegend=False
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("⚠️ No valid weight data for comparison")
+                    except Exception as e:
+                        st.error(f"Error creating weight comparison chart: {e}")
                 
                 elif analysis_type == "Efficiency Ratio":
-                    fig = go.Figure()
-                    fig.add_trace(go.Bar(
-                        x=plot_data['sections'],
-                        y=plot_data['efficiency'],
-                        name='Efficiency',
-                        marker_color='green',
-                        text=[f'{v:.3f}' for v in plot_data['efficiency']],
-                        textposition='auto'
-                    ))
-                    fig.update_layout(
-                        title="Efficiency Ratio (φMn/Weight)",
-                        xaxis_title="Steel Sections",
-                        yaxis_title="Efficiency (t⋅m)/(kg/m)",
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    try:
+                        valid_efficiency = [e for e in plot_data['efficiency'] if e > 0]
+                        valid_sections = [s for i, s in enumerate(plot_data['sections']) if plot_data['efficiency'][i] > 0]
+                        
+                        if valid_efficiency and valid_sections:
+                            fig = go.Figure()
+                            fig.add_trace(go.Bar(
+                                x=valid_sections,
+                                y=valid_efficiency,
+                                name='Efficiency',
+                                marker_color='green',
+                                text=[f'{v:.3f}' for v in valid_efficiency],
+                                textposition='auto'
+                            ))
+                            fig.update_layout(
+                                title="Efficiency Ratio (φMn/Weight)",
+                                xaxis_title="Steel Sections",
+                                yaxis_title="Efficiency (t⋅m)/(kg/m)",
+                                showlegend=False
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("⚠️ No valid efficiency data for comparison")
+                    except Exception as e:
+                        st.error(f"Error creating efficiency chart: {e}")
                 
                 # Export functionality
                 if show_details:
@@ -1020,6 +1093,18 @@ Best Overall Performance: {results_df.iloc[0]['Section']}
                             mime="text/plain"
                         )
                 
+                # Debug information
+                with st.expander("🔍 Debug Information", expanded=False):
+                    st.write("Available columns in dataframe:")
+                    st.write(df.columns.tolist())
+                    st.write("Plot data structure:")
+                    for key, value in plot_data.items():
+                        st.write(f"{key}: {len(value)} items")
+                    
+                    st.write("Weight columns found:")
+                    weight_cols = [col for col in df.columns if 'weight' in col.lower() or 'kg' in col.lower()]
+                    st.write(weight_cols)
+                
             else:
                 st.warning("⚠️ No analysis results available")
         else:
@@ -1035,14 +1120,9 @@ Best Overall Performance: {results_df.iloc[0]['Section']}
         3. Select multiple sections using checkboxes
         4. Set individual Lb values for each section
         5. Come back to this tab for comparative analysis
+        
+        ### 🔧 Troubleshooting:
+        - If weight values show as 0, check the column names in debug section
+        - If plots don't appear, ensure you have selected valid sections
+        - For detailed comparison, at least 2 sections are recommended
         """)
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666; padding: 20px;'>
-    🏗️ <strong>Structural Steel Design Analysis Tool</strong><br>
-    Based on AISC 360 Design Specifications<br>
-    <em>Developed for educational and professional use</em>
-</div>
-""", unsafe_allow_html=True)
