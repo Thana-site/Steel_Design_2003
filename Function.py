@@ -1308,7 +1308,81 @@ with tab4:
                     if fig is not None:
                         st.plotly_chart(fig, use_container_width=True)
                         
-                        # แสดงข้อมูลสรุป
+                        # ✅ เพิ่มตารางสรุป Lp และ Lr ของทุก section
+                        st.markdown("#### 📐 Critical Lengths Summary (Lp & Lr)")
+                        
+                        # สร้างข้อมูลสำหรับตาราง Lp และ Lr
+                        critical_lengths_data = []
+                        
+                        for section in section_names:
+                            try:
+                                if section not in df.index:
+                                    continue
+                                
+                                current_lb = global_lb if use_global_lb else st.session_state.section_lb_values.get(section, 6.0)
+                                Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section, option_mat, current_lb)
+                                
+                                critical_lengths_data.append({
+                                    'Section': section,
+                                    'Lp (m)': f"{Lp:.2f}",
+                                    'Lr (m)': f"{Lr:.2f}",
+                                    'Current Lb (m)': f"{current_lb:.2f}",
+                                    'Zone': (
+                                        "🟢 Zone 1 (Lb < Lp)" if current_lb < Lp else
+                                        "🟡 Zone 2 (Lp ≤ Lb < Lr)" if Lp <= current_lb < Lr else
+                                        "🔴 Zone 3 (Lb ≥ Lr)"
+                                    ),
+                                    'Governing Case': Case,
+                                    'Capacity Ratio': f"{(Mn/Mp):.3f}" if Mp > 0 else "N/A"
+                                })
+                                
+                            except Exception as e:
+                                critical_lengths_data.append({
+                                    'Section': section,
+                                    'Lp (m)': "Error",
+                                    'Lr (m)': "Error", 
+                                    'Current Lb (m)': f"{current_lb:.2f}" if 'current_lb' in locals() else "N/A",
+                                    'Zone': "❌ Error",
+                                    'Governing Case': "Error",
+                                    'Capacity Ratio': "N/A"
+                                })
+                        
+                        if critical_lengths_data:
+                            critical_df = pd.DataFrame(critical_lengths_data)
+                            
+                            # จัดกลุ่มตาม Zone
+                            col_table1, col_table2 = st.columns([2, 1])
+                            
+                            with col_table1:
+                                # แสดงตารางหลัก
+                                st.dataframe(critical_df, use_container_width=True, height=300)
+                            
+                            with col_table2:
+                                # สถิติสรุป
+                                st.markdown("##### 📊 Zone Distribution")
+                                
+                                zone_counts = critical_df['Zone'].value_counts()
+                                total_sections = len(critical_df)
+                                
+                                for zone, count in zone_counts.items():
+                                    percentage = (count / total_sections) * 100
+                                    st.write(f"{zone}: {count} ({percentage:.0f}%)")
+                                
+                                # แสดงช่วงของ Lp และ Lr
+                                try:
+                                    lp_values = [float(x) for x in critical_df['Lp (m)'] if x != "Error"]
+                                    lr_values = [float(x) for x in critical_df['Lr (m)'] if x != "Error"]
+                                    
+                                    if lp_values and lr_values:
+                                        st.markdown("##### 📏 Critical Length Ranges")
+                                        st.write(f"**Lp Range**: {min(lp_values):.2f} - {max(lp_values):.2f} m")
+                                        st.write(f"**Lr Range**: {min(lr_values):.2f} - {max(lr_values):.2f} m")
+                                        st.write(f"**Average Lp**: {sum(lp_values)/len(lp_values):.2f} m")
+                                        st.write(f"**Average Lr**: {sum(lr_values)/len(lr_values):.2f} m")
+                                except:
+                                    st.warning("Unable to calculate statistics")
+                        
+                        # แสดงข้อมูลสรุปเดิม
                         if legend_info:
                             st.markdown("#### 📋 Section Summary")
                             
@@ -1353,6 +1427,24 @@ with tab4:
                                     for i, section_info in enumerate(sorted_sections[:3]):
                                         rank_emoji = ["🥇", "🥈", "🥉"][i]
                                         st.write(f"{rank_emoji} **{section_info['section']}** - Efficiency: {section_info['efficiency']:.3f}")
+                                        
+                                # ✅ เพิ่มส่วนแนะนำตาม Lp, Lr
+                                if critical_lengths_data:
+                                    st.markdown("##### 💡 Critical Length Insights")
+                                    
+                                    # หา section ที่มี Lp และ Lr สูงสุด/ต่ำสุด
+                                    try:
+                                        valid_data = [d for d in critical_lengths_data if d['Lp (m)'] != "Error"]
+                                        if valid_data:
+                                            max_lp_section = max(valid_data, key=lambda x: float(x['Lp (m)']))
+                                            min_lp_section = min(valid_data, key=lambda x: float(x['Lp (m)']))
+                                            max_lr_section = max(valid_data, key=lambda x: float(x['Lr (m)']))
+                                            
+                                            st.write(f"**🔹 Highest Lp**: {max_lp_section['Section']} ({max_lp_section['Lp (m)']} m)")
+                                            st.write(f"**🔸 Lowest Lp**: {min_lp_section['Section']} ({min_lp_section['Lp (m)']} m)")
+                                            st.write(f"**🔷 Highest Lr**: {max_lr_section['Section']} ({max_lr_section['Lr (m)']} m)")
+                                    except:
+                                        st.write("Unable to analyze critical lengths")
                     else:
                         st.error("❌ Unable to create multi-section comparison chart")
                 
@@ -1601,6 +1693,7 @@ Best Overall Performance: {results_df.iloc[0]['Section']}
         - **Standard Analysis**: Moment Capacity, Weight, Efficiency comparisons
         - **🆕 Multi-Section Moment Curve**: Interactive curve comparison like Tab 2
         - **🆕 Multi-Section Dashboard**: Comprehensive 4-chart dashboard
+        - **🆕 Critical Lengths Table**: Shows Lp and Lr of all selected sections
         - **Advanced Analytics**: Trend analysis, correlation studies
         - **Export Options**: CSV, detailed reports, JSON data
         
