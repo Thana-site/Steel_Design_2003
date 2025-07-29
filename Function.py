@@ -1206,115 +1206,6 @@ with tab4:
                                'background-color: #fff3cd' if v >= 0.7 else
                                'background-color: #f8d7da' for v in s]
                     return [''] * len(s)
-#-----------------------------------------
-                    elif analysis_type == "Multi-Section Moment Curve":
-                        st.markdown("#### 🔧 Multi-Section Moment Capacity vs Unbraced Length")
-                        
-                        # สร้างกราฟเปรียบเทียบ
-                        fig, legend_info = create_multi_section_comparison_plot(
-                            df, df_mat, section_names, option_mat, 
-                            st.session_state.section_lb_values, use_global_lb, 
-                            global_lb if use_global_lb else None
-                        )
-                        
-                        if fig is not None:
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            # แสดงข้อมูลสรุป
-                            if legend_info:
-                                st.markdown("#### 📋 Section Summary")
-                                
-                                summary_df = pd.DataFrame(legend_info)
-                                summary_df = summary_df.round(3)
-                                
-                                # เรียงตามประสิทธิภาพ
-                                summary_df = summary_df.sort_values('efficiency', ascending=False)
-                                
-                                st.dataframe(summary_df, use_container_width=True)
-                                
-                                # แสดงผู้ชนะ
-                                if len(summary_df) > 0:
-                                    best_section = summary_df.iloc[0]
-                                    st.success(f"🏆 **Best Performance**: {best_section['section']} with efficiency {best_section['efficiency']:.3f}")
-                        else:
-                            st.error("❌ Unable to create multi-section comparison chart")
-                    
-                    elif analysis_type == "Multi-Section Dashboard":
-                        st.markdown("#### 📊 Multi-Section Performance Dashboard")
-                        
-                        fig = create_multi_section_efficiency_plot(
-                            df, df_mat, section_names, option_mat,
-                            st.session_state.section_lb_values, use_global_lb,
-                            global_lb if use_global_lb else None
-                        )
-                        
-                        if fig is not None:
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            # เพิ่มการแสดงข้อมูลเปรียบเทียบแบบละเอียด
-                            col_summary1, col_summary2 = st.columns(2)
-                            
-                            with col_summary1:
-                                st.markdown("##### 🎯 Key Insights")
-                                # สร้างข้อมูลสำหรับ insights
-                                insights_data = []
-                                for section in section_names:
-                                    try:
-                                        if section not in df.index:
-                                            continue
-                                        
-                                        current_lb = global_lb if use_global_lb else st.session_state.section_lb_values.get(section, 6.0)
-                                        Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section, option_mat, current_lb)
-                                        weight = safe_get_weight(df, section)
-                                        efficiency = (0.9 * Mn) / weight if weight > 0 else 0
-                                        
-                                        insights_data.append({
-                                            'Section': section,
-                                            'Efficiency': efficiency,
-                                            'Weight': weight,
-                                            'φMn': 0.9 * Mn
-                                        })
-                                    except:
-                                        continue
-                                
-                                if insights_data:
-                                    insights_df = pd.DataFrame(insights_data)
-                                    
-                                    # หาค่าที่ดีที่สุด
-                                    best_efficiency = insights_df.loc[insights_df['Efficiency'].idxmax()]
-                                    lightest = insights_df.loc[insights_df['Weight'].idxmin()]  
-                                    strongest = insights_df.loc[insights_df['φMn'].idxmax()]
-                                    
-                                    st.write(f"**Most Efficient**: {best_efficiency['Section']} ({best_efficiency['Efficiency']:.3f})")
-                                    st.write(f"**Lightest**: {lightest['Section']} ({lightest['Weight']:.1f} kg/m)")
-                                    st.write(f"**Strongest**: {strongest['Section']} ({strongest['φMn']:.2f} t⋅m)")
-                            
-                            with col_summary2:
-                                st.markdown("##### ⚙️ Analysis Settings")
-                                if use_global_lb:
-                                    st.write(f"**Global Lb**: {global_lb} m")
-                                else:
-                                    st.write("**Individual Lb settings**:")
-                                    for section in section_names[:5]:  # แสดงแค่ 5 อันแรก
-                                        lb_val = st.session_state.section_lb_values.get(section, 6.0)
-                                        st.write(f"- {section}: {lb_val} m")
-                        else:
-                            st.error("❌ Unable to create multi-section dashboard")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                
                 
                 styled_results = results_df.style.apply(highlight_performance, axis=0)
                 st.dataframe(styled_results, use_container_width=True)
@@ -1403,6 +1294,100 @@ with tab4:
                             st.warning("⚠️ No valid efficiency data for comparison")
                     except Exception as e:
                         st.error(f"Error creating efficiency chart: {e}")
+                
+                elif analysis_type == "Multi-Section Moment Curve":
+                    st.markdown("#### 🔧 Multi-Section Moment Capacity vs Unbraced Length")
+                    
+                    # สร้างกราฟเปรียบเทียบ
+                    fig, legend_info = create_multi_section_comparison_plot(
+                        df, df_mat, section_names, option_mat, 
+                        st.session_state.section_lb_values, use_global_lb, 
+                        global_lb if use_global_lb else None
+                    )
+                    
+                    if fig is not None:
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # แสดงข้อมูลสรุป
+                        if legend_info:
+                            st.markdown("#### 📋 Section Summary")
+                            
+                            summary_df = pd.DataFrame(legend_info)
+                            summary_df = summary_df.round(3)
+                            
+                            # เรียงตามประสิทธิภาพ
+                            summary_df = summary_df.sort_values('efficiency', ascending=False)
+                            
+                            st.dataframe(summary_df, use_container_width=True)
+                            
+                            # แสดงผู้ชนะ
+                            if len(summary_df) > 0:
+                                best_section = summary_df.iloc[0]
+                                st.success(f"🏆 **Best Performance**: {best_section['section']} with efficiency {best_section['efficiency']:.3f}")
+                    else:
+                        st.error("❌ Unable to create multi-section comparison chart")
+                
+                elif analysis_type == "Multi-Section Dashboard":
+                    st.markdown("#### 📊 Multi-Section Performance Dashboard")
+                    
+                    fig = create_multi_section_efficiency_plot(
+                        df, df_mat, section_names, option_mat,
+                        st.session_state.section_lb_values, use_global_lb,
+                        global_lb if use_global_lb else None
+                    )
+                    
+                    if fig is not None:
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # เพิ่มการแสดงข้อมูลเปรียบเทียบแบบละเอียด
+                        col_summary1, col_summary2 = st.columns(2)
+                        
+                        with col_summary1:
+                            st.markdown("##### 🎯 Key Insights")
+                            # สร้างข้อมูลสำหรับ insights
+                            insights_data = []
+                            for section in section_names:
+                                try:
+                                    if section not in df.index:
+                                        continue
+                                    
+                                    current_lb = global_lb if use_global_lb else st.session_state.section_lb_values.get(section, 6.0)
+                                    Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section, option_mat, current_lb)
+                                    weight = safe_get_weight(df, section)
+                                    efficiency = (0.9 * Mn) / weight if weight > 0 else 0
+                                    
+                                    insights_data.append({
+                                        'Section': section,
+                                        'Efficiency': efficiency,
+                                        'Weight': weight,
+                                        'φMn': 0.9 * Mn
+                                    })
+                                except:
+                                    continue
+                            
+                            if insights_data:
+                                insights_df = pd.DataFrame(insights_data)
+                                
+                                # หาค่าที่ดีที่สุด
+                                best_efficiency = insights_df.loc[insights_df['Efficiency'].idxmax()]
+                                lightest = insights_df.loc[insights_df['Weight'].idxmin()]  
+                                strongest = insights_df.loc[insights_df['φMn'].idxmax()]
+                                
+                                st.write(f"**Most Efficient**: {best_efficiency['Section']} ({best_efficiency['Efficiency']:.3f})")
+                                st.write(f"**Lightest**: {lightest['Section']} ({lightest['Weight']:.1f} kg/m)")
+                                st.write(f"**Strongest**: {strongest['Section']} ({strongest['φMn']:.2f} t⋅m)")
+                        
+                        with col_summary2:
+                            st.markdown("##### ⚙️ Analysis Settings")
+                            if use_global_lb:
+                                st.write(f"**Global Lb**: {global_lb} m")
+                            else:
+                                st.write("**Individual Lb settings**:")
+                                for section in section_names[:5]:  # แสดงแค่ 5 อันแรก
+                                    lb_val = st.session_state.section_lb_values.get(section, 6.0)
+                                    st.write(f"- {section}: {lb_val} m")
+                    else:
+                        st.error("❌ Unable to create multi-section dashboard")
                 
                 # Export functionality
                 if show_details:
