@@ -469,8 +469,10 @@ with st.sidebar:
     # Toggle for enabling Chapter F Strength input
     ChapterF_Strength = st.checkbox("🔍 Enable Chapter F Strength Analysis")
     if ChapterF_Strength:
-        option = st.selectbox("🔩 Choose Steel Section:", section_list, index=0 if option in section_list else 0)
-        option_mat = st.selectbox("⚙️ Choose Steel Grade:", section_list_mat, index=0 if option_mat in section_list_mat else 0)
+        if section_list:
+            option = st.selectbox("🔩 Choose Steel Section:", section_list, index=0 if option in section_list else 0)
+        if section_list_mat:
+            option_mat = st.selectbox("⚙️ Choose Steel Grade:", section_list_mat, index=0 if option_mat in section_list_mat else 0)
         bending_axis = st.selectbox("📐 Select Bending Axis:", ["Major axis bending", "Minor axis bending"], index=0)
 
     st.divider()
@@ -490,6 +492,7 @@ with st.sidebar:
     if ChapterF_Design:
         Mu = st.number_input("⚡ Ultimate Bending Moment (kN·m):", value=100.0)
         Vu = st.number_input("⚡ Ultimate Shear Force (kN):", value=100.0)
+
 # Main content tabs
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Steel Catalogue", "🔧 Chapter F Analysis", "📋 Section Selection", "📈 Comparative Analysis"])
 
@@ -509,42 +512,45 @@ with tab1:
 
     with col2:
         st.markdown("### 🏗️ Section Visualization")
-        if option in df.index:
-            bf = float(df.loc[option, 'bf [mm]'])
-            d = float(df.loc[option, 'd [mm]'])
-            tw = float(df.loc[option, 'tw [mm]'])
-            tf = float(df.loc[option, 'tf [mm]'])
+        if option and option in df.index:
+            try:
+                bf = float(df.loc[option, 'bf [mm]'])
+                d = float(df.loc[option, 'd [mm]'])
+                tw = float(df.loc[option, 'tw [mm]'])
+                tf = float(df.loc[option, 'tf [mm]'])
 
-            fig, ax = plt.subplots(figsize=(6, 6))
-            fig.patch.set_facecolor('white')
-            ax.set_facecolor('white')
+                fig, ax = plt.subplots(figsize=(6, 6))
+                fig.patch.set_facecolor('white')
+                ax.set_facecolor('white')
 
-            # Draw H-section
-            flange_top = patches.Rectangle((-bf/2, d/2 - tf), bf, tf, 
-                                         linewidth=2, edgecolor='#1f77b4', facecolor='lightblue', alpha=0.7)
-            flange_bottom = patches.Rectangle((-bf/2, -d/2), bf, tf, 
-                                            linewidth=2, edgecolor='#1f77b4', facecolor='lightblue', alpha=0.7)
-            web = patches.Rectangle((-tw/2, -d/2 + tf), tw, d - 2*tf, 
-                                  linewidth=2, edgecolor='#1f77b4', facecolor='lightblue', alpha=0.7)
+                # Draw H-section
+                flange_top = patches.Rectangle((-bf/2, d/2 - tf), bf, tf, 
+                                             linewidth=2, edgecolor='#1f77b4', facecolor='lightblue', alpha=0.7)
+                flange_bottom = patches.Rectangle((-bf/2, -d/2), bf, tf, 
+                                                linewidth=2, edgecolor='#1f77b4', facecolor='lightblue', alpha=0.7)
+                web = patches.Rectangle((-tw/2, -d/2 + tf), tw, d - 2*tf, 
+                                      linewidth=2, edgecolor='#1f77b4', facecolor='lightblue', alpha=0.7)
 
-            ax.add_patch(flange_top)
-            ax.add_patch(flange_bottom)
-            ax.add_patch(web)
+                ax.add_patch(flange_top)
+                ax.add_patch(flange_bottom)
+                ax.add_patch(web)
 
-            # Centroid axes
-            ax.axhline(y=0, color='red', linewidth=2, linestyle='--', alpha=0.8, label='Centroid')
-            ax.axvline(x=0, color='red', linewidth=2, linestyle='--', alpha=0.8)
+                # Centroid axes
+                ax.axhline(y=0, color='red', linewidth=2, linestyle='--', alpha=0.8, label='Centroid')
+                ax.axvline(x=0, color='red', linewidth=2, linestyle='--', alpha=0.8)
 
-            ax.set_xlim([-bf/2 - 20, bf/2 + 20])
-            ax.set_ylim([-d/2 - 20, d/2 + 20])
-            ax.set_aspect('equal')
-            ax.set_title(f"H-Section: {option}", fontsize=14, fontweight='bold')
-            ax.set_xlabel("Width [mm]", fontsize=12)
-            ax.set_ylabel("Height [mm]", fontsize=12)
-            ax.grid(True, alpha=0.3)
-            ax.legend()
+                ax.set_xlim([-bf/2 - 20, bf/2 + 20])
+                ax.set_ylim([-d/2 - 20, d/2 + 20])
+                ax.set_aspect('equal')
+                ax.set_title(f"H-Section: {option}", fontsize=14, fontweight='bold')
+                ax.set_xlabel("Width [mm]", fontsize=12)
+                ax.set_ylabel("Height [mm]", fontsize=12)
+                ax.grid(True, alpha=0.3)
+                ax.legend()
 
-            st.pyplot(fig)
+                st.pyplot(fig)
+            except Exception as e:
+                st.error(f"Error creating visualization: {e}")
         else:
             st.warning("⚠️ Please select a valid section!")
 
@@ -725,213 +731,112 @@ with tab3:
 
     # Apply filters
     if not df.empty:
-        filtered_data = df.copy()
-        filtered_data = filtered_data[filtered_data["Zx [cm3]"] >= zx_min]
-        if depth_min > 0:
-            filtered_data = filtered_data[filtered_data["d [mm]"] >= depth_min]
-        if weight_max < 1000:
-            filtered_data = filtered_data[filtered_data["Unit Weight [kg/m]"] <= weight_max]
-
-        # Reset index เพื่อให้ Section กลายเป็น column
-        filtered_data_display = filtered_data.reset_index()
-        
-        st.markdown(f"**📋 Filtered Results: {len(filtered_data_display)} sections**")
-
-        # Configure AgGrid
-        gb = GridOptionsBuilder.from_dataframe(filtered_data_display)
-        gb.configure_selection("multiple", use_checkbox=True, groupSelectsChildren=False)
-        gb.configure_grid_options(enableCellTextSelection=True)
-        gb.configure_column("Section", headerCheckboxSelection=True)
-        grid_options = gb.build()
-
-        # Display grid
         try:
-            grid_response = AgGrid(
-                filtered_data_display,
-                gridOptions=grid_options,
-                height=400,
-                width="100%",
-                theme="streamlit",
-                allow_unsafe_jscode=True,
-                update_mode='SELECTION_CHANGED'
-            )
-            
-            # จัดการ selected rows อย่างถูกต้อง
-            selected_rows = grid_response.get("selected_rows", [])
-            
-            if selected_rows is not None and len(selected_rows) > 0:
-                # แปลงเป็น DataFrame และตรวจสอบ columns
-                df_selected = pd.DataFrame(selected_rows)
+            filtered_data = df.copy()
+            filtered_data = filtered_data[filtered_data["Zx [cm3]"] >= zx_min]
+            if depth_min > 0:
+                filtered_data = filtered_data[filtered_data["d [mm]"] >= depth_min]
+            if weight_max < 1000:
+                # Use safe_get_weight function or find correct column name
+                weight_col = None
+                for col in ['Unit Weight [kg/m]', 'w [kg/m]', 'Weight [kg/m]']:
+                    if col in filtered_data.columns:
+                        weight_col = col
+                        break
                 
-                # ตรวจสอบว่ามี column 'Section' หรือไม่
-                if 'Section' in df_selected.columns:
-                    # เก็บใน session state
-                    st.session_state.selected_sections = df_selected.to_dict('records')
-                    st.success(f"✅ Selected {len(selected_rows)} sections for analysis")
+                if weight_col:
+                    filtered_data = filtered_data[filtered_data[weight_col] <= weight_max]
+
+            # Reset index to make Section a column
+            filtered_data_display = filtered_data.reset_index()
+            
+            st.markdown(f"**📋 Filtered Results: {len(filtered_data_display)} sections**")
+
+            # Configure AgGrid
+            gb = GridOptionsBuilder.from_dataframe(filtered_data_display)
+            gb.configure_selection("multiple", use_checkbox=True, groupSelectsChildren=False)
+            gb.configure_grid_options(enableCellTextSelection=True)
+            gb.configure_column("Section", headerCheckboxSelection=True)
+            grid_options = gb.build()
+
+            # Display grid
+            try:
+                grid_response = AgGrid(
+                    filtered_data_display,
+                    gridOptions=grid_options,
+                    height=400,
+                    width="100%",
+                    theme="streamlit",
+                    allow_unsafe_jscode=True,
+                    update_mode='SELECTION_CHANGED'
+                )
+                
+                # Handle selected rows
+                selected_rows = grid_response.get("selected_rows", [])
+                
+                if selected_rows is not None and len(selected_rows) > 0:
+                    # Convert to DataFrame and check columns
+                    df_selected = pd.DataFrame(selected_rows)
                     
-                    # แสดง summary ที่ครบถ้วน
-                    with st.expander("📋 Selected Sections Summary", expanded=True):
-                        # เลือกคอลัมน์ที่สำคัญทั้งหมด
-                        summary_cols = ['Section', 'Zx [cm3]', 'Zy [cm3]', 'd [mm]', 'bf [mm]', 
-                                      'tf [mm]', 'tw [mm]', 'Unit Weight [kg/m]', 'Sx [cm3]', 
-                                      'Sy [cm3]', 'Ix [cm4]', 'Iy [cm4]']
-                        available_cols = [col for col in summary_cols if col in df_selected.columns]
+                    # Check if 'Section' column exists
+                    if 'Section' in df_selected.columns:
+                        # Store in session state
+                        st.session_state.selected_sections = df_selected.to_dict('records')
+                        st.success(f"✅ Selected {len(selected_rows)} sections for analysis")
                         
-                        if available_cols:
-                            st.dataframe(df_selected[available_cols], use_container_width=True)
+                        # Show complete summary
+                        with st.expander("📋 Selected Sections Summary", expanded=True):
+                            # Select important columns
+                            summary_cols = ['Section', 'Zx [cm3]', 'Zy [cm3]', 'd [mm]', 'bf [mm]', 
+                                          'tf [mm]', 'tw [mm]', 'Unit Weight [kg/m]', 'Sx [cm3]', 
+                                          'Sy [cm3]', 'Ix [cm4]', 'Iy [cm4]']
+                            available_cols = [col for col in summary_cols if col in df_selected.columns]
                             
-                            # แสดง individual Lb inputs
-                            st.markdown("### 📏 Individual Unbraced Length Settings")
-                            
-                            # สร้าง dictionary สำหรับเก็บ Lb แต่ละหน้าตัด
-                            if 'section_lb_values' not in st.session_state:
-                                st.session_state.section_lb_values = {}
-                            
-                            # สร้าง input สำหรับ Lb แต่ละหน้าตัด
-                            for idx, row in df_selected.iterrows():
-                                section_name = row['Section']
-                                col_lb1, col_lb2 = st.columns([2, 1])
+                            if available_cols:
+                                st.dataframe(df_selected[available_cols], use_container_width=True)
                                 
-                                with col_lb1:
-                                    lb_value = st.number_input(
-                                        f"📏 Lb for {section_name} [m]:", 
-                                        min_value=0.0, 
-                                        value=st.session_state.section_lb_values.get(section_name, 6.0),
-                                        step=0.5,
-                                        key=f"lb_{section_name}"
-                                    )
-                                    st.session_state.section_lb_values[section_name] = lb_value
+                                # Show individual Lb inputs
+                                st.markdown("### 📏 Individual Unbraced Length Settings")
                                 
-                                with col_lb2:
-                                    st.metric(f"Current Lb", f"{lb_value} m")
-                        else:
-                            st.warning("⚠️ Summary data not available")
+                                # Create dictionary to store Lb for each section
+                                if 'section_lb_values' not in st.session_state:
+                                    st.session_state.section_lb_values = {}
+                                
+                                # Create input for Lb for each section
+                                for idx, row in df_selected.iterrows():
+                                    section_name = row['Section']
+                                    col_lb1, col_lb2 = st.columns([2, 1])
+                                    
+                                    with col_lb1:
+                                        lb_value = st.number_input(
+                                            f"📏 Lb for {section_name} [m]:", 
+                                            min_value=0.0, 
+                                            value=st.session_state.section_lb_values.get(section_name, 6.0),
+                                            step=0.5,
+                                            key=f"lb_{section_name}"
+                                        )
+                                        st.session_state.section_lb_values[section_name] = lb_value
+                                    
+                                    with col_lb2:
+                                        st.metric(f"Current Lb", f"{lb_value} m")
+                            else:
+                                st.warning("⚠️ Summary data not available")
+                    else:
+                        st.error("❌ Selected data does not contain 'Section' column")
                 else:
-                    st.error("❌ Selected data does not contain 'Section' column")
-            else:
-                st.info("ℹ️ Please select sections for comparative analysis")
-                
+                    st.info("ℹ️ Please select sections for comparative analysis")
+                    
+            except Exception as e:
+                st.error(f"Error displaying grid: {e}")
         except Exception as e:
-            st.error(f"Error displaying grid: {e}")
+            st.error(f"Error in filtering data: {e}")
     else:
         st.error("❌ No data available")
 
 with tab4:
-# ฟังก์ชันเสริมที่ต้องเพิ่มก่อน Tab 4
-def standardize_column_names(df):
-    """แปลงชื่อ column ให้เป็นมาตรฐาน"""
-    column_mapping = {
-        'w [kg/m]': 'Unit Weight [kg/m]',
-        'Weight [kg/m]': 'Unit Weight [kg/m]',
-        'Unit weight [kg/m]': 'Unit Weight [kg/m]'
-    }
-    
-    for old_name, new_name in column_mapping.items():
-        if old_name in df.columns:
-            df = df.rename(columns={old_name: new_name})
-    
-    return df
-
-def safe_get_weight(df, section):
-    """ดึงค่า weight อย่างปลอดภัย"""
-    weight_columns = ['Unit Weight [kg/m]', 'w [kg/m]', 'Weight [kg/m]']
-    
-    for col in weight_columns:
-        if col in df.columns:
-            try:
-                weight = float(df.loc[section, col])
-                return weight
-            except (KeyError, ValueError, TypeError):
-                continue
-    
-    st.warning(f"⚠️ Weight not found for section {section}")
-    return 0.0
-
-def create_safe_subplot_dashboard(plot_data, comparison_results):
-    """สร้าง subplot อย่างปลอดภัย"""
-    try:
-        # ตรวจสอบข้อมูลก่อน
-        if not plot_data['sections'] or len(plot_data['sections']) == 0:
-            st.warning("⚠️ No data available for plotting")
-            return None
-        
-        # สร้าง subplot แบบปลอดภัย
-        fig = make_subplots(
-            rows=2, cols=2,  # ลดจาก 3x2 เป็น 2x2 เพื่อป้องกัน error
-            subplot_titles=('Moment Capacity vs Lb Used', 'Weight vs Efficiency', 
-                          'Capacity Utilization', 'Performance Ranking'),
-            specs=[[{"secondary_y": False}, {"secondary_y": False}],
-                   [{"secondary_y": False}, {"secondary_y": False}]]
-        )
-        
-        # Plot 1: Moment vs Lb (ปลอดภัย)
-        if len(plot_data['sections']) > 0:
-            colors = px.colors.qualitative.Set3[:len(plot_data['sections'])]
-            for i, (section, lb, mn) in enumerate(zip(plot_data['sections'], plot_data['lb_used'], plot_data['phi_Mn'])):
-                if mn is not None and lb is not None:  # ตรวจสอบข้อมูล
-                    fig.add_trace(
-                        go.Scatter(x=[lb], y=[mn], mode='markers+text', 
-                                 name=section, text=[section], textposition="top center",
-                                 marker=dict(size=12, color=colors[i % len(colors)])),
-                        row=1, col=1
-                    )
-        
-        # Plot 2: Weight vs Efficiency (ปลอดภัย)
-        valid_weights = [w for w in plot_data['weight'] if w is not None and w > 0]
-        valid_efficiency = [e for e in plot_data['efficiency'] if e is not None and e > 0]
-        valid_sections = [s for i, s in enumerate(plot_data['sections']) 
-                         if plot_data['weight'][i] is not None and plot_data['weight'][i] > 0 
-                         and plot_data['efficiency'][i] is not None and plot_data['efficiency'][i] > 0]
-        
-        if valid_weights and valid_efficiency:
-            fig.add_trace(
-                go.Scatter(x=valid_weights, y=valid_efficiency,
-                         mode='markers+text', text=valid_sections,
-                         textposition="top center", name='Weight vs Efficiency',
-                         marker=dict(size=10, color='blue')),
-                row=1, col=2
-            )
-        
-        # Plot 3: Capacity utilization (ปลอดภัย)
-        if comparison_results:
-            capacity_ratios = [r.get('Capacity Ratio', 0) for r in comparison_results if r.get('Capacity Ratio') is not None]
-            sections_with_ratios = [r.get('Section', '') for r in comparison_results if r.get('Capacity Ratio') is not None]
-            
-            if capacity_ratios and sections_with_ratios:
-                fig.add_trace(
-                    go.Bar(x=sections_with_ratios, y=capacity_ratios,
-                           name='Mn/Mp Ratio', marker_color='orange'),
-                    row=2, col=1
-                )
-        
-        # Plot 4: Performance ranking (ปลอดภัย)
-        valid_efficiency_for_ranking = [e for e in plot_data['efficiency'] if e is not None and e > 0]
-        valid_sections_for_ranking = [s for i, s in enumerate(plot_data['sections']) 
-                                    if plot_data['efficiency'][i] is not None and plot_data['efficiency'][i] > 0]
-        
-        if valid_efficiency_for_ranking and valid_sections_for_ranking:
-            fig.add_trace(
-                go.Bar(x=valid_sections_for_ranking, y=valid_efficiency_for_ranking,
-                       name='Efficiency Ranking', marker_color='purple'),
-                row=2, col=2
-            )
-        
-        # อัพเดต layout
-        fig.update_layout(height=800, showlegend=False, 
-                        title_text="Steel Section Analysis Dashboard")
-        fig.update_xaxes(tickangle=45)
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"Error creating subplot: {e}")
-        return None
-
-# TAB 4: Comparative Analysis Dashboard
-with tab4:
     st.markdown('<h2 class="sub-header">Comparative Analysis Dashboard</h2>', unsafe_allow_html=True)
     
-    # ตรวจสอบ selected sections
+    # Check selected sections
     has_selected_sections = False
     selected_sections_data = []
     
@@ -942,7 +847,7 @@ with tab4:
     if has_selected_sections:
         df_selected = pd.DataFrame(selected_sections_data)
         
-        # แก้ไขปัญหา column names
+        # Fix column names
         df = standardize_column_names(df)
         
         # Input controls for analysis
@@ -964,7 +869,7 @@ with tab4:
         with col_input3:
             show_details = st.checkbox("📊 Show Detailed Results", value=True)
         
-        # ตรวจสอบว่ามี Section column
+        # Check if Section column exists
         if 'Section' in df_selected.columns and len(df_selected) > 0:
             section_names = df_selected["Section"].unique()
             
@@ -980,7 +885,7 @@ with tab4:
                         st.warning(f"⚠️ Section {section} not found in database")
                         continue
                     
-                    # กำหนด Lb ที่จะใช้
+                    # Determine Lb to use
                     if use_global_lb:
                         lb_to_use = global_lb
                     else:
@@ -992,13 +897,13 @@ with tab4:
                     Fib = 0.9
                     FibMn = Fib * Mn
                     
-                    # Get weight อย่างปลอดภัย
+                    # Get weight safely
                     weight = safe_get_weight(df, section)
                     
-                    # คำนวณ efficiency
+                    # Calculate efficiency
                     efficiency = FibMn / weight if weight > 0 else 0
                     
-                    # Store results (ตรวจสอบค่า None)
+                    # Store results (check for None values)
                     comparison_results.append({
                         'Section': section,
                         'Lb Used (m)': lb_to_use,
@@ -1013,7 +918,7 @@ with tab4:
                         'Capacity Ratio': (Mn/Mp if Mp is not None and Mp > 0 and Mn is not None else 0)
                     })
                     
-                    # Store plot data (ตรวจสอบค่า None)
+                    # Store plot data (check for None values)
                     plot_data['sections'].append(section)
                     plot_data['Mp'].append(Mp if Mp is not None else 0)
                     plot_data['Mn'].append(Mn if Mn is not None else 0)
