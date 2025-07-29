@@ -1324,6 +1324,35 @@ with tab4:
                             if len(summary_df) > 0:
                                 best_section = summary_df.iloc[0]
                                 st.success(f"🏆 **Best Performance**: {best_section['section']} with efficiency {best_section['efficiency']:.3f}")
+                        
+                        # เพิ่มข้อมูลเปรียบเทียบแบบ interactive
+                        with st.expander("🔍 Interactive Analysis Tools", expanded=False):
+                            col_analysis1, col_analysis2 = st.columns(2)
+                            
+                            with col_analysis1:
+                                st.markdown("##### 📊 Section Performance Metrics")
+                                if legend_info:
+                                    performance_df = pd.DataFrame(legend_info)
+                                    
+                                    # แสดงสถิติ
+                                    avg_efficiency = performance_df['efficiency'].mean()
+                                    max_mn = performance_df['current_mn'].max()
+                                    min_lb = performance_df['current_lb'].min()
+                                    max_lb = performance_df['current_lb'].max()
+                                    
+                                    st.metric("Average Efficiency", f"{avg_efficiency:.3f}")
+                                    st.metric("Max Moment Capacity", f"{max_mn:.2f} t⋅m")
+                                    st.write(f"**Lb Range**: {min_lb:.1f} - {max_lb:.1f} m")
+                            
+                            with col_analysis2:
+                                st.markdown("##### 🎯 Design Recommendations")
+                                if legend_info:
+                                    sorted_sections = sorted(legend_info, key=lambda x: x['efficiency'], reverse=True)
+                                    
+                                    st.write("**Top 3 Recommendations:**")
+                                    for i, section_info in enumerate(sorted_sections[:3]):
+                                        rank_emoji = ["🥇", "🥈", "🥉"][i]
+                                        st.write(f"{rank_emoji} **{section_info['section']}** - Efficiency: {section_info['efficiency']:.3f}")
                     else:
                         st.error("❌ Unable to create multi-section comparison chart")
                 
@@ -1360,7 +1389,8 @@ with tab4:
                                         'Section': section,
                                         'Efficiency': efficiency,
                                         'Weight': weight,
-                                        'φMn': 0.9 * Mn
+                                        'φMn': 0.9 * Mn,
+                                        'Case': Case
                                     })
                                 except:
                                     continue
@@ -1373,19 +1403,79 @@ with tab4:
                                 lightest = insights_df.loc[insights_df['Weight'].idxmin()]  
                                 strongest = insights_df.loc[insights_df['φMn'].idxmax()]
                                 
-                                st.write(f"**Most Efficient**: {best_efficiency['Section']} ({best_efficiency['Efficiency']:.3f})")
-                                st.write(f"**Lightest**: {lightest['Section']} ({lightest['Weight']:.1f} kg/m)")
-                                st.write(f"**Strongest**: {strongest['Section']} ({strongest['φMn']:.2f} t⋅m)")
+                                st.success(f"**🏆 Most Efficient**: {best_efficiency['Section']} ({best_efficiency['Efficiency']:.3f})")
+                                st.info(f"**⚖️ Lightest**: {lightest['Section']} ({lightest['Weight']:.1f} kg/m)")
+                                st.warning(f"**💪 Strongest**: {strongest['Section']} ({strongest['φMn']:.2f} t⋅m)")
+                                
+                                # แสดงสถิติเพิ่มเติม
+                                st.markdown("**📈 Statistics:**")
+                                avg_eff = insights_df['Efficiency'].mean()
+                                std_eff = insights_df['Efficiency'].std()
+                                st.write(f"- Average Efficiency: {avg_eff:.3f} ± {std_eff:.3f}")
+                                st.write(f"- Efficiency Range: {insights_df['Efficiency'].min():.3f} - {insights_df['Efficiency'].max():.3f}")
                         
                         with col_summary2:
-                            st.markdown("##### ⚙️ Analysis Settings")
+                            st.markdown("##### ⚙️ Analysis Settings & Status")
                             if use_global_lb:
-                                st.write(f"**Global Lb**: {global_lb} m")
+                                st.info(f"**🌐 Global Lb**: {global_lb} m")
                             else:
-                                st.write("**Individual Lb settings**:")
+                                st.info("**🔧 Individual Lb settings**:")
                                 for section in section_names[:5]:  # แสดงแค่ 5 อันแรก
                                     lb_val = st.session_state.section_lb_values.get(section, 6.0)
                                     st.write(f"- {section}: {lb_val} m")
+                                
+                                if len(section_names) > 5:
+                                    st.write(f"... และอีก {len(section_names) - 5} หน้าตัด")
+                            
+                            # แสดงสถานะการวิเคราะห์
+                            st.markdown("**📊 Analysis Status:**")
+                            st.write(f"- Sections analyzed: {len(section_names)}")
+                            st.write(f"- Material grade: {option_mat}")
+                            st.write(f"- Analysis method: F2 (AISC)")
+                            
+                            # แสดง governing cases
+                            if insights_data:
+                                case_counts = pd.Series([d['Case'] for d in insights_data]).value_counts()
+                                st.markdown("**🎯 Governing Cases:**")
+                                for case, count in case_counts.items():
+                                    percentage = (count / len(insights_data)) * 100
+                                    st.write(f"- {case}: {count} ({percentage:.0f}%)")
+                        
+                        # เพิ่มส่วนวิเคราะห์เทรนด์
+                        with st.expander("📈 Trend Analysis", expanded=False):
+                            if insights_data and len(insights_data) > 1:
+                                trend_df = pd.DataFrame(insights_data).sort_values('Weight')
+                                
+                                # สร้างกราฟ trend
+                                fig_trend = go.Figure()
+                                
+                                # Efficiency vs Weight
+                                fig_trend.add_trace(go.Scatter(
+                                    x=trend_df['Weight'],
+                                    y=trend_df['Efficiency'],
+                                    mode='markers+lines',
+                                    name='Efficiency Trend',
+                                    text=trend_df['Section'],
+                                    hovertemplate='<b>%{text}</b><br>Weight: %{x:.1f} kg/m<br>Efficiency: %{y:.3f}<extra></extra>'
+                                ))
+                                
+                                fig_trend.update_layout(
+                                    title="Efficiency vs Weight Trend",
+                                    xaxis_title="Weight (kg/m)",
+                                    yaxis_title="Efficiency",
+                                    height=400
+                                )
+                                
+                                st.plotly_chart(fig_trend, use_container_width=True)
+                                
+                                # วิเคราะห์ correlation
+                                correlation = trend_df['Weight'].corr(trend_df['Efficiency'])
+                                if correlation < -0.5:
+                                    st.success(f"💡 **Strong negative correlation** (r={correlation:.3f}): Lighter sections tend to be more efficient")
+                                elif correlation > 0.5:
+                                    st.warning(f"⚠️ **Strong positive correlation** (r={correlation:.3f}): Heavier sections tend to be more efficient")
+                                else:
+                                    st.info(f"📊 **Weak correlation** (r={correlation:.3f}): Weight and efficiency are not strongly related")
                     else:
                         st.error("❌ Unable to create multi-section dashboard")
                 
@@ -1397,7 +1487,7 @@ with tab4:
                     export_data = results_df.copy()
                     csv_data = export_data.to_csv(index=False)
                     
-                    col_export1, col_export2 = st.columns(2)
+                    col_export1, col_export2, col_export3 = st.columns(3)
                     
                     with col_export1:
                         st.download_button(
@@ -1416,6 +1506,7 @@ with tab4:
 - Analysis Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 - Number of Sections Analyzed: {len(results_df)}
 - Material Grade: {option_mat}
+- Analysis Type: {analysis_type}
 
 ## Summary Results
 Best Overall Performance: {results_df.iloc[0]['Section']}
@@ -1428,6 +1519,11 @@ Best Overall Performance: {results_df.iloc[0]['Section']}
 
 ## Detailed Results
 {results_df.to_string(index=False)}
+
+## Analysis Notes
+- All calculations based on AISC Steel Construction Manual
+- F2 analysis for doubly symmetric compact I-shaped members
+- Safety factor (φ) = 0.9 applied to nominal moment capacity
 """
                         
                         st.download_button(
@@ -1436,18 +1532,54 @@ Best Overall Performance: {results_df.iloc[0]['Section']}
                             file_name=f"steel_report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.txt",
                             mime="text/plain"
                         )
+                    
+                    with col_export3:
+                        # สร้าง summary JSON
+                        summary_data = {
+                            "analysis_info": {
+                                "date": pd.Timestamp.now().isoformat(),
+                                "sections_analyzed": len(results_df),
+                                "material_grade": option_mat,
+                                "analysis_type": analysis_type
+                            },
+                            "best_performance": {
+                                "section": results_df.iloc[0]['Section'],
+                                "efficiency": float(results_df.iloc[0]['Efficiency']),
+                                "design_moment": float(results_df.iloc[0]['φMn (t⋅m)']),
+                                "weight": float(results_df.iloc[0]['Weight (kg/m)'])
+                            },
+                            "sections_data": results_df.to_dict('records')
+                        }
+                        
+                        import json
+                        json_data = json.dumps(summary_data, indent=2, ensure_ascii=False)
+                        
+                        st.download_button(
+                            label="🔧 Download JSON",
+                            data=json_data,
+                            file_name=f"steel_analysis_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.json",
+                            mime="application/json"
+                        )
                 
                 # Debug information
                 with st.expander("🔍 Debug Information", expanded=False):
-                    st.write("Available columns in dataframe:")
+                    st.write("**Available columns in dataframe:**")
                     st.write(df.columns.tolist())
-                    st.write("Plot data structure:")
-                    for key, value in plot_data.items():
-                        st.write(f"{key}: {len(value)} items")
                     
-                    st.write("Weight columns found:")
+                    st.write("**Plot data structure:**")
+                    for key, value in plot_data.items():
+                        st.write(f"- {key}: {len(value)} items")
+                    
+                    st.write("**Weight columns found:**")
                     weight_cols = [col for col in df.columns if 'weight' in col.lower() or 'kg' in col.lower()]
                     st.write(weight_cols)
+                    
+                    st.write("**Session state keys:**")
+                    st.write(list(st.session_state.keys()))
+                    
+                    if 'section_lb_values' in st.session_state:
+                        st.write("**Individual Lb values:**")
+                        st.write(st.session_state.section_lb_values)
                 
             else:
                 st.warning("⚠️ No analysis results available")
@@ -1465,8 +1597,17 @@ Best Overall Performance: {results_df.iloc[0]['Section']}
         4. Set individual Lb values for each section
         5. Come back to this tab for comparative analysis
         
-        ### 🔧 Troubleshooting:
+        ### 🔧 Features Available:
+        - **Standard Analysis**: Moment Capacity, Weight, Efficiency comparisons
+        - **🆕 Multi-Section Moment Curve**: Interactive curve comparison like Tab 2
+        - **🆕 Multi-Section Dashboard**: Comprehensive 4-chart dashboard
+        - **Advanced Analytics**: Trend analysis, correlation studies
+        - **Export Options**: CSV, detailed reports, JSON data
+        
+        ### 🚀 Troubleshooting:
         - If weight values show as 0, check the column names in debug section
         - If plots don't appear, ensure you have selected valid sections
-        - For detailed comparison, at least 2 sections are recommended
+        - For Multi-Section analysis, at least 2 sections are recommended
+        - Check individual Lb settings in Tab 3 if results seem unexpected
         """)
+
