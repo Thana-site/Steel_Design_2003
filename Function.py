@@ -1,48 +1,17 @@
 # Import libraries
-import streamlit as st #version 1.42.0
-import pandas as pd #version 2.2.2.
-import matplotlib.pyplot as plt  # Correct import for matplotlib
-import matplotlib.patches as patches #version 3.9.2.
-import math as mt 
-import numpy as np #version 2.1.0
-import altair as alt #version 5.4.1.
-import plotly.express as px #6.0.0
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import math as mt
+import numpy as np
+import altair as alt
+import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from st_aggrid import AgGrid,GridOptionsBuilder #version 1.1.0
-import os 
+from st_aggrid import AgGrid, GridOptionsBuilder
+import os
 import requests
-
-
-# เพิ่มที่ส่วนต้นของไฟล์
-def validate_section_data(df_selected):
-    """ตรวจสอบความถูกต้องของข้อมูลที่เลือก"""
-    required_columns = ['Section']
-    missing_columns = [col for col in required_columns if col not in df_selected.columns]
-    
-    if missing_columns:
-        return False, f"Missing required columns: {missing_columns}"
-    
-    return True, "Data validation passed"
-
-def safe_analysis(section, df, df_mat, option_mat, lb_value):
-    """ทำการวิเคราะห์อย่างปลอดภัยพร้อมการจัดการ Error"""
-    try:
-        if section not in df.index:
-            return None, f"Section {section} not found in database"
-        
-        result = F2(df, df_mat, section, option_mat, lb_value)
-        return result, None
-    except Exception as e:
-        return None, f"Analysis error for {section}: {str(e)}"
-
-# Initialize session state ที่ต้องเพิ่ม
-if 'section_lb_values' not in st.session_state:
-    st.session_state.section_lb_values = {}
-
-if 'selected_sections' not in st.session_state:
-    st.session_state.selected_sections = []
-
 
 # Configure page
 st.set_page_config(
@@ -99,10 +68,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # File paths
-file_path = r"https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
-file_path_mat = r"https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
+file_path = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
+file_path_mat = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
+file_path_chf = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-CHF.csv"
 
-# Initialize session state with comprehensive safety checks
+# Initialize session state with safety checks
 def safe_session_state_init():
     """Safely initialize session state variables"""
     try:
@@ -110,33 +80,22 @@ def safe_session_state_init():
             st.session_state.selected_sections = []
         if 'input_mode' not in st.session_state:
             st.session_state.input_mode = "slider"
+        if 'section_lb_values' not in st.session_state:
+            st.session_state.section_lb_values = {}
     except Exception as e:
         st.error(f"Error initializing session state: {e}")
 
 # Call safe initialization
 safe_session_state_init()
 
-# Initialize empty DataFrames with error handling
-try:
-    df = pd.DataFrame()
-    df_mat = pd.DataFrame()
-    section_list = []
-    section_list_mat = []
-except Exception as e:
-    st.error(f"Error initializing data structures: {e}")
-    df = pd.DataFrame()
-    df_mat = pd.DataFrame()
-    section_list = []
-    section_list_mat = []
-
 # Function to check if URL is accessible
 @st.cache_data
 def check_url(url):
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         return response.status_code == 200
     except requests.exceptions.RequestException as e:
-        st.error(f"Error: {e}")
+        st.error(f"URL check error: {e}")
         return False
 
 # Load data with better error handling
@@ -145,18 +104,27 @@ def load_data():
     try:
         df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
         df_mat = pd.read_csv(file_path_mat, index_col=0, encoding="utf-8")
+        df_chf = pd.read_csv(file_path_chf, index_col=0, encoding="utf-8")
+        
         # Ensure data is not empty
         if df.empty or df_mat.empty:
-            return pd.DataFrame(), pd.DataFrame(), False
-        return df, df_mat, True
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), False
+        return df, df_mat, df_chf, True
     except Exception as e:
         st.error(f"An error occurred while loading the files: {e}")
-        return pd.DataFrame(), pd.DataFrame(), False
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), False
+
+# Initialize empty DataFrames
+df = pd.DataFrame()
+df_mat = pd.DataFrame()
+df_chf = pd.DataFrame()
+section_list = []
+section_list_mat = []
 
 # Load data with comprehensive error handling
 try:
     if check_url(file_path) and check_url(file_path_mat):
-        df, df_mat, success = load_data()
+        df, df_mat, df_chf, success = load_data()
         if success and not df.empty and not df_mat.empty:
             section_list = list(df.index)
             section_list_mat = list(df_mat.index)
@@ -167,10 +135,324 @@ try:
         st.error("❌ One or both files do not exist at the given URLs. Please check the URLs.")
 except Exception as e:
     st.error(f"❌ Unexpected error during data loading: {e}")
-    df = pd.DataFrame()
-    df_mat = pd.DataFrame()
-    section_list = []
-    section_list_mat = []
+
+# Validation functions
+def validate_section_data(df_selected):
+    """ตรวจสอบความถูกต้องของข้อมูลที่เลือก"""
+    required_columns = ['Section']
+    missing_columns = [col for col in required_columns if col not in df_selected.columns]
+    
+    if missing_columns:
+        return False, f"Missing required columns: {missing_columns}"
+    
+    return True, "Data validation passed"
+
+def safe_analysis(section, df, df_mat, option_mat, lb_value):
+    """ทำการวิเคราะห์อย่างปลอดภัยพร้อมการจัดการ Error"""
+    try:
+        if section not in df.index:
+            return None, f"Section {section} not found in database"
+        
+        result = F2(df, df_mat, section, option_mat, lb_value)
+        return result, None
+    except Exception as e:
+        return None, f"Analysis error for {section}: {str(e)}"
+
+def standardize_column_names(df):
+    """แปลงชื่อ column ให้เป็นมาตรฐาน"""
+    column_mapping = {
+        'w [kg/m]': 'Unit Weight [kg/m]',
+        'Weight [kg/m]': 'Unit Weight [kg/m]',
+        'Unit weight [kg/m]': 'Unit Weight [kg/m]'
+    }
+    
+    for old_name, new_name in column_mapping.items():
+        if old_name in df.columns:
+            df = df.rename(columns={old_name: new_name})
+    
+    return df
+
+def safe_get_weight(df, section):
+    """ดึงค่า weight อย่างปลอดภัย"""
+    weight_columns = ['Unit Weight [kg/m]', 'w [kg/m]', 'Weight [kg/m]']
+    
+    for col in weight_columns:
+        if col in df.columns:
+            try:
+                weight = float(df.loc[section, col])
+                return weight
+            except (KeyError, ValueError, TypeError):
+                continue
+    
+    st.warning(f"⚠️ Weight not found for section {section}")
+    return 0.0
+
+# Helper Functions for Steel Analysis
+def Flexural_classify(df, df_mat, option, option_mat):
+    """Classification for flexural members"""
+    if option_mat not in df_mat.index:
+        raise KeyError(f"Option '{option_mat}' not found in the DataFrame.")
+    
+    if "Yield Point (ksc)" not in df_mat.columns or "E" not in df_mat.columns:
+        raise KeyError("'Yield Point (ksc)' or 'E' column not found in the DataFrame.")
+
+    Fy = float(df_mat.loc[option_mat, "Yield Point (ksc)"])
+    E = float(df_mat.loc[option_mat, "E"])
+
+    lamw = float(df.loc[option, 'h/tw'])
+    lamf = float(df.loc[option, '0.5bf/tf'])
+    
+    lamw_limp = 3.76 * mt.sqrt(E / Fy)
+    lamw_limr = 5.70 * mt.sqrt(E / Fy)
+
+    lamf_limp = 0.38 * mt.sqrt(E / Fy)
+    lamf_limr = 1.00 * mt.sqrt(E / Fy)
+
+    if lamw < lamw_limp:
+        Classify_Web_Flexural = "Compact Web"
+    elif lamw_limp < lamw < lamw_limr:
+        Classify_Web_Flexural = "Non-Compact Web"
+    else:
+        Classify_Web_Flexural = "Slender Web"
+        
+    if lamf < lamf_limp:
+        Classify_flange_Flexural = "Compact Flange"
+    elif lamf_limp < lamf < lamf_limr:
+        Classify_flange_Flexural = "Non-Compact Flange"
+    else:
+        Classify_flange_Flexural = "Slender Flange"
+
+    return lamf, lamw, lamf_limp, lamf_limr, lamw_limp, lamw_limr, Classify_flange_Flexural, Classify_Web_Flexural
+
+def compression_classify(df, df_mat, option, option_mat):
+    """Classification for compression members"""
+    Fy = float(df_mat.loc[option_mat, "Yield Point (ksc)"])
+    E = float(df_mat.loc[option_mat, "E"])          
+    lamw = float(df.loc[option, 'h/tw'])
+    lamf = float(df.loc[option, '0.5bf/tf'])
+    lamw_lim = 1.49 * mt.sqrt(E / Fy)
+    lamf_lim = 0.56 * mt.sqrt(E / Fy)
+    
+    if lamw < lamw_lim:
+        Classify_Web_Compression = "Non-Slender Web"
+    else:
+        Classify_Web_Compression = "Slender Web"
+        
+    if lamf < lamf_lim:
+        Classify_flange_Compression = "Non-Slender Flange"
+    else:
+        Classify_flange_Compression = "Slender Flange"
+        
+    return lamf, lamw, lamw_lim, lamf_lim, Classify_flange_Compression, Classify_Web_Compression
+
+def F2(df, df_mat, option, option_mat, Lb):
+    """F2 Analysis for doubly symmetric compact I-shaped members"""
+    Cb = 1
+    section = option
+    Lb = Lb * 100  # Convert Lb to cm
+    Lp = float(df.loc[section, "Lp [cm]"])
+    Lr = float(df.loc[section, "Lr [cm]"])
+    S_Major = float(df.loc[section, "Sx [cm3]"])
+    Z_Major = float(df.loc[section, 'Zx [cm3]'])
+    rts = float(df.loc[section, 'rts [cm6]'])
+    j = float(df.loc[section, 'j [cm4]'])
+    c = 1
+    h0 = float(df.loc[section, 'ho [mm]']) / 10  # Convert to cm
+    Fy = float(df_mat.loc[option_mat, "Yield Point (ksc)"])
+    E = float(df_mat.loc[option_mat, "E"])
+
+    Mni = []
+    Mnr = []
+    Lni = []
+    Lri_values = []
+
+    if Lb < Lp:
+        Case = "F2.1 - Plastic Yielding"
+        Mp = Fy * Z_Major 
+        Mn = Mp / 100000
+        Mn = np.floor(Mn * 100) / 100
+        Mp = np.floor(Mp * 100) / 100
+    elif Lp <= Lb < Lr:
+        Case = "F2.2 - Lateral-Torsional Buckling"
+        Mp = Fy * Z_Major
+        Mn = Cb * (Mp - ((Mp - 0.7 * Fy * S_Major) * ((Lb - Lp) / (Lr - Lp))))
+        Mn = Mn / 100000
+        Mp = Mp / 100000
+        Mn = min(Mp, Mn)
+        Mn = np.floor(Mn * 100) / 100
+        Mp = np.floor(Mp * 100) / 100
+    else:
+        Case = "F2.3 - Lateral-Torsional Buckling"
+        Term_1 = (Cb * mt.pi ** 2 * E) / (((Lb) / rts) ** 2)
+        Term_2 = 0.078 * ((j * c) / (S_Major * h0)) * (((Lb) / rts) ** 2)
+        Term12 = Term_1 * mt.sqrt(1 + Term_2)
+        Mn = Term12 * S_Major
+        Mn = Mn / 100000
+        Mp = Fy * Z_Major 
+        Mp = Mp / 100000
+        Mn = np.floor(Mn * 100) / 100
+        Mp = np.floor(Mp * 100) / 100
+
+    Mn = np.floor(Mn * 100) / 100
+    Mn_F2C = 0.7 * Fy * S_Major / 100000
+    Mn_F2C = np.floor(Mn_F2C * 100) / 100
+
+    Mni.append(Mp)
+    Lni.append(np.floor(0 * 100) / 100)
+
+    Mni.append(Mp)
+    Lni.append(np.floor((Lp / 100) * 100) / 100)
+
+    Mni.append(Mn_F2C)
+    Lni.append(np.floor((Lr / 100) * 100) / 100)
+
+    Lro = Lr
+    Lr = Lr / 100
+    Lr = np.ceil(Lr * 100) / 100
+    Lr += 0.01
+    Lrii = Lr
+    Lriii = Lrii + 11
+
+    i = Lrii
+    while i < Lriii:
+        Lbi = i * 100
+        rounded_i = np.floor(i * 100) / 100
+        Lri_values.append(rounded_i)
+        
+        Term_1 = (Cb * mt.pi ** 2 * E) / ((Lbi / rts) ** 2)
+        Term_2 = 0.078 * ((j * c) / (S_Major * h0)) * ((Lbi / rts) ** 2)
+        fcr = Term_1 * mt.sqrt(1 + Term_2)
+        Mnc = fcr * S_Major
+        Mnc = Mnc / 100000
+        Mnc = np.floor(Mnc * 100) / 100
+        Mnr.append(Mnc)
+        
+        i += 0.5
+
+    Mni.append(Mnr)
+    Lni.append(Lri_values)
+
+    Lb = Lb / 100
+    Lp = Lp / 100
+    Lr = Lro / 100
+
+    Lb = np.floor(Lb * 100) / 100
+    Lp = np.floor(Lp * 100) / 100
+    Lr = np.floor(Lr * 100) / 100
+
+    return Mn, Lb, Lp, Lr, Mp, Mni, Lni, Case
+
+def classify_section(lamf, lamw, lamf_limp, lamf_limr, lamw_limp, lamw_limr, bending_axis):
+    """Classify section based on element slenderness"""
+    if lamf < lamf_limp:
+        flange = "Compact Flange"
+    elif lamf_limp <= lamf < lamf_limr:
+        flange = "Non-Compact Flange"
+    else:
+        flange = "Slender Flange"
+    
+    if lamw < lamw_limp:
+        web = "Compact Web"
+    elif lamw_limp <= lamw < lamw_limr:
+        web = "Non-Compact Web"
+    else:
+        web = "Slender Web"
+    
+    if bending_axis == "Major axis bending":
+        if flange == "Compact Flange" and web == "Compact Web":
+            return "F2: Doubly Symmetric Compact I-Shaped Members"
+        elif flange == "Non-Compact Flange" and web == "Compact Web":
+            return "F3: Non-Compact Flange, Compact Web"
+        elif flange == "Slender Flange" and web == "Compact Web":
+            return "F4: Slender Flange, Compact Web"
+        else:
+            return "F5: Other I-Shaped Members"
+    elif bending_axis == "Minor axis bending":
+        if flange == "Compact Flange":
+            return "F6: Minor Axis Bending (Compact Flange)"
+        elif flange == "Non-Compact Flange":
+            return "F6: Minor Axis Bending (Non-Compact Flange)"
+        elif flange == "Slender Flange":
+            return "F6: Minor Axis Bending (Slender Flange)"
+    
+    return "Classification not determined"
+
+def create_safe_subplot_dashboard(plot_data, comparison_results):
+    """สร้าง subplot อย่างปลอดภัย"""
+    try:
+        if not plot_data['sections'] or len(plot_data['sections']) == 0:
+            st.warning("⚠️ No data available for plotting")
+            return None
+        
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=('Moment Capacity vs Lb Used', 'Weight vs Efficiency', 
+                          'Capacity Utilization', 'Performance Ranking'),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                   [{"secondary_y": False}, {"secondary_y": False}]]
+        )
+        
+        # Plot 1: Moment vs Lb
+        if len(plot_data['sections']) > 0:
+            colors = px.colors.qualitative.Set3[:len(plot_data['sections'])]
+            for i, (section, lb, mn) in enumerate(zip(plot_data['sections'], plot_data['lb_used'], plot_data['phi_Mn'])):
+                if mn is not None and lb is not None:
+                    fig.add_trace(
+                        go.Scatter(x=[lb], y=[mn], mode='markers+text', 
+                                 name=section, text=[section], textposition="top center",
+                                 marker=dict(size=12, color=colors[i % len(colors)])),
+                        row=1, col=1
+                    )
+        
+        # Plot 2: Weight vs Efficiency
+        valid_weights = [w for w in plot_data['weight'] if w is not None and w > 0]
+        valid_efficiency = [e for e in plot_data['efficiency'] if e is not None and e > 0]
+        valid_sections = [s for i, s in enumerate(plot_data['sections']) 
+                         if plot_data['weight'][i] is not None and plot_data['weight'][i] > 0 
+                         and plot_data['efficiency'][i] is not None and plot_data['efficiency'][i] > 0]
+        
+        if valid_weights and valid_efficiency:
+            fig.add_trace(
+                go.Scatter(x=valid_weights, y=valid_efficiency,
+                         mode='markers+text', text=valid_sections,
+                         textposition="top center", name='Weight vs Efficiency',
+                         marker=dict(size=10, color='blue')),
+                row=1, col=2
+            )
+        
+        # Plot 3: Capacity utilization
+        if comparison_results:
+            capacity_ratios = [r.get('Capacity Ratio', 0) for r in comparison_results if r.get('Capacity Ratio') is not None]
+            sections_with_ratios = [r.get('Section', '') for r in comparison_results if r.get('Capacity Ratio') is not None]
+            
+            if capacity_ratios and sections_with_ratios:
+                fig.add_trace(
+                    go.Bar(x=sections_with_ratios, y=capacity_ratios,
+                           name='Mn/Mp Ratio', marker_color='orange'),
+                    row=2, col=1
+                )
+        
+        # Plot 4: Performance ranking
+        valid_efficiency_for_ranking = [e for e in plot_data['efficiency'] if e is not None and e > 0]
+        valid_sections_for_ranking = [s for i, s in enumerate(plot_data['sections']) 
+                                    if plot_data['efficiency'][i] is not None and plot_data['efficiency'][i] > 0]
+        
+        if valid_efficiency_for_ranking and valid_sections_for_ranking:
+            fig.add_trace(
+                go.Bar(x=valid_sections_for_ranking, y=valid_efficiency_for_ranking,
+                       name='Efficiency Ranking', marker_color='purple'),
+                row=2, col=2
+            )
+        
+        fig.update_layout(height=800, showlegend=False, 
+                         title_text="Steel Section Analysis Dashboard")
+        fig.update_xaxes(tickangle=45)
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error creating subplot: {e}")
+        return None
 
 # Main header
 st.markdown('<h1 class="main-header">🏗️ Structural Steel Design Analysis</h1>', unsafe_allow_html=True)
@@ -208,192 +490,6 @@ with st.sidebar:
     if ChapterF_Design:
         Mu = st.number_input("⚡ Ultimate Bending Moment (kN·m):", value=100.0)
         Vu = st.number_input("⚡ Ultimate Shear Force (kN):", value=100.0)
-
-# Helper Functions
-def Flexural_classify(df, df_mat, option, option_mat):
-    if option_mat not in df_mat.index:
-        raise KeyError(f"Option '{option_mat}' not found in the DataFrame.")
-    
-    if "Yield Point (ksc)" not in df_mat.columns or "E" not in df_mat.columns:
-        raise KeyError("'Yield Point (ksc)' or 'E' column not found in the DataFrame.")
-
-    Fy = float(df_mat.loc[option_mat, "Yield Point (ksc)"])
-    E = float(df_mat.loc[option_mat, "E"])
-
-    lamw = float(df.loc[option, 'h/tw'])
-    lamf = float(df.loc[option, '0.5bf/tf'])
-    
-    lamw_limp = 3.76 * mt.sqrt(E / Fy)
-    lamw_limr = 5.70 * mt.sqrt(E / Fy)
-
-    lamf_limp = 0.38 * mt.sqrt(E / Fy)
-    lamf_limr = 1.00 * mt.sqrt(E / Fy)
-
-    if lamw < lamw_limp:
-        Classify_Web_Flexural = "Compact Web"
-    elif lamw_limp < lamw < lamw_limr:
-        Classify_Web_Flexural = "Non-Compact Web"
-    else:
-        Classify_Web_Flexural = "Slender Web"
-        
-    if lamf < lamf_limp:
-        Classify_flange_Flexural = "Compact Flange"
-    elif lamf_limp < lamf < lamf_limr:
-        Classify_flange_Flexural = "Non-Compact Flange"
-    else:
-        Classify_flange_Flexural = "Slender Flange"
-
-    return lamf, lamw, lamf_limp, lamf_limr, lamw_limp, lamw_limr, Classify_flange_Flexural, Classify_Web_Flexural
-
-def compression_classify(df, df_mat, option, option_mat):
-    Fy = float(df_mat.loc[option_mat,"Yield Point (ksc)"])
-    E = float(df_mat.loc[option_mat,"E"])          
-    lamw = float(df.loc[option, 'h/tw'])
-    lamf = float(df.loc[option, '0.5bf/tf'])
-    lamw_lim = 1.49 * mt.sqrt(E / Fy)
-    lamf_lim = 0.56 * mt.sqrt(E / Fy)
-    
-    if lamw < lamw_lim:
-        Classify_Web_Compression = "Non-Slender Web"
-    else:
-        Classify_Web_Compression = "Slender Web"
-        
-    if lamf < lamf_lim:
-        Classify_flange_Compression = "Non-Slender Flange"
-    else:
-        Classify_flange_Compression = "Slender Flange"
-        
-    return lamf, lamw, lamw_lim, lamf_lim, Classify_flange_Compression, Classify_Web_Compression
-
-def F2(df, df_mat, option, option_mat, Lb):
-    Cb = 1
-    section = option
-    Lb = Lb * 100  # Convert Lb to cm
-    Lp = float(df.loc[section, "Lp [cm]"])
-    Lr = float(df.loc[section, "Lr [cm]"])
-    S_Major = float(df.loc[section, "Sx [cm3]"])
-    Z_Major = float(df.loc[section, 'Zx [cm3]'])
-    rts = float(df.loc[section, 'rts [cm6]'])
-    j = float(df.loc[section, 'j [cm4]'])
-    c = 1
-    h0 = float(df.loc[section, 'ho [mm]']) / 10  # Convert to cm
-    Fy = float(df_mat.loc[option_mat, "Yield Point (ksc)"])
-    E = float(df_mat.loc[option_mat, "E"])
-
-    Mni = []
-    Mnr = []
-    Lni = []
-    Lri_values = []
-
-    if Lb < Lp:
-        Case = "F2.1 - Plastic Yielding"
-        Mp = Fy * Z_Major 
-        Mn = Mp/100000
-        Mn = np.floor(Mn * 100) / 100
-        Mp = np.floor(Mp * 100) / 100
-    elif Lp <= Lb < Lr:
-        Case = "F2.2 - Lateral-Torsional Buckling"
-        Mp = Fy * Z_Major
-        Mn = Cb * (Mp - ((Mp - 0.7 * Fy * S_Major) * ((Lb - Lp) / (Lr - Lp))))
-        Mn = Mn / 100000
-        Mp = Mp/100000
-        Mn = min(Mp,Mn)
-        Mn = np.floor(Mn * 100) / 100
-        Mp = np.floor(Mp * 100) / 100
-    else:
-        Case = "F2.3 - Lateral-Torsional Buckling"
-        Term_1 = (Cb * mt.pi ** 2 * E) / (((Lb) / rts) ** 2)
-        Term_2 = 0.078 * ((j * c) / (S_Major * h0)) * (((Lb) / rts) ** 2)
-        Term12 = Term_1 * mt.sqrt(1 + Term_2)
-        Mn = Term12*S_Major
-        Mn = Mn/100000
-        Mp = Fy * Z_Major 
-        Mp = Mp/100000
-        Mn = np.floor(Mn * 100) / 100
-        Mp = np.floor(Mp * 100) / 100
-
-    Mn = np.floor(Mn * 100) / 100
-    Mn_F2C = 0.7 * Fy * S_Major / 100000
-    Mn_F2C = np.floor(Mn_F2C * 100) / 100
-
-    Mni.append(Mp)
-    Lni.append(np.floor(0 * 100) / 100)
-
-    Mni.append(Mp)
-    Lni.append(np.floor((Lp/100) * 100) / 100)
-
-    Mni.append(Mn_F2C)
-    Lni.append(np.floor((Lr/100) * 100) / 100)
-
-    Lro = Lr
-    Lr = Lr / 100
-    Lr = np.ceil(Lr * 100) / 100
-    Lr += 0.01
-    Lrii = Lr
-    Lriii = Lrii + 11
-
-    i = Lrii
-    while i < Lriii:
-        Lbi = i * 100
-        rounded_i = np.floor(i * 100) / 100
-        Lri_values.append(rounded_i)
-        
-        Term_1 = (Cb * mt.pi ** 2 * E) / ((Lbi / rts) ** 2)
-        Term_2 = 0.078 * ((j * c) / (S_Major * h0)) * ((Lbi / rts) ** 2)
-        fcr = Term_1 * mt.sqrt(1 + Term_2)
-        Mnc = fcr*S_Major
-        Mnc = Mnc / 100000
-        Mnc = np.floor(Mnc * 100) / 100
-        Mnr.append(Mnc)
-        
-        i += 0.5
-
-    Mni.append(Mnr)
-    Lni.append(Lri_values)
-
-    Lb = Lb/100
-    Lp = Lp/100
-    Lr = Lro/100
-
-    Lb = np.floor(Lb * 100) / 100
-    Lp = np.floor(Lp * 100) / 100
-    Lr = np.floor(Lr * 100) / 100
-
-    return Mn, Lb, Lp, Lr, Mp, Mni, Lni, Case
-
-def classify_section(lamf, lamw, lamf_limp, lamf_limr, lamw_limp, lamw_limr, bending_axis):
-    if lamf < lamf_limp:
-        flange = "Compact Flange"
-    elif lamf_limp <= lamf < lamf_limr:
-        flange = "Non-Compact Flange"
-    else:
-        flange = "Slender Flange"
-    
-    if lamw < lamw_limp:
-        web = "Compact Web"
-    elif lamw_limp <= lamw < lamw_limr:
-        web = "Non-Compact Web"
-    else:
-        web = "Slender Web"
-    
-    if bending_axis == "Major axis bending":
-        if flange == "Compact Flange" and web == "Compact Web":
-            return "F2: Doubly Symmetric Compact I-Shaped Members"
-        elif flange == "Non-Compact Flange" and web == "Compact Web":
-            return "F3: Non-Compact Flange, Compact Web"
-        elif flange == "Slender Flange" and web == "Compact Web":
-            return "F3: Slender Flange, Compact Web"
-        # Add other combinations...
-    elif bending_axis == "Minor axis bending":
-        if flange == "Compact Flange":
-            return "F6: Minor Axis Bending (Compact Flange)"
-        elif flange == "Non-Compact Flange":
-            return "F6: Minor Axis Bending (Non-Compact Flange)"
-        elif flange == "Slender Flange":
-            return "F6: Minor Axis Bending (Slender Flange)"
-    
-    return "Classification not determined"
-
 # Main content tabs
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Steel Catalogue", "🔧 Chapter F Analysis", "📋 Section Selection", "📈 Comparative Analysis"])
 
