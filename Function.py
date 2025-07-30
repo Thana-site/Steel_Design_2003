@@ -136,283 +136,6 @@ try:
 except Exception as e:
     st.error(f"❌ Unexpected error during data loading: {e}")
 
-def create_multi_section_comparison_plot(df, df_mat, selected_sections, option_mat, section_lb_values, use_global_lb=False, global_lb=6.0, show_lp_lr_sections=None):
-    """สร้างกราฟเปรียบเทียบ Moment Capacity vs Unbraced Length สำหรับหลายหน้าตัด พร้อมเลือกแสดง Lp, Lr"""
-    try:
-        fig = go.Figure()
-        
-        # สีที่แตกต่างกันสำหรับแต่ละหน้าตัด
-        colors = px.colors.qualitative.Set3
-        
-        # เก็บข้อมูลสำหรับการแสดงผล
-        legend_info = []
-        
-        # ถ้าไม่มีการเลือก show_lp_lr_sections ให้แสดงทั้งหมด
-        if show_lp_lr_sections is None:
-            show_lp_lr_sections = selected_sections
-        
-        for i, section in enumerate(selected_sections):
-            try:
-                if section not in df.index:
-                    continue
-                
-                # กำหนด Lb range สำหรับการ plot
-                Lr_max = df.loc[section, 'Lr [cm]'] / 100
-                Lr_max = max(15, Lr_max + 5)  # ขยายช่วงให้เห็นชัดขึ้น
-                
-                # สร้าง Lb range
-                lb_range = np.linspace(0.1, Lr_max, 100)
-                mn_values = []
-                
-                # คำนวณ Mn สำหรับแต่ละค่า Lb
-                for lb in lb_range:
-                    try:
-                        Mn, _, Lp, Lr, Mp, _, _, _ = F2(df, df_mat, section, option_mat, lb)
-                        mn_values.append(Mn if Mn is not None else 0)
-                    except:
-                        mn_values.append(0)
-                
-                # เพิ่มเส้นโค้งของหน้าตัด
-                color = colors[i % len(colors)]
-                fig.add_trace(go.Scatter(
-                    x=lb_range,
-                    y=mn_values,
-                    mode='lines',
-                    name=f'{section} - Capacity Curve',
-                    line=dict(color=color, width=2),
-                    hovertemplate=f'<b>{section}</b><br>' +
-                                'Lb: %{x:.2f} m<br>' +  
-                                'Mn: %{y:.2f} t⋅m<extra></extra>'
-                ))
-                
-                # เพิ่มจุดปัจจุบันของแต่ละหน้าตัด
-                current_lb = global_lb if use_global_lb else section_lb_values.get(section, 6.0)
-                current_mn, _, current_lp, current_lr, current_mp, _, _, current_case = F2(df, df_mat, section, option_mat, current_lb)
-                
-                # จุดปัจจุบัน
-                fig.add_trace(go.Scatter(
-                    x=[current_lb],
-                    y=[current_mn],
-                    mode='markers',
-                    name=f'{section} - Current Point',
-                    marker=dict(
-                        color=color,
-                        size=12,
-                        symbol='diamond',
-                        line=dict(color='black', width=1)
-                    ),
-                    hovertemplate=f'<b>{section} - Current Design</b><br>' +
-                                f'Lb: {current_lb:.2f} m<br>' +
-                                f'Mn: {current_mn:.2f} t⋅m<br>' +
-                                f'Mp: {current_mp:.2f} t⋅m<br>' +
-                                f'Lp: {current_lp:.2f} m<br>' +
-                                f'Lr: {current_lr:.2f} m<br>' +
-                                f'Case: {current_case}<extra></extra>'
-                ))
-                
-                # ✅ เพิ่มเส้น Lp และ Lr เฉพาะหน้าตัดที่เลือก
-                if section in show_lp_lr_sections:
-                    # เพิ่มเส้น Lp
-                    fig.add_vline(
-                        x=current_lp,
-                        line=dict(color=color, dash="dot", width=1.5, opacity=0.8),
-                        annotation=dict(
-                            text=f"Lp-{section}<br>{current_lp:.1f}m",
-                            showarrow=True,
-                            arrowhead=2,
-                            arrowsize=1,
-                            arrowwidth=1,
-                            arrowcolor=color,
-                            bgcolor="rgba(255,255,255,0.9)",
-                            bordercolor=color,
-                            font=dict(size=10),
-                            xanchor="left" if i % 2 == 0 else "right"
-                        )
-                    )
-                    
-                    # เพิ่มเส้น Lr
-                    fig.add_vline(
-                        x=current_lr,
-                        line=dict(color=color, dash="dashdot", width=1.5, opacity=0.8),
-                        annotation=dict(
-                            text=f"Lr-{section}<br>{current_lr:.1f}m",
-                            showarrow=True,
-                            arrowhead=2,
-                            arrowsize=1,
-                            arrowwidth=1,
-                            arrowcolor=color,
-                            bgcolor="rgba(255,255,255,0.9)",
-                            bordercolor=color,
-                            font=dict(size=10),
-                            xanchor="right" if i % 2 == 0 else "left"
-                        )
-                    )
-                
-                # เก็บข้อมูลสำหรับ legend
-                legend_info.append({
-                    'section': section,
-                    'current_lb': current_lb,
-                    'current_mn': current_mn,
-                    'mp': current_mp,
-                    'lp': current_lp,
-                    'lr': current_lr,
-                    'efficiency': (0.9 * current_mn) / safe_get_weight(df, section) if safe_get_weight(df, section) > 0 else 0
-                })
-                
-            except Exception as e:
-                st.warning(f"⚠️ Error processing section {section}: {e}")
-                continue
-        
-        # ปรับแต่ง layout
-        fig.update_layout(
-            title="🔧 Multi-Section Moment Capacity Comparison",
-            xaxis_title="Unbraced Length, Lb (m)",
-            yaxis_title="Moment Capacity, Mn (t⋅m)",
-            height=600,
-            hovermode='closest',
-            legend=dict(
-                orientation="v",
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=1.01
-            ),
-            showlegend=True
-        )
-        
-        # เพิ่มกริด
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-        
-        return fig, legend_info
-        
-    except Exception as e:
-        st.error(f"Error creating multi-section comparison plot: {e}")
-        return None, []
-
-
-def create_multi_section_efficiency_plot(df, df_mat, selected_sections, option_mat, section_lb_values, use_global_lb=False, global_lb=6.0):
-    """สร้างกราฟแสดงประสิทธิภาพของหลายหน้าตัด"""
-    try:
-        fig = go.Figure()
-        
-        # เก็บข้อมูล
-        sections_data = []
-        
-        for section in selected_sections:
-            try:
-                if section not in df.index:
-                    continue
-                
-                current_lb = global_lb if use_global_lb else section_lb_values.get(section, 6.0)
-                Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section, option_mat, current_lb)
-                
-                Fib = 0.9
-                FibMn = Fib * Mn
-                weight = safe_get_weight(df, section)
-                efficiency = FibMn / weight if weight > 0 else 0
-                capacity_ratio = Mn / Mp if Mp > 0 else 0
-                
-                sections_data.append({
-                    'Section': section,
-                    'φMn': FibMn,
-                    'Weight': weight,
-                    'Efficiency': efficiency,
-                    'Capacity_Ratio': capacity_ratio,
-                    'Lb': current_lb,
-                    'Case': Case
-                })
-                
-            except Exception as e:
-                continue
-        
-        if not sections_data:
-            return None
-        
-        # สร้าง subplot
-        fig = make_subplots(
-            rows=2, cols=2,
-            subplot_titles=('Design Moment Capacity', 'Unit Weight', 
-                          'Efficiency Ratio', 'Capacity Utilization'),
-            specs=[[{"secondary_y": False}, {"secondary_y": False}],
-                   [{"secondary_y": False}, {"secondary_y": False}]]
-        )
-        
-        sections = [d['Section'] for d in sections_data]
-        colors = px.colors.qualitative.Set3[:len(sections)]
-        
-        # Plot 1: Design Moment Capacity
-        fig.add_trace(
-            go.Bar(
-                x=sections,
-                y=[d['φMn'] for d in sections_data],
-                name='φMn',
-                marker_color=colors,
-                text=[f'{d["φMn"]:.2f}' for d in sections_data],
-                textposition='auto'
-            ),
-            row=1, col=1
-        )
-        
-        # Plot 2: Weight
-        fig.add_trace(
-            go.Bar(
-                x=sections,
-                y=[d['Weight'] for d in sections_data],
-                name='Weight',
-                marker_color=colors,
-                text=[f'{d["Weight"]:.1f}' for d in sections_data],
-                textposition='auto'
-            ),
-            row=1, col=2
-        )
-        
-        # Plot 3: Efficiency
-        fig.add_trace(
-            go.Bar(
-                x=sections,
-                y=[d['Efficiency'] for d in sections_data],
-                name='Efficiency',
-                marker_color=colors,
-                text=[f'{d["Efficiency"]:.3f}' for d in sections_data],
-                textposition='auto'
-            ),
-            row=2, col=1
-        )
-        
-        # Plot 4: Capacity Ratio
-        fig.add_trace(
-            go.Bar(
-                x=sections,
-                y=[d['Capacity_Ratio'] for d in sections_data],
-                name='Mn/Mp Ratio',
-                marker_color=colors,
-                text=[f'{d["Capacity_Ratio"]:.2f}' for d in sections_data],
-                textposition='auto'
-            ),
-            row=2, col=2
-        )
-        
-        # Update layout
-        fig.update_layout(
-            height=700,
-            showlegend=False,
-            title_text="📊 Multi-Section Performance Dashboard"
-        )
-        
-        # Update y-axis labels
-        fig.update_yaxes(title_text="φMn (t⋅m)", row=1, col=1)
-        fig.update_yaxes(title_text="Weight (kg/m)", row=1, col=2)
-        fig.update_yaxes(title_text="Efficiency", row=2, col=1)
-        fig.update_yaxes(title_text="Capacity Ratio", row=2, col=2)
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"Error creating efficiency plot: {e}")
-        return None
-
-
 # Validation functions
 def validate_section_data(df_selected):
     """ตรวจสอบความถูกต้องของข้อมูลที่เลือก"""
@@ -653,6 +376,279 @@ def classify_section(lamf, lamw, lamf_limp, lamf_limr, lamw_limp, lamw_limr, ben
             return "F6: Minor Axis Bending (Slender Flange)"
     
     return "Classification not determined"
+
+def create_multi_section_comparison_plot(df, df_mat, selected_sections, option_mat, section_lb_values, use_global_lb=False, global_lb=6.0, show_lp_lr_sections=None):
+    """สร้างกราฟเปรียบเทียบ Moment Capacity vs Unbraced Length สำหรับหลายหน้าตัด พร้อมเลือกแสดง Lp, Lr"""
+    try:
+        fig = go.Figure()
+        
+        # สีที่แตกต่างกันสำหรับแต่ละหน้าตัด
+        colors = px.colors.qualitative.Set3
+        
+        # เก็บข้อมูลสำหรับการแสดงผล
+        legend_info = []
+        
+        # ถ้าไม่มีการเลือก show_lp_lr_sections ให้แสดงทั้งหมด
+        if show_lp_lr_sections is None:
+            show_lp_lr_sections = selected_sections
+        
+        for i, section in enumerate(selected_sections):
+            try:
+                if section not in df.index:
+                    continue
+                
+                # กำหนด Lb range สำหรับการ plot
+                Lr_max = df.loc[section, 'Lr [cm]'] / 100
+                Lr_max = max(15, Lr_max + 5)  # ขยายช่วงให้เห็นชัดขึ้น
+                
+                # สร้าง Lb range
+                lb_range = np.linspace(0.1, Lr_max, 100)
+                mn_values = []
+                
+                # คำนวณ Mn สำหรับแต่ละค่า Lb
+                for lb in lb_range:
+                    try:
+                        Mn, _, Lp, Lr, Mp, _, _, _ = F2(df, df_mat, section, option_mat, lb)
+                        mn_values.append(Mn if Mn is not None else 0)
+                    except:
+                        mn_values.append(0)
+                
+                # เพิ่มเส้นโค้งของหน้าตัด
+                color = colors[i % len(colors)]
+                fig.add_trace(go.Scatter(
+                    x=lb_range,
+                    y=mn_values,
+                    mode='lines',
+                    name=f'{section} - Capacity Curve',
+                    line=dict(color=color, width=2),
+                    hovertemplate=f'<b>{section}</b><br>' +
+                                'Lb: %{x:.2f} m<br>' +  
+                                'Mn: %{y:.2f} t⋅m<extra></extra>'
+                ))
+                
+                # เพิ่มจุดปัจจุบันของแต่ละหน้าตัด
+                current_lb = global_lb if use_global_lb else section_lb_values.get(section, 6.0)
+                current_mn, _, current_lp, current_lr, current_mp, _, _, current_case = F2(df, df_mat, section, option_mat, current_lb)
+                
+                # จุดปัจจุบัน
+                fig.add_trace(go.Scatter(
+                    x=[current_lb],
+                    y=[current_mn],
+                    mode='markers',
+                    name=f'{section} - Current Point',
+                    marker=dict(
+                        color=color,
+                        size=12,
+                        symbol='diamond',
+                        line=dict(color='black', width=1)
+                    ),
+                    hovertemplate=f'<b>{section} - Current Design</b><br>' +
+                                f'Lb: {current_lb:.2f} m<br>' +
+                                f'Mn: {current_mn:.2f} t⋅m<br>' +
+                                f'Mp: {current_mp:.2f} t⋅m<br>' +
+                                f'Lp: {current_lp:.2f} m<br>' +
+                                f'Lr: {current_lr:.2f} m<br>' +
+                                f'Case: {current_case}<extra></extra>'
+                ))
+                
+                # ✅ เพิ่มเส้น Lp และ Lr เฉพาะหน้าตัดที่เลือก (แก้ไข opacity issue)
+                if section in show_lp_lr_sections:
+                    # เพิ่มเส้น Lp (ลบ opacity property)
+                    fig.add_vline(
+                        x=current_lp,
+                        line=dict(color=color, dash="dot", width=1.5),
+                        annotation=dict(
+                            text=f"Lp-{section}<br>{current_lp:.1f}m",
+                            showarrow=True,
+                            arrowhead=2,
+                            arrowsize=1,
+                            arrowwidth=1,
+                            arrowcolor=color,
+                            bgcolor="rgba(255,255,255,0.9)",
+                            bordercolor=color,
+                            font=dict(size=10),
+                            xanchor="left" if i % 2 == 0 else "right"
+                        )
+                    )
+                    
+                    # เพิ่มเส้น Lr (ลบ opacity property)
+                    fig.add_vline(
+                        x=current_lr,
+                        line=dict(color=color, dash="dashdot", width=1.5),
+                        annotation=dict(
+                            text=f"Lr-{section}<br>{current_lr:.1f}m",
+                            showarrow=True,
+                            arrowhead=2,
+                            arrowsize=1,
+                            arrowwidth=1,
+                            arrowcolor=color,
+                            bgcolor="rgba(255,255,255,0.9)",
+                            bordercolor=color,
+                            font=dict(size=10),
+                            xanchor="right" if i % 2 == 0 else "left"
+                        )
+                    )
+                
+                # เก็บข้อมูลสำหรับ legend
+                legend_info.append({
+                    'section': section,
+                    'current_lb': current_lb,
+                    'current_mn': current_mn,
+                    'mp': current_mp,
+                    'lp': current_lp,
+                    'lr': current_lr,
+                    'efficiency': (0.9 * current_mn) / safe_get_weight(df, section) if safe_get_weight(df, section) > 0 else 0
+                })
+                
+            except Exception as e:
+                st.warning(f"⚠️ Error processing section {section}: {e}")
+                continue
+        
+        # ปรับแต่ง layout
+        fig.update_layout(
+            title="🔧 Multi-Section Moment Capacity Comparison",
+            xaxis_title="Unbraced Length, Lb (m)",
+            yaxis_title="Moment Capacity, Mn (t⋅m)",
+            height=600,
+            hovermode='closest',
+            legend=dict(
+                orientation="v",
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=1.01
+            ),
+            showlegend=True
+        )
+        
+        # เพิ่มกริด
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        
+        return fig, legend_info
+        
+    except Exception as e:
+        st.error(f"Error creating multi-section comparison plot: {e}")
+        return None, []
+
+def create_multi_section_efficiency_plot(df, df_mat, selected_sections, option_mat, section_lb_values, use_global_lb=False, global_lb=6.0):
+    """สร้างกราฟแสดงประสิทธิภาพของหลายหน้าตัด"""
+    try:
+        # เก็บข้อมูล
+        sections_data = []
+        
+        for section in selected_sections:
+            try:
+                if section not in df.index:
+                    continue
+                
+                current_lb = global_lb if use_global_lb else section_lb_values.get(section, 6.0)
+                Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section, option_mat, current_lb)
+                
+                Fib = 0.9
+                FibMn = Fib * Mn
+                weight = safe_get_weight(df, section)
+                efficiency = FibMn / weight if weight > 0 else 0
+                capacity_ratio = Mn / Mp if Mp > 0 else 0
+                
+                sections_data.append({
+                    'Section': section,
+                    'φMn': FibMn,
+                    'Weight': weight,
+                    'Efficiency': efficiency,
+                    'Capacity_Ratio': capacity_ratio,
+                    'Lb': current_lb,
+                    'Case': Case
+                })
+                
+            except Exception as e:
+                continue
+        
+        if not sections_data:
+            return None
+        
+        # สร้าง subplot
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=('Design Moment Capacity', 'Unit Weight', 
+                          'Efficiency Ratio', 'Capacity Utilization'),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                   [{"secondary_y": False}, {"secondary_y": False}]]
+        )
+        
+        sections = [d['Section'] for d in sections_data]
+        colors = px.colors.qualitative.Set3[:len(sections)]
+        
+        # Plot 1: Design Moment Capacity
+        fig.add_trace(
+            go.Bar(
+                x=sections,
+                y=[d['φMn'] for d in sections_data],
+                name='φMn',
+                marker_color=colors,
+                text=[f'{d["φMn"]:.2f}' for d in sections_data],
+                textposition='auto'
+            ),
+            row=1, col=1
+        )
+        
+        # Plot 2: Weight
+        fig.add_trace(
+            go.Bar(
+                x=sections,
+                y=[d['Weight'] for d in sections_data],
+                name='Weight',
+                marker_color=colors,
+                text=[f'{d["Weight"]:.1f}' for d in sections_data],
+                textposition='auto'
+            ),
+            row=1, col=2
+        )
+        
+        # Plot 3: Efficiency
+        fig.add_trace(
+            go.Bar(
+                x=sections,
+                y=[d['Efficiency'] for d in sections_data],
+                name='Efficiency',
+                marker_color=colors,
+                text=[f'{d["Efficiency"]:.3f}' for d in sections_data],
+                textposition='auto'
+            ),
+            row=2, col=1
+        )
+        
+        # Plot 4: Capacity Ratio
+        fig.add_trace(
+            go.Bar(
+                x=sections,
+                y=[d['Capacity_Ratio'] for d in sections_data],
+                name='Mn/Mp Ratio',
+                marker_color=colors,
+                text=[f'{d["Capacity_Ratio"]:.2f}' for d in sections_data],
+                textposition='auto'
+            ),
+            row=2, col=2
+        )
+        
+        # Update layout
+        fig.update_layout(
+            height=700,
+            showlegend=False,
+            title_text="📊 Multi-Section Performance Dashboard"
+        )
+        
+        # Update y-axis labels
+        fig.update_yaxes(title_text="φMn (t⋅m)", row=1, col=1)
+        fig.update_yaxes(title_text="Weight (kg/m)", row=1, col=2)
+        fig.update_yaxes(title_text="Efficiency", row=2, col=1)
+        fig.update_yaxes(title_text="Capacity Ratio", row=2, col=2)
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error creating efficiency plot: {e}")
+        return None
 
 def create_safe_subplot_dashboard(plot_data, comparison_results):
     """สร้าง subplot อย่างปลอดภัย"""
@@ -1136,13 +1132,71 @@ with tab4:
         if 'Section' in df_selected.columns and len(df_selected) > 0:
             section_names = df_selected['Section'].unique()
 
+            # Initialize results storage
+            comparison_results = []
+            plot_data = {'sections': [], 'Mp': [], 'Mn': [], 'phi_Mn': [], 'weight': [], 
+                        'efficiency': [], 'lb_used': []}
+            
+            # Analyze each section
+            for section in section_names:
+                try:
+                    if section not in df.index:
+                        st.warning(f"⚠️ Section {section} not found in database")
+                        continue
+                    
+                    # Determine Lb to use
+                    if use_global_lb:
+                        lb_to_use = global_lb
+                    else:
+                        lb_to_use = st.session_state.section_lb_values.get(section, 6.0)
+                    
+                    # Perform F2 analysis
+                    Mn, Lb_calc, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat, section, option_mat, lb_to_use)
+                    
+                    Fib = 0.9
+                    FibMn = Fib * Mn
+                    
+                    # Get weight safely
+                    weight = safe_get_weight(df, section)
+                    
+                    # Calculate efficiency
+                    efficiency = FibMn / weight if weight > 0 else 0
+                    
+                    # Store results (check for None values)
+                    comparison_results.append({
+                        'Section': section,
+                        'Lb Used (m)': lb_to_use,
+                        'Mp (t⋅m)': Mp if Mp is not None else 0,
+                        'Mn (t⋅m)': Mn if Mn is not None else 0,
+                        'φMn (t⋅m)': FibMn if FibMn is not None else 0,
+                        'Weight (kg/m)': weight,
+                        'Efficiency': efficiency,
+                        'Lp (m)': Lp if Lp is not None else 0,
+                        'Lr (m)': Lr if Lr is not None else 0,
+                        'Case': Case if Case is not None else 'Unknown',
+                        'Capacity Ratio': (Mn/Mp if Mp is not None and Mp > 0 and Mn is not None else 0)
+                    })
+                    
+                    # Store plot data (check for None values)
+                    plot_data['sections'].append(section)
+                    plot_data['Mp'].append(Mp if Mp is not None else 0)
+                    plot_data['Mn'].append(Mn if Mn is not None else 0)
+                    plot_data['phi_Mn'].append(FibMn if FibMn is not None else 0)
+                    plot_data['weight'].append(weight)
+                    plot_data['efficiency'].append(efficiency)
+                    plot_data['lb_used'].append(lb_to_use)
+                    
+                except Exception as e:
+                    st.error(f"❌ Error analyzing section {section}: {e}")
+                    continue
+
             if analysis_type == "Multi-Section Moment Curve":
                 st.markdown("#### 🔧 Multi-Section Moment Capacity vs Unbraced Length")
                 col_curve1, col_curve2 = st.columns([2, 1])
                 with col_curve1:
                     st.markdown("##### 📊 Graph Controls")
                     show_lp_lr_sections = st.multiselect(
-                        "🔍 เลือก section ที่จะแสดงเส้น Lp/Lr :",
+                        "🔍 เลือก section ที่จะแสดงเส้น Lp/Lr:",
                         options=list(section_names),
                         default=list(section_names),
                         help="เลือก section ที่จะโชว์เส้น critical length ในกราฟ"
@@ -1218,7 +1272,39 @@ with tab4:
                         if len(summary_df) > 0:
                             st.success(f"🏆 Best Performance: {summary_df.iloc[0]['section']}, Efficiency {summary_df.iloc[0]['efficiency']:.3f}")
 
-            # หมายเหตุ: ส่วนกรณีการวิเคราะห์อื่นๆ (Moment Capacity, Weight Comparison, Dashboard etc.) ให้คงของเดิมไว้
+            elif analysis_type == "Multi-Section Dashboard":
+                st.markdown("#### 📊 Multi-Section Performance Dashboard")
+                
+                fig = create_multi_section_efficiency_plot(
+                    df, df_mat, section_names, option_mat,
+                    st.session_state.section_lb_values, use_global_lb,
+                    global_lb if use_global_lb else None
+                )
+                
+                if fig is not None:
+                    st.plotly_chart(fig, use_container_width=True)
+
+            # เพิ่มโหมดอื่นๆ ตามต้องการ
+            elif analysis_type == "Moment Capacity":
+                try:
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(
+                        x=plot_data['sections'],
+                        y=plot_data['phi_Mn'],
+                        name='φMn',
+                        marker_color='lightblue',
+                        text=[f'{v:.2f}' for v in plot_data['phi_Mn']],
+                        textposition='auto'
+                    ))
+                    fig.update_layout(
+                        title="Design Moment Capacity Comparison",
+                        xaxis_title="Steel Sections",
+                        yaxis_title="φMn (t⋅m)",
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Error creating moment capacity chart: {e}")
 
         else:
             st.error("❌ Selected data does not contain 'Section' column or no sections available")
@@ -1234,5 +1320,3 @@ with tab4:
 
         #### 🆕 เลือก section ที่ต้องการแสดงเส้น Lp และ Lr ได้ในกราฟ Multi-Section Moment Curve ด้านบน
         """)
-
-
