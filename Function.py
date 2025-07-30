@@ -1531,7 +1531,6 @@ with tab4:
                                         st.write("Unable to analyze critical lengths")
                     else:
                         st.error("❌ Unable to create multi-section comparison chart")
-                )
                 
                 elif analysis_type == "Multi-Section Dashboard":
                     st.markdown("#### 📊 Multi-Section Performance Dashboard")
