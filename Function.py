@@ -1158,6 +1158,7 @@ with tab4:
                     else:
                         st.warning("⚠️ No Lp/Lr lines selected")
 
+                # เรียกฟังก์ชัน plot พร้อม argument ใหม่
                 fig, legend_info = create_multi_section_comparison_plot(
                     df, df_mat, section_names, option_mat,
                     st.session_state.section_lb_values, use_global_lb,
@@ -1204,13 +1205,11 @@ with tab4:
                             showing_lines = len(show_lp_lr_sections)
                             st.metric("Sections Showing Lp/Lr", showing_lines)
                             st.metric("Total Sections", total_sections)
-                            # Zone distribution
                             zone_counts = critical_df['Zone'].value_counts()
                             st.markdown("##### 📊 Zone Distribution")
                             for zone, count in zone_counts.items():
                                 st.write(f"{zone}: {count} ({(count/total_sections)*100:.0f}%)")
 
-                    # Summary table for Mn/Mp etc.
                     if legend_info:
                         st.markdown("#### 📋 Section Summary")
                         summary_df = pd.DataFrame(legend_info).round(3)
@@ -1219,7 +1218,7 @@ with tab4:
                         if len(summary_df) > 0:
                             st.success(f"🏆 Best Performance: {summary_df.iloc[0]['section']}, Efficiency {summary_df.iloc[0]['efficiency']:.3f}")
 
-            # ... (analysis_type อื่น ๆ สามารถคงเหมือนเดิม)
+            # หมายเหตุ: ส่วนกรณีการวิเคราะห์อื่นๆ (Moment Capacity, Weight Comparison, Dashboard etc.) ให้คงของเดิมไว้
 
         else:
             st.error("❌ Selected data does not contain 'Section' column or no sections available")
@@ -1233,6 +1232,7 @@ with tab4:
         4. Set individual Lb values for each section
         5. Come back to this tab for comparative analysis
 
-        #### 🆕 คุณสามารถเลือกแสดง/ซ่อนเส้น Lp และ Lr เฉพาะ section ที่ต้องการได้ใน Multi-Section Moment Curve
+        #### 🆕 เลือก section ที่ต้องการแสดงเส้น Lp และ Lr ได้ในกราฟ Multi-Section Moment Curve ด้านบน
         """)
+
 
