@@ -136,9 +136,8 @@ try:
 except Exception as e:
     st.error(f"❌ Unexpected error during data loading: {e}")
 
-
-def create_multi_section_comparison_plot(df, df_mat, selected_sections, option_mat, section_lb_values, use_global_lb=False, global_lb=6.0):
-    """สร้างกราฟเปรียบเทียบ Moment Capacity vs Unbraced Length สำหรับหลายหน้าตัด"""
+def create_multi_section_comparison_plot(df, df_mat, selected_sections, option_mat, section_lb_values, use_global_lb=False, global_lb=6.0, show_lp_lr_sections=None):
+    """สร้างกราฟเปรียบเทียบ Moment Capacity vs Unbraced Length สำหรับหลายหน้าตัด พร้อมเลือกแสดง Lp, Lr"""
     try:
         fig = go.Figure()
         
@@ -147,6 +146,10 @@ def create_multi_section_comparison_plot(df, df_mat, selected_sections, option_m
         
         # เก็บข้อมูลสำหรับการแสดงผล
         legend_info = []
+        
+        # ถ้าไม่มีการเลือก show_lp_lr_sections ให้แสดงทั้งหมด
+        if show_lp_lr_sections is None:
+            show_lp_lr_sections = selected_sections
         
         for i, section in enumerate(selected_sections):
             try:
@@ -207,19 +210,42 @@ def create_multi_section_comparison_plot(df, df_mat, selected_sections, option_m
                                 f'Case: {current_case}<extra></extra>'
                 ))
                 
-                # เพิ่มเส้น Lp และ Lr (จะแสดงเฉพาะหน้าตัดแรกเพื่อไม่ให้ซ้อนทับ)
-                if i == 0:  # แสดงเฉพาะหน้าตัดแรก
+                # ✅ เพิ่มเส้น Lp และ Lr เฉพาะหน้าตัดที่เลือก
+                if section in show_lp_lr_sections:
+                    # เพิ่มเส้น Lp
                     fig.add_vline(
                         x=current_lp,
-                        line=dict(color="purple", dash="dash", width=1),
-                        annotation_text=f"Lp ({section})",
-                        annotation_position="top"
+                        line=dict(color=color, dash="dot", width=1.5, opacity=0.8),
+                        annotation=dict(
+                            text=f"Lp-{section}<br>{current_lp:.1f}m",
+                            showarrow=True,
+                            arrowhead=2,
+                            arrowsize=1,
+                            arrowwidth=1,
+                            arrowcolor=color,
+                            bgcolor="rgba(255,255,255,0.9)",
+                            bordercolor=color,
+                            font=dict(size=10),
+                            xanchor="left" if i % 2 == 0 else "right"
+                        )
                     )
+                    
+                    # เพิ่มเส้น Lr
                     fig.add_vline(
                         x=current_lr,
-                        line=dict(color="brown", dash="dash", width=1),
-                        annotation_text=f"Lr ({section})",
-                        annotation_position="top"
+                        line=dict(color=color, dash="dashdot", width=1.5, opacity=0.8),
+                        annotation=dict(
+                            text=f"Lr-{section}<br>{current_lr:.1f}m",
+                            showarrow=True,
+                            arrowhead=2,
+                            arrowsize=1,
+                            arrowwidth=1,
+                            arrowcolor=color,
+                            bgcolor="rgba(255,255,255,0.9)",
+                            bordercolor=color,
+                            font=dict(size=10),
+                            xanchor="right" if i % 2 == 0 else "left"
+                        )
                     )
                 
                 # เก็บข้อมูลสำหรับ legend
@@ -228,6 +254,8 @@ def create_multi_section_comparison_plot(df, df_mat, selected_sections, option_m
                     'current_lb': current_lb,
                     'current_mn': current_mn,
                     'mp': current_mp,
+                    'lp': current_lp,
+                    'lr': current_lr,
                     'efficiency': (0.9 * current_mn) / safe_get_weight(df, section) if safe_get_weight(df, section) > 0 else 0
                 })
                 
@@ -261,6 +289,7 @@ def create_multi_section_comparison_plot(df, df_mat, selected_sections, option_m
     except Exception as e:
         st.error(f"Error creating multi-section comparison plot: {e}")
         return None, []
+
 
 def create_multi_section_efficiency_plot(df, df_mat, selected_sections, option_mat, section_lb_values, use_global_lb=False, global_lb=6.0):
     """สร้างกราฟแสดงประสิทธิภาพของหลายหน้าตัด"""
@@ -1298,20 +1327,74 @@ with tab4:
                 elif analysis_type == "Multi-Section Moment Curve":
                     st.markdown("#### 🔧 Multi-Section Moment Capacity vs Unbraced Length")
                     
-                    # สร้างกราฟเปรียบเทียบ
+                    # ✅ เพิ่มการเลือกแสดงเส้น Lp และ Lr
+                    col_curve1, col_curve2 = st.columns([2, 1])
+                    
+                    with col_curve1:
+                        st.markdown("##### 📊 Graph Controls")
+                        
+                        # เลือกหน้าตัดที่จะแสดงเส้น Lp และ Lr
+                        show_lp_lr_sections = st.multiselect(
+                            "🔍 Select sections to show Lp & Lr lines:",
+                            options=list(section_names),
+                            default=list(section_names),
+                            help="Choose which sections should display their Lp and Lr critical length lines"
+                        )
+                        
+                        # ตัวเลือกเพิ่มเติม
+                        show_annotations = st.checkbox("📝 Show value annotations on lines", value=True)
+                        
+                    with col_curve2:
+                        st.markdown("##### ℹ️ Line Legend")
+                        st.write("**Line Types:**")
+                        st.write("🔵 **Solid**: Moment capacity curve")
+                        st.write("💎 **Diamond**: Current design point")
+                        st.write("⚫ **Dotted**: Lp (Plastic limit)")
+                        st.write("⚫ **Dash-dot**: Lr (LTB limit)")
+                        
+                        if show_lp_lr_sections:
+                            st.success(f"✅ Showing Lp & Lr for {len(show_lp_lr_sections)} sections")
+                        else:
+                            st.warning("⚠️ No Lp & Lr lines selected")
+                    
+                    # สร้างกราฟเปรียบเทียบพร้อมการเลือกแสดงเส้น
                     fig, legend_info = create_multi_section_comparison_plot(
                         df, df_mat, section_names, option_mat, 
                         st.session_state.section_lb_values, use_global_lb, 
-                        global_lb if use_global_lb else None
+                        global_lb if use_global_lb else None,
+                        show_lp_lr_sections=show_lp_lr_sections  # ✅ ส่งการเลือกไปยังฟังก์ชัน
                     )
                     
                     if fig is not None:
                         st.plotly_chart(fig, use_container_width=True)
                         
-                        # ✅ เพิ่มตารางสรุป Lp และ Lr ของทุก section
-                        st.markdown("#### 📐 Critical Lengths Summary (Lp & Lr)")
+                        # แสดงสถิติของเส้น Lp และ Lr ที่เลือก
+                        if show_lp_lr_sections and legend_info:
+                            selected_info = [info for info in legend_info if info['section'] in show_lp_lr_sections]
+                            
+                            if selected_info:
+                                st.markdown("#### 📏 Critical Lengths for Selected Sections")
+                                
+                                col_stats1, col_stats2, col_stats3 = st.columns(3)
+                                
+                                with col_stats1:
+                                    lp_values = [info['lp'] for info in selected_info]
+                                    st.metric("Average Lp", f"{np.mean(lp_values):.2f} m")
+                                    st.metric("Lp Range", f"{np.min(lp_values):.2f} - {np.max(lp_values):.2f} m")
+                                
+                                with col_stats2:
+                                    lr_values = [info['lr'] for info in selected_info]
+                                    st.metric("Average Lr", f"{np.mean(lr_values):.2f} m")
+                                    st.metric("Lr Range", f"{np.min(lr_values):.2f} - {np.max(lr_values):.2f} m")
+                                
+                                with col_stats3:
+                                    st.metric("Sections with Lp/Lr", f"{len(show_lp_lr_sections)}")
+                                    st.metric("Total Sections", f"{len(section_names)}")
                         
-                        # สร้างข้อมูลสำหรับตาราง Lp และ Lr
+                        # ✅ เพิ่มตารางสรุป Lp และ Lr ของทุก section
+                        st.markdown("#### 📐 Critical Lengths Summary (All Sections)")
+                        
+                        # สร้างข้อมูลสำหรับตาrang Lp และ Lr
                         critical_lengths_data = []
                         
                         for section in section_names:
@@ -1321,6 +1404,9 @@ with tab4:
                                 
                                 current_lb = global_lb if use_global_lb else st.session_state.section_lb_values.get(section, 6.0)
                                 Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section, option_mat, current_lb)
+                                
+                                # ตรวจสอบว่าแสดงเส้น Lp, Lr หรือไม่
+                                show_lines_status = "✅ Showing" if section in show_lp_lr_sections else "⭕ Hidden"
                                 
                                 critical_lengths_data.append({
                                     'Section': section,
@@ -1332,6 +1418,7 @@ with tab4:
                                         "🟡 Zone 2 (Lp ≤ Lb < Lr)" if Lp <= current_lb < Lr else
                                         "🔴 Zone 3 (Lb ≥ Lr)"
                                     ),
+                                    'Lines Status': show_lines_status,
                                     'Governing Case': Case,
                                     'Capacity Ratio': f"{(Mn/Mp):.3f}" if Mp > 0 else "N/A"
                                 })
@@ -1343,6 +1430,7 @@ with tab4:
                                     'Lr (m)': "Error", 
                                     'Current Lb (m)': f"{current_lb:.2f}" if 'current_lb' in locals() else "N/A",
                                     'Zone': "❌ Error",
+                                    'Lines Status': "❌ Error",
                                     'Governing Case': "Error",
                                     'Capacity Ratio': "N/A"
                                 })
@@ -1359,28 +1447,23 @@ with tab4:
                             
                             with col_table2:
                                 # สถิติสรุป
-                                st.markdown("##### 📊 Zone Distribution")
+                                st.markdown("##### 📊 Display Statistics")
                                 
-                                zone_counts = critical_df['Zone'].value_counts()
                                 total_sections = len(critical_df)
+                                showing_lines = len(show_lp_lr_sections)
+                                hidden_lines = total_sections - showing_lines
+                                
+                                st.metric("Sections Showing Lines", showing_lines)
+                                st.metric("Sections Hidden Lines", hidden_lines)
+                                st.metric("Display Percentage", f"{(showing_lines/total_sections)*100:.0f}%")
+                                
+                                # Zone distribution
+                                zone_counts = critical_df['Zone'].value_counts()
+                                st.markdown("##### 📊 Zone Distribution")
                                 
                                 for zone, count in zone_counts.items():
                                     percentage = (count / total_sections) * 100
                                     st.write(f"{zone}: {count} ({percentage:.0f}%)")
-                                
-                                # แสดงช่วงของ Lp และ Lr
-                                try:
-                                    lp_values = [float(x) for x in critical_df['Lp (m)'] if x != "Error"]
-                                    lr_values = [float(x) for x in critical_df['Lr (m)'] if x != "Error"]
-                                    
-                                    if lp_values and lr_values:
-                                        st.markdown("##### 📏 Critical Length Ranges")
-                                        st.write(f"**Lp Range**: {min(lp_values):.2f} - {max(lp_values):.2f} m")
-                                        st.write(f"**Lr Range**: {min(lr_values):.2f} - {max(lr_values):.2f} m")
-                                        st.write(f"**Average Lp**: {sum(lp_values)/len(lp_values):.2f} m")
-                                        st.write(f"**Average Lr**: {sum(lr_values)/len(lr_values):.2f} m")
-                                except:
-                                    st.warning("Unable to calculate statistics")
                         
                         # แสดงข้อมูลสรุปเดิม
                         if legend_info:
@@ -1426,7 +1509,8 @@ with tab4:
                                     st.write("**Top 3 Recommendations:**")
                                     for i, section_info in enumerate(sorted_sections[:3]):
                                         rank_emoji = ["🥇", "🥈", "🥉"][i]
-                                        st.write(f"{rank_emoji} **{section_info['section']}** - Efficiency: {section_info['efficiency']:.3f}")
+                                        line_status = "📊" if section_info['section'] in show_lp_lr_sections else "📝"
+                                        st.write(f"{rank_emoji} {line_status} **{section_info['section']}** - Efficiency: {section_info['efficiency']:.3f}")
                                         
                                 # ✅ เพิ่มส่วนแนะนำตาม Lp, Lr
                                 if critical_lengths_data:
@@ -1447,6 +1531,7 @@ with tab4:
                                         st.write("Unable to analyze critical lengths")
                     else:
                         st.error("❌ Unable to create multi-section comparison chart")
+                )
                 
                 elif analysis_type == "Multi-Section Dashboard":
                     st.markdown("#### 📊 Multi-Section Performance Dashboard")
