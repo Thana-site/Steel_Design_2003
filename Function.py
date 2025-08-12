@@ -1144,3 +1144,136 @@ with tab5:
             st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("⚠️ Please select a section and material from the sidebar or Section Selection tab.")
+
+# ==================== TAB 6: COMPARISON ====================
+with tab6:
+    st.markdown('<h2 class="section-header">Multi-Section Comparison Tool</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.filtered_sections:
+        st.info(f"Comparing {len(st.session_state.filtered_sections)} sections from your selection")
+        
+        # Select sections to compare
+        sections_to_compare = st.multiselect(
+            "Select sections to compare:",
+            st.session_state.filtered_sections,
+            default=st.session_state.filtered_sections[:3] if len(st.session_state.filtered_sections) >= 3 else st.session_state.filtered_sections
+        )
+        
+        if sections_to_compare:
+            # Comparison parameters
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                comparison_type = st.selectbox("Comparison Type:",
+                    ["Weight Efficiency", "Moment Capacity", "Compression Capacity", "Cost Analysis"])
+            
+            with col2:
+                Lb_comp = st.number_input("Unbraced Length (m):", min_value=0.1, value=3.0, step=0.5)
+            
+            with col3:
+                KL_comp = st.number_input("Effective Length (m):", min_value=0.1, value=3.0, step=0.5)
+            
+            # Perform comparison
+            comparison_data = []
+            
+            for section in sections_to_compare:
+                # Get basic properties
+                weight = df.loc[section, 'Unit Weight [kg/m]'] if 'Unit Weight [kg/m]' in df.columns else df.loc[section, 'w [kg/m]']
+                
+                # Flexural analysis
+                flex_results = flexural_analysis(df, df_mat, section, st.session_state.selected_material, Lb_comp)
+                
+                # Compression analysis
+                comp_results = compression_analysis(df, df_mat, section, st.session_state.selected_material, KL_comp, KL_comp)
+                
+                if flex_results and comp_results:
+                    comparison_data.append({
+                        'Section': section,
+                        'Weight': weight,
+                        'φMn': flex_results['phi_Mn'],
+                        'φPn': comp_results['phi_Pn'],
+                        'Moment Efficiency': flex_results['phi_Mn'] / weight,
+                        'Compression Efficiency': comp_results['phi_Pn'] / weight,
+                        'Cost Index': weight * 1.0  # Simplified cost index
+                    })
+            
+            if comparison_data:
+                df_comparison = pd.DataFrame(comparison_data)
+                
+                # Display comparison chart
+                if comparison_type == "Weight Efficiency":
+                    fig = go.Figure()
+                    
+                    fig.add_trace(go.Bar(
+                        x=df_comparison['Section'],
+                        y=df_comparison['Moment Efficiency'],
+                        name='Moment Efficiency',
+                        marker_color='#2196f3'
+                    ))
+                    
+                    fig.add_trace(go.Bar(
+                        x=df_comparison['Section'],
+                        y=df_comparison['Compression Efficiency'],
+                        name='Compression Efficiency',
+                        marker_color='#4caf50'
+                    ))
+                    
+                    fig.update_layout(
+                        title="Weight Efficiency Comparison",
+                        yaxis_title="Efficiency (Capacity/Weight)",
+                        barmode='group',
+                        height=500,
+                        template='plotly_white'
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                # Display comparison table
+                st.markdown("### 📊 Detailed Comparison Table")
+                st.dataframe(df_comparison.round(2), use_container_width=True)
+                
+                # Best section recommendation
+                st.markdown("### 🏆 Recommendations")
+                
+                if comparison_type == "Weight Efficiency":
+                    best_moment = df_comparison.loc[df_comparison['Moment Efficiency'].idxmax()]
+                    best_compression = df_comparison.loc[df_comparison['Compression Efficiency'].idxmax()]
+                    
+                    col_rec1, col_rec2 = st.columns(2)
+                    
+                    with col_rec1:
+                        st.markdown('<div class="info-box"><b>Best for Flexure:</b><br>' +
+                                  f'{best_moment["Section"]}<br>' +
+                                  f'Efficiency: {best_moment["Moment Efficiency"]:.3f}</div>',
+                                  unsafe_allow_html=True)
+                    
+                    with col_rec2:
+                        st.markdown('<div class="info-box"><b>Best for Compression:</b><br>' +
+                                  f'{best_compression["Section"]}<br>' +
+                                  f'Efficiency: {best_compression["Compression Efficiency"]:.3f}</div>',
+                                  unsafe_allow_html=True)
+    else:
+        st.warning("⚠️ Please select sections from the 'Section Selection' tab first to compare them.")
+        st.markdown("""
+        ### 📖 How to Use Comparison Tool:
+        1. Go to **Section Selection** tab
+        2. Input your design requirements
+        3. Click **Find Suitable Sections**
+        4. Return here to compare the filtered sections
+        
+        This tool allows you to:
+        - Compare multiple sections simultaneously
+        - Evaluate weight efficiency
+        - Analyze moment and compression capacities
+        - Make informed decisions based on performance metrics
+        """)
+
+# ==================== FOOTER ====================
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666; padding: 2rem;'>
+    <p><b>Steel Design Analysis System v3.0</b></p>
+    <p>Based on AISC 360-16 Specification | Developed with Streamlit</p>
+    <p>© 2024 - Educational Tool for Structural Engineers</p>
+</div>
+""", unsafe_allow_html=True)
