@@ -1,45 +1,57 @@
-# ==================== AISC STEEL DESIGN TOOL v4.0 ====================
-# Enhanced version with accurate AISC calculations and improved visualizations
+# ==================== IMPROVED STEEL DESIGN ANALYSIS APPLICATION ====================
+# Version: 3.1 - Real-time Interactive with Multi-Selection
 # GitHub: Thana-site/Steel_Design_2003
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from matplotlib.patches import Rectangle, FancyBboxPatch
+import math as mt
+import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import math
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import requests
 
 # ==================== PAGE CONFIGURATION ====================
 st.set_page_config(
-    page_title="AISC Steel Design Tool v4.0",
+    page_title="Steel Design Analysis | AISC 360",
     page_icon="🏗️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ==================== CUSTOM CSS ====================
+# ==================== SIMPLIFIED CUSTOM CSS ====================
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #1a237e;
-        text-align: center;
-        margin-bottom: 1.5rem;
+    /* Clean, modern design with better readability */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 10px;
     }
     
-    .section-header {
-        font-size: 1.4rem;
-        font-weight: 600;
-        color: #283593;
-        margin: 1.5rem 0 1rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid #e0e0e0;
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding-left: 20px;
+        padding-right: 20px;
+        background-color: white;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #0066cc;
+        color: white;
+    }
+    
+    .metric-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
     .info-box {
@@ -74,18 +86,21 @@ st.markdown("""
         margin: 1rem 0;
     }
     
-    .stTabs [data-baseweb="tab"] {
-        height: 45px;
-        padding-left: 20px;
-        padding-right: 20px;
-        background-color: white;
-        border-radius: 5px;
-        font-weight: 500;
+    /* Better contrast for dark mode compatibility */
+    .main-header {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1a237e;
+        margin-bottom: 1rem;
     }
     
-    .stTabs [aria-selected="true"] {
-        background-color: #1976d2;
-        color: white;
+    .section-header {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #283593;
+        margin: 1.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e0e0e0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -94,17 +109,20 @@ st.markdown("""
 file_path = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
 
-# ==================== SESSION STATE ====================
+# ==================== SESSION STATE INITIALIZATION ====================
 if 'selected_section' not in st.session_state:
     st.session_state.selected_section = None
 if 'selected_material' not in st.session_state:
-    st.session_state.selected_material = 'SS400'
+    st.session_state.selected_material = None
 if 'selected_sections' not in st.session_state:
     st.session_state.selected_sections = []
+if 'section_lb_values' not in st.session_state:
+    st.session_state.section_lb_values = {}
 
-# ==================== DATA LOADING ====================
+# ==================== HELPER FUNCTIONS ====================
 @st.cache_data
 def load_data():
+    """Load steel section and material databases"""
     try:
         df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
         df_mat = pd.read_csv(file_path_mat, index_col=0, encoding="utf-8")
@@ -113,522 +131,784 @@ def load_data():
         st.error(f"Error loading data: {e}")
         return pd.DataFrame(), pd.DataFrame(), False
 
-# ==================== AISC CALCULATION FUNCTIONS ====================
+def calculate_required_properties(Mu, phi=0.9):
+    """Calculate required section properties based on design moment"""
+    # Mu in kN·m, convert to t·m
+    Mu_tm = Mu / 9.81
+    
+    # Calculate required Zx for different steel grades
+    required_zx = {}
+    steel_grades = {
+        'SS400': 2400,  # kg/cm²
+        'SM490': 3300,
+        'SM520': 3600,
+        'SM570': 4600
+    }
+    
+    for grade, Fy in steel_grades.items():
+        Zx_req = (Mu_tm * 100000) / (phi * Fy)  # cm³
+        required_zx[grade] = Zx_req
+    
+    return required_zx
 
-def calculate_F2_AISC(df, df_mat, section, material, Lb, Cb=1.0):
+def calculate_required_ix(w, L, delta_limit, E=2.04e6):
     """
-    Calculate nominal flexural strength per AISC 360-16 Chapter F2
-    for doubly symmetric compact I-shaped members
+    Calculate required Ix based on deflection limit
+    w: uniform load (kN/m)
+    L: span length (m)
+    delta_limit: deflection limit (L/300, L/400, etc.)
+    E: modulus of elasticity (kg/cm²)
     """
-    try:
-        # Material properties (kg/cm²)
-        Fy = float(df_mat.loc[material, "Yield Point (ksc)"])
-        E = float(df_mat.loc[material, "E"])
-        
-        # Section properties
-        Zx = float(df.loc[section, 'Zx [cm3]'])
-        Sx = float(df.loc[section, 'Sx [cm3]'])
-        ry = float(df.loc[section, 'ry [cm]'])
-        Iy = float(df.loc[section, 'Iy [cm4]'])
-        J = float(df.loc[section, 'j [cm4]']) if 'j [cm4]' in df.columns else 1.0
-        ho = float(df.loc[section, 'ho [mm]']) / 10  # Convert to cm
-        
-        # Calculate rts (Eq. F2-7)
-        rts_squared = (Iy * ho) / (2 * Sx)
-        rts = math.sqrt(rts_squared)
-        
-        # Calculate c = 1 for doubly symmetric I-shapes
-        c = 1.0
-        
-        # Calculate Lp (Eq. F2-5)
-        Lp = 1.76 * ry * math.sqrt(E / Fy)
-        
-        # Calculate Lr (Eq. F2-6)
-        term1 = 1.95 * rts * (E / (0.7 * Fy))
-        term2 = math.sqrt(1 + math.sqrt(1 + 6.76 * ((0.7 * Fy) / E)**2 * (J * c / (Sx * ho))**2))
-        Lr = term1 * math.sqrt(term2)
-        
-        # Plastic moment capacity
-        Mp = Fy * Zx  # kg·cm
-        
-        # Convert Lb from m to cm
-        Lb_cm = Lb * 100
-        
-        # Determine Mn based on unbraced length
-        if Lb_cm <= Lp:
-            # Yielding (F2-1)
-            Mn = Mp
-            case = "Yielding"
-        elif Lb_cm <= Lr:
-            # Inelastic LTB (F2-2)
-            Mn = Cb * (Mp - (Mp - 0.7 * Fy * Sx) * ((Lb_cm - Lp) / (Lr - Lp)))
-            Mn = min(Mp, Mn)
-            case = "Inelastic LTB"
-        else:
-            # Elastic LTB (F2-3)
-            Fcr = (Cb * math.pi**2 * E) / ((Lb_cm / rts)**2) * math.sqrt(1 + 0.078 * (J * c / (Sx * ho)) * ((Lb_cm / rts)**2))
-            Mn = Fcr * Sx
-            Mn = min(Mp, Mn)
-            case = "Elastic LTB"
-        
-        # Convert to t·m
-        Mp_tm = Mp / 100000
-        Mn_tm = Mn / 100000
-        Lp_m = Lp / 100
-        Lr_m = Lr / 100
-        
-        return {
-            'Mp': Mp_tm,
-            'Mn': Mn_tm,
-            'Lp': Lp_m,
-            'Lr': Lr_m,
-            'case': case,
-            'phi_Mn': 0.9 * Mn_tm
-        }
-        
-    except Exception as e:
-        st.error(f"Error in F2 calculation: {e}")
-        return None
+    # Convert units
+    w_kg = w * 1000 / 9.81  # kg/m to kg/cm
+    L_cm = L * 100  # m to cm
+    
+    # For simply supported beam: δ = 5wL⁴/(384EI)
+    delta_max = L_cm / delta_limit
+    Ix_req = (5 * w_kg * L_cm**4) / (384 * E * delta_max)
+    
+    return Ix_req
 
-def calculate_compression_capacity(df, df_mat, section, material, KLx, KLy):
+def visualize_column_with_load(P, section_name, buckling_mode="Flexural"):
+    """Create visualization of column with axial load and buckling mode"""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    
+    # Column elevation view
+    ax1.set_title(f'Column: {section_name}\nP = {P:.1f} tons | Mode: {buckling_mode}', 
+                 fontsize=12, fontweight='bold')
+    
+    # Draw column
+    column_width = 0.3
+    column_height = 3.0
+    
+    # Column shape - show buckling shape
+    if buckling_mode == "Flexural":
+        # Draw buckled shape
+        y = np.linspace(0, column_height, 100)
+        x = 0.1 * np.sin(np.pi * y / column_height)
+        ax1.plot(x, y, 'b--', lw=2, alpha=0.5, label='Buckled shape')
+    elif buckling_mode == "Flexural-Torsional":
+        # Show rotation
+        for i in range(5):
+            y_pos = i * column_height / 4
+            ax1.plot([-column_width/2, column_width/2], [y_pos, y_pos], 'r-', lw=1, alpha=0.5)
+            # Add rotation arrow
+            if i > 0:
+                circle = patches.FancyArrowPatch((-column_width/3, y_pos), 
+                                                (column_width/3, y_pos),
+                                                connectionstyle="arc3,rad=.3",
+                                                arrowstyle='->',
+                                                color='red', alpha=0.5)
+                ax1.add_patch(circle)
+    
+    # Column shape
+    column = patches.Rectangle((-column_width/2, 0), column_width, column_height,
+                              linewidth=2, edgecolor='#1a237e', facecolor='#e3f2fd', alpha=0.7)
+    ax1.add_patch(column)
+    
+    # Load arrow
+    arrow_props = dict(arrowstyle='->', lw=3, color='red')
+    ax1.annotate('', xy=(0, column_height), xytext=(0, column_height + 0.5),
+                arrowprops=arrow_props)
+    ax1.text(0, column_height + 0.7, f'P = {P:.1f} t', ha='center', fontsize=14, 
+            fontweight='bold', color='red')
+    
+    # Base support
+    base_width = column_width * 1.5
+    base = patches.Rectangle((-base_width/2, -0.1), base_width, 0.1,
+                            linewidth=2, edgecolor='black', facecolor='gray')
+    ax1.add_patch(base)
+    
+    # Ground hatching
+    for i in range(5):
+        x = -base_width/2 - 0.1 + i * (base_width + 0.2) / 4
+        ax1.plot([x, x - 0.05], [-0.1, -0.2], 'k-', lw=1)
+    
+    ax1.set_xlim([-1, 1])
+    ax1.set_ylim([-0.3, 4])
+    ax1.set_aspect('equal')
+    ax1.axis('off')
+    if buckling_mode == "Flexural":
+        ax1.legend(loc='upper right')
+    
+    # Stress distribution
+    ax2.set_title('Stress Distribution', fontsize=12, fontweight='bold')
+    ax2.barh([0], [1], height=3, color='#ff5252', alpha=0.7, label=f'σ = P/A')
+    ax2.set_ylim([-0.5, 3.5])
+    ax2.set_xlabel('Normalized Stress', fontsize=11)
+    ax2.set_yticks([])
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy, Kz=None, Lz=None):
     """
-    Calculate compression capacity per AISC 360-16 Chapter E
+    Advanced compression member analysis including flexural-torsional buckling
+    Kz: Effective length factor for torsional buckling
+    Lz: Unbraced length for torsional buckling
     """
     try:
         # Material properties
         Fy = float(df_mat.loc[material, "Yield Point (ksc)"])
         E = float(df_mat.loc[material, "E"])
+        G = E / (2 * (1 + 0.3))  # Shear modulus (Poisson's ratio = 0.3)
         
         # Section properties
         Ag = float(df.loc[section, 'A [cm2]'])
         rx = float(df.loc[section, 'rx [cm]'])
         ry = float(df.loc[section, 'ry [cm]'])
         
-        # Convert KL from m to cm
-        KLx_cm = KLx * 100
-        KLy_cm = KLy * 100
+        # Try to get additional properties for torsional buckling
+        try:
+            J = float(df.loc[section, 'j [cm4]']) if 'j [cm4]' in df.columns else 0
+            Cw = float(df.loc[section, 'Cw [cm6]']) if 'Cw [cm6]' in df.columns else 0
+            xo = float(df.loc[section, 'xo [cm]']) if 'xo [cm]' in df.columns else 0
+            yo = float(df.loc[section, 'yo [cm]']) if 'yo [cm]' in df.columns else 0
+            Ix = float(df.loc[section, 'Ix [cm4]'])
+            Iy = float(df.loc[section, 'Iy [cm4]'])
+        except:
+            J = 0
+            Cw = 0
+            xo = 0
+            yo = 0
+            Ix = float(df.loc[section, 'Ix [cm4]'])
+            Iy = float(df.loc[section, 'Iy [cm4]'])
         
-        # Slenderness ratios
-        lambda_x = KLx_cm / rx
-        lambda_y = KLy_cm / ry
-        lambda_max = max(lambda_x, lambda_y)
+        # Polar radius of gyration
+        ro_squared = rx**2 + ry**2 + xo**2 + yo**2
         
-        # Limiting slenderness (4.71√(E/Fy))
-        lambda_limit = 4.71 * math.sqrt(E / Fy)
+        # Slenderness ratios for flexural buckling
+        lambda_x = (KLx * 100) / rx
+        lambda_y = (KLy * 100) / ry
+        lambda_max_flexural = max(lambda_x, lambda_y)
         
-        # Elastic buckling stress
-        Fe = (math.pi**2 * E) / (lambda_max**2)
+        # Elastic flexural buckling stresses
+        Fex = (mt.pi**2 * E) / (lambda_x**2)
+        Fey = (mt.pi**2 * E) / (lambda_y**2)
+        Fe_flexural = min(Fex, Fey)
         
-        # Critical stress
-        if lambda_max <= lambda_limit:
-            # Inelastic buckling
+        # Check for flexural-torsional buckling (for doubly symmetric sections)
+        buckling_mode = "Flexural"
+        Fe = Fe_flexural
+        
+        if J > 0 and Cw > 0 and Kz and Lz:
+            # Torsional buckling stress
+            KzLz = Kz * Lz * 100  # Convert to cm
+            Fez = ((mt.pi**2 * E * Cw) / (KzLz**2) + G * J) / (Ag * ro_squared)
+            
+            # For doubly symmetric sections (xo = yo = 0)
+            if xo == 0 and yo == 0:
+                # Flexural-torsional buckling doesn't apply
+                Fe = min(Fex, Fey, Fez)
+                if Fez < Fe_flexural:
+                    buckling_mode = "Torsional"
+            else:
+                # For singly symmetric sections
+                # Solve cubic equation for flexural-torsional buckling
+                H = 1 - (xo**2 + yo**2) / ro_squared
+                
+                # Simplified approach - take minimum
+                Fe_ft = min(Fey, (Fex + Fez) / (2 * H) * 
+                          (1 - mt.sqrt(1 - (4 * Fex * Fez * H) / ((Fex + Fez)**2))))
+                
+                Fe = min(Fe_flexural, Fe_ft)
+                if Fe_ft < Fe_flexural:
+                    buckling_mode = "Flexural-Torsional"
+        
+        # Critical slenderness
+        lambda_c = mt.pi * mt.sqrt(E / Fy)
+        
+        # Effective slenderness for comparison
+        lambda_eff = mt.pi * mt.sqrt(E / Fe)
+        
+        # Critical buckling stress (AISC 360 E3)
+        if lambda_eff <= lambda_c:
             Fcr = Fy * (0.658**(Fy/Fe))
         else:
-            # Elastic buckling
             Fcr = 0.877 * Fe
         
-        # Nominal capacity
-        Pn = Fcr * Ag / 1000  # Convert to tons
-        phi_Pn = 0.9 * Pn
+        # Check for local buckling (slender elements)
+        Q = 1.0  # Reduction factor
+        # Simplified check - you can expand this
+        lamf = float(df.loc[section, '0.5bf/tf']) if '0.5bf/tf' in df.columns else 0
+        lamw = float(df.loc[section, 'h/tw']) if 'h/tw' in df.columns else 0
+        
+        lamf_limit = 0.56 * mt.sqrt(E / Fy)
+        lamw_limit = 1.49 * mt.sqrt(E / Fy)
+        
+        if lamf > lamf_limit or lamw > lamw_limit:
+            Q = 0.9  # Simplified - should calculate actual Q
+            Fcr = Q * Fcr
+        
+        # Nominal compressive strength
+        Pn = Fcr * Ag / 1000  # tons
+        phi_c = 0.9
+        phi_Pn = phi_c * Pn
         
         return {
             'Pn': Pn,
             'phi_Pn': phi_Pn,
             'Fcr': Fcr,
             'Fe': Fe,
+            'Fex': Fex,
+            'Fey': Fey,
+            'Fez': Fez if 'Fez' in locals() else None,
             'lambda_x': lambda_x,
             'lambda_y': lambda_y,
-            'lambda_max': lambda_max,
-            'lambda_limit': lambda_limit
+            'lambda_max': lambda_max_flexural,
+            'lambda_c': lambda_c,
+            'lambda_eff': lambda_eff,
+            'Ag': Ag,
+            'Q': Q,
+            'buckling_mode': buckling_mode,
+            'local_buckling': "Yes" if Q < 1.0 else "No"
         }
-        
     except Exception as e:
-        st.error(f"Error in compression calculation: {e}")
+        st.error(f"Error in compression analysis: {e}")
         return None
 
-def calculate_service_load_capacity(df, df_mat, section, material, L, Lb, loading="uniform"):
-    """
-    Calculate service load capacity in kg/m
-    """
+def flexural_analysis(df, df_mat, section, material, Lb):
+    """Simplified flexural analysis function"""
     try:
-        # Get moment capacity
-        moment_results = calculate_F2_AISC(df, df_mat, section, material, Lb)
-        if not moment_results:
-            return None
+        # Material properties
+        Fy = float(df_mat.loc[material, "Yield Point (ksc)"])
+        E = float(df_mat.loc[material, "E"])
         
-        phi_Mn = moment_results['phi_Mn']  # t·m
+        # Section properties
+        Zx = float(df.loc[section, 'Zx [cm3]'])
+        Sx = float(df.loc[section, 'Sx [cm3]'])
         
-        # Convert to kg·cm
-        phi_Mn_kg_cm = phi_Mn * 100000
+        # Simplified analysis (you can add full F2 analysis here)
+        Mp = Fy * Zx / 100000  # t·m
         
-        # Calculate service load based on loading type
-        L_cm = L * 100  # Convert to cm
+        # Get Lp and Lr if available
+        try:
+            Lp = float(df.loc[section, "Lp [cm]"]) / 100  # m
+            Lr = float(df.loc[section, "Lr [cm]"]) / 100  # m
+        except:
+            # Approximate if not available
+            ry = float(df.loc[section, 'ry [cm]'])
+            Lp = 1.76 * ry * mt.sqrt(E/Fy) / 100
+            Lr = 1.95 * ry * mt.sqrt(E/(0.7*Fy)) / 100
         
-        if loading == "uniform":
-            # w = 8M/L²
-            w = (8 * phi_Mn_kg_cm) / (L_cm**2)  # kg/cm
-            w_per_m = w * 100  # kg/m
+        # Determine Mn based on Lb
+        if Lb <= Lp:
+            Mn = Mp
+            case = "Plastic (Lb ≤ Lp)"
+        elif Lb <= Lr:
+            Mn = Mp - (Mp - 0.7*Fy*Sx/100000) * ((Lb - Lp)/(Lr - Lp))
+            Mn = min(Mp, Mn)
+            case = "Inelastic LTB (Lp < Lb ≤ Lr)"
         else:
-            w_per_m = 0
+            # Simplified elastic LTB
+            Mn = 0.7 * Fy * Sx / 100000
+            case = "Elastic LTB (Lb > Lr)"
         
-        return w_per_m
+        phi_b = 0.9
+        phi_Mn = phi_b * Mn
         
+        return {
+            'Mp': Mp,
+            'Mn': Mn,
+            'phi_Mn': phi_Mn,
+            'Lp': Lp,
+            'Lr': Lr,
+            'case': case
+        }
     except Exception as e:
-        st.error(f"Error calculating service load: {e}")
+        st.error(f"Error in flexural analysis: {e}")
         return None
 
-def visualize_column_2d(df, section, plane="both"):
-    """
-    Create 2D visualization of column showing both principal planes
-    """
-    fig, axes = plt.subplots(1, 3, figsize=(15, 6))
+def create_multi_section_plot(df, df_mat, sections, material, Lb_values):
+    """Create multi-section moment capacity plot"""
+    fig = go.Figure()
+    colors = ['#2196f3', '#4caf50', '#ff9800', '#f44336', '#9c27b0', '#00bcd4']
     
-    # Get section dimensions
-    d = float(df.loc[section, 'd [mm]'])
-    bf = float(df.loc[section, 'bf [mm]'])
-    tw = float(df.loc[section, 'tw [mm]'])
-    tf = float(df.loc[section, 'tf [mm]'])
+    for i, section in enumerate(sections):
+        if section not in df.index:
+            continue
+        
+        # Create Lb range
+        Lb_range = np.linspace(0.1, 15, 100)
+        Mn_values = []
+        
+        for lb in Lb_range:
+            result = flexural_analysis(df, df_mat, section, material, lb)
+            if result:
+                Mn_values.append(result['Mn'])
+            else:
+                Mn_values.append(0)
+        
+        color = colors[i % len(colors)]
+        
+        # Add capacity curve
+        fig.add_trace(go.Scatter(
+            x=Lb_range, y=Mn_values,
+            mode='lines',
+            name=f'{section}',
+            line=dict(color=color, width=2),
+            hovertemplate='%{y:.2f} t·m @ Lb=%{x:.1f}m<extra></extra>'
+        ))
+        
+        # Add current point
+        current_lb = Lb_values.get(section, 3.0)
+        current_result = flexural_analysis(df, df_mat, section, material, current_lb)
+        if current_result:
+            fig.add_trace(go.Scatter(
+                x=[current_lb], y=[current_result['Mn']],
+                mode='markers',
+                name=f'{section} (current)',
+                marker=dict(color=color, size=10, symbol='diamond'),
+                showlegend=False,
+                hovertemplate=f'{section}<br>Lb: {current_lb:.1f}m<br>Mn: {current_result["Mn"]:.2f} t·m<extra></extra>'
+            ))
     
-    # Elevation view - Strong axis (X-X)
-    ax1 = axes[0]
-    ax1.set_title('Elevation View\n(Strong Axis X-X)', fontsize=12, fontweight='bold')
+    fig.update_layout(
+        title="Multi-Section Moment Capacity Comparison",
+        xaxis_title="Unbraced Length, Lb (m)",
+        yaxis_title="Nominal Moment, Mn (t·m)",
+        height=500,
+        hovermode='x unified',
+        template='plotly_white'
+    )
     
-    # Draw column elevation
-    column_height = 3000  # 3m column
-    scale = 10  # Scale factor for visualization
-    
-    # Column outline
-    ax1.add_patch(Rectangle((-bf/2, 0), bf, column_height, 
-                            linewidth=2, edgecolor='#1a237e', facecolor='#e3f2fd'))
-    
-    # Add buckling shape if needed
-    y = np.linspace(0, column_height, 100)
-    x = (bf/4) * np.sin(np.pi * y / column_height)
-    ax1.plot(x, y, 'r--', lw=2, alpha=0.7, label='Buckled shape')
-    
-    # Load arrow
-    ax1.arrow(0, column_height + 200, 0, -150, head_width=bf/3, 
-             head_length=50, fc='red', ec='red')
-    ax1.text(0, column_height + 300, 'P', ha='center', fontsize=14, fontweight='bold')
-    
-    # Base
-    ax1.add_patch(Rectangle((-bf*0.75, -50), bf*1.5, 50,
-                            linewidth=2, edgecolor='black', facecolor='gray'))
-    
-    ax1.set_xlim([-bf, bf])
-    ax1.set_ylim([-100, column_height + 400])
-    ax1.set_aspect('equal')
-    ax1.set_xlabel('Width (mm)')
-    ax1.set_ylabel('Height (mm)')
-    ax1.legend()
-    
-    # Elevation view - Weak axis (Y-Y)
-    ax2 = axes[1]
-    ax2.set_title('Elevation View\n(Weak Axis Y-Y)', fontsize=12, fontweight='bold')
-    
-    # Column outline (showing web thickness)
-    ax2.add_patch(Rectangle((-d/2, 0), d, column_height,
-                            linewidth=2, edgecolor='#1a237e', facecolor='#e3f2fd'))
-    
-    # Buckling shape
-    x2 = (d/4) * np.sin(np.pi * y / column_height)
-    ax2.plot(x2, y, 'r--', lw=2, alpha=0.7, label='Buckled shape')
-    
-    # Load arrow
-    ax2.arrow(0, column_height + 200, 0, -150, head_width=d/3,
-             head_length=50, fc='red', ec='red')
-    ax2.text(0, column_height + 300, 'P', ha='center', fontsize=14, fontweight='bold')
-    
-    # Base
-    ax2.add_patch(Rectangle((-d*0.75, -50), d*1.5, 50,
-                            linewidth=2, edgecolor='black', facecolor='gray'))
-    
-    ax2.set_xlim([-d, d])
-    ax2.set_ylim([-100, column_height + 400])
-    ax2.set_aspect('equal')
-    ax2.set_xlabel('Depth (mm)')
-    ax2.legend()
-    
-    # Cross-section view
-    ax3 = axes[2]
-    ax3.set_title(f'Cross-Section\n{section}', fontsize=12, fontweight='bold')
-    
-    # Draw H-section
-    # Top flange
-    ax3.add_patch(Rectangle((-bf/2, d/2 - tf), bf, tf,
-                            linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
-    # Bottom flange
-    ax3.add_patch(Rectangle((-bf/2, -d/2), bf, tf,
-                            linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
-    # Web
-    ax3.add_patch(Rectangle((-tw/2, -d/2 + tf), tw, d - 2*tf,
-                            linewidth=2, edgecolor='#1a237e', facecolor='#90caf9'))
-    
-    # Axes
-    ax3.axhline(y=0, color='red', linewidth=1, linestyle='--', alpha=0.7)
-    ax3.axvline(x=0, color='red', linewidth=1, linestyle='--', alpha=0.7)
-    ax3.text(bf/2 + 10, 0, 'X', fontsize=12, color='red', fontweight='bold')
-    ax3.text(0, d/2 + 10, 'Y', fontsize=12, color='red', fontweight='bold')
-    
-    # Dimensions
-    ax3.annotate('', xy=(bf/2, d/2), xytext=(-bf/2, d/2),
-                arrowprops=dict(arrowstyle='<->', color='black', lw=1))
-    ax3.text(0, d/2 + 5, f'{bf:.0f}', ha='center', fontsize=10)
-    
-    ax3.annotate('', xy=(bf/2 + 20, d/2), xytext=(bf/2 + 20, -d/2),
-                arrowprops=dict(arrowstyle='<->', color='black', lw=1))
-    ax3.text(bf/2 + 30, 0, f'{d:.0f}', ha='center', rotation=90, fontsize=10)
-    
-    ax3.set_xlim([-bf, bf])
-    ax3.set_ylim([-d, d])
-    ax3.set_aspect('equal')
-    ax3.grid(True, alpha=0.3)
-    ax3.set_xlabel('Width (mm)')
-    ax3.set_ylabel('Height (mm)')
-    
-    plt.tight_layout()
     return fig
 
 # ==================== LOAD DATA ====================
 df, df_mat, success = load_data()
 
 if not success:
-    st.error("❌ Failed to load data")
+    st.error("❌ Failed to load data. Please check your internet connection.")
     st.stop()
 
-# ==================== HEADER ====================
-st.markdown('<h1 class="main-header">🏗️ AISC Steel Design Tool v4.0</h1>', unsafe_allow_html=True)
+# ==================== MAIN HEADER ====================
+st.markdown('<h1 style="text-align: center; color: #1a237e;">🏗️ Steel Design Analysis System</h1>', 
+           unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #5e6c84; font-size: 1.1rem;">AISC 360-16 Specification for Structural Steel Buildings</p>', 
+           unsafe_allow_html=True)
 
-# ==================== SIDEBAR ====================
+# ==================== SIDEBAR CONFIGURATION ====================
 with st.sidebar:
-    st.markdown("### ⚙️ Configuration")
+    st.markdown("### ⚙️ Design Configuration")
     
+    # Material selection
+    st.markdown("#### 📦 Material Properties")
     material_list = list(df_mat.index)
     selected_material = st.selectbox(
         "Steel Grade:",
         material_list,
-        index=material_list.index('SS400') if 'SS400' in material_list else 0
+        index=0,
+        help="Select steel material grade"
     )
     st.session_state.selected_material = selected_material
     
+    # Display material properties
     if selected_material:
         Fy = df_mat.loc[selected_material, "Yield Point (ksc)"]
         Fu = df_mat.loc[selected_material, "Tensile Strength (ksc)"]
-        E = df_mat.loc[selected_material, "E"]
         st.info(f"""
-        **Material Properties:**
+        **Selected Grade: {selected_material}**
         - Fy = {Fy} ksc
-        - Fu = {Fu} ksc  
-        - E = {E} ksc
+        - Fu = {Fu} ksc
+        - E = 2.04×10⁶ ksc
+        """)
+    
+    st.markdown("---")
+    
+    # Quick section selection
+    st.markdown("#### 🔍 Quick Section Search")
+    section_list = list(df.index)
+    quick_section = st.selectbox(
+        "Select Section:",
+        ["None"] + section_list,
+        help="Quick select a specific section"
+    )
+    
+    if quick_section != "None":
+        st.session_state.selected_section = quick_section
+        weight = df.loc[quick_section, 'Unit Weight [kg/m]'] if 'Unit Weight [kg/m]' in df.columns else df.loc[quick_section, 'w [kg/m]']
+        st.success(f"""
+        ✅ **{quick_section}**
+        - Weight: {weight:.1f} kg/m
+        - Zx: {df.loc[quick_section, 'Zx [cm3]']:.0f} cm³
+        - Ix: {df.loc[quick_section, 'Ix [cm4]']:.0f} cm⁴
         """)
 
 # ==================== MAIN TABS ====================
-tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Section Properties",
-    "🔍 Section Selection", 
-    "📈 Flexural Design",
-    "🏢 Column Design"
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📚 Section Database",
+    "🔍 Section Selection",
+    "🏢 Flexural Design",
+    "⚡ Compression Design",
+    "🏗️ Beam-Column",
+    "📊 Comparison"
 ])
 
-# ==================== TAB 1: SECTION PROPERTIES ====================
+# ==================== TAB 1: SECTION DATABASE ====================
 with tab1:
-    st.markdown('<h2 class="section-header">Section Properties & Visualization</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">Section Database Explorer</h2>', unsafe_allow_html=True)
     
-    # Section selection
-    section_list = list(df.index)
-    selected_section = st.selectbox("Select Section:", section_list)
-    st.session_state.selected_section = selected_section
+    col1, col2 = st.columns([1, 1])
     
-    if selected_section:
-        # Display ALL properties in table format
-        st.markdown("### Complete Section Properties Table")
+    with col1:
+        # Section search
+        search_section = st.text_input("🔍 Search section by name:", placeholder="e.g., H-200x200")
         
-        # Get all properties for the section
-        section_data = df.loc[selected_section]
+        if search_section:
+            matching_sections = [s for s in section_list if search_section.upper() in s.upper()]
+            if matching_sections:
+                selected_display = st.selectbox("Select from matches:", matching_sections)
+                st.session_state.selected_section = selected_display
+            else:
+                st.warning("No matching sections found")
         
-        # Create a formatted dataframe
-        properties_df = pd.DataFrame({
-            'Property': section_data.index,
-            'Value': section_data.values,
-            'Units': [''] * len(section_data)  # Add units based on property names
-        })
-        
-        # Add units based on property names
-        units_map = {
-            'd [mm]': 'mm', 'bf [mm]': 'mm', 'tw [mm]': 'mm', 'tf [mm]': 'mm',
-            'A [cm2]': 'cm²', 'Unit Weight [kg/m]': 'kg/m', 'w [kg/m]': 'kg/m',
-            'Ix [cm4]': 'cm⁴', 'Iy [cm4]': 'cm⁴', 'Sx [cm3]': 'cm³', 'Sy [cm3]': 'cm³',
-            'Zx [cm3]': 'cm³', 'Zy [cm3]': 'cm³', 'rx [cm]': 'cm', 'ry [cm]': 'cm',
-            'j [cm4]': 'cm⁴', 'Cw [cm6]': 'cm⁶', 'Lp [cm]': 'cm', 'Lr [cm]': 'cm'
-        }
-        
-        for idx, prop in enumerate(properties_df['Property']):
-            if prop in units_map:
-                properties_df.loc[idx, 'Units'] = units_map[prop]
-        
-        # Display in columns for better organization
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            st.markdown("#### Geometric Properties")
-            geometric_props = ['d [mm]', 'bf [mm]', 'tw [mm]', 'tf [mm]', 'A [cm2]', 
-                             'Unit Weight [kg/m]', 'w [kg/m]']
-            geometric_df = properties_df[properties_df['Property'].isin(geometric_props)]
-            st.dataframe(geometric_df, use_container_width=True, hide_index=True)
+        # Display section properties
+        if st.session_state.selected_section:
+            section = st.session_state.selected_section
+            st.markdown(f"### Properties of {section}")
             
-            st.markdown("#### Section Moduli")
-            moduli_props = ['Sx [cm3]', 'Sy [cm3]', 'Zx [cm3]', 'Zy [cm3]']
-            moduli_df = properties_df[properties_df['Property'].isin(moduli_props)]
-            st.dataframe(moduli_df, use_container_width=True, hide_index=True)
-        
-        with col2:
-            st.markdown("#### Moment of Inertia")
-            inertia_props = ['Ix [cm4]', 'Iy [cm4]', 'rx [cm]', 'ry [cm]']
-            inertia_df = properties_df[properties_df['Property'].isin(inertia_props)]
-            st.dataframe(inertia_df, use_container_width=True, hide_index=True)
+            # Key properties in a clean format
+            props = {
+                "Depth (d)": f"{df.loc[section, 'd [mm]']:.0f} mm",
+                "Width (bf)": f"{df.loc[section, 'bf [mm]']:.0f} mm",
+                "Web thickness (tw)": f"{df.loc[section, 'tw [mm]']:.1f} mm",
+                "Flange thickness (tf)": f"{df.loc[section, 'tf [mm]']:.1f} mm",
+                "Area (A)": f"{df.loc[section, 'A [cm2]']:.2f} cm²",
+                "Weight": f"{df.loc[section, 'Unit Weight [kg/m]'] if 'Unit Weight [kg/m]' in df.columns else df.loc[section, 'w [kg/m]']:.1f} kg/m",
+                "Ix": f"{df.loc[section, 'Ix [cm4]']:.0f} cm⁴",
+                "Zx": f"{df.loc[section, 'Zx [cm3]']:.0f} cm³",
+                "rx": f"{df.loc[section, 'rx [cm]']:.2f} cm",
+                "ry": f"{df.loc[section, 'ry [cm]']:.2f} cm"
+            }
             
-            st.markdown("#### Torsional Properties")
-            torsion_props = ['j [cm4]', 'Cw [cm6]', 'ho [mm]', 'rts [cm6]']
-            torsion_df = properties_df[properties_df['Property'].isin([p for p in torsion_props if p in properties_df['Property'].values])]
-            if not torsion_df.empty:
-                st.dataframe(torsion_df, use_container_width=True, hide_index=True)
-        
-        # Complete properties table
-        with st.expander("View All Properties"):
-            st.dataframe(properties_df, use_container_width=True, hide_index=True)
+            for prop, value in props.items():
+                col_prop, col_val = st.columns([2, 1])
+                with col_prop:
+                    st.write(prop)
+                with col_val:
+                    st.write(f"**{value}**")
+    
+    with col2:
+        # Section visualization
+        if st.session_state.selected_section:
+            section = st.session_state.selected_section
+            st.markdown(f"### Cross-Section: {section}")
+            
+            # Create figure
+            fig, ax = plt.subplots(figsize=(8, 8))
+            
+            # Get dimensions
+            bf = float(df.loc[section, 'bf [mm]'])
+            d = float(df.loc[section, 'd [mm]'])
+            tw = float(df.loc[section, 'tw [mm]'])
+            tf = float(df.loc[section, 'tf [mm]'])
+            
+            # Draw H-section
+            # Top flange
+            top_flange = patches.Rectangle((-bf/2, d/2 - tf), bf, tf,
+                                          linewidth=2, edgecolor='#1a237e', 
+                                          facecolor='#bbdefb', alpha=0.8)
+            # Bottom flange
+            bottom_flange = patches.Rectangle((-bf/2, -d/2), bf, tf,
+                                             linewidth=2, edgecolor='#1a237e',
+                                             facecolor='#bbdefb', alpha=0.8)
+            # Web
+            web = patches.Rectangle((-tw/2, -d/2 + tf), tw, d - 2*tf,
+                                   linewidth=2, edgecolor='#1a237e',
+                                   facecolor='#90caf9', alpha=0.8)
+            
+            ax.add_patch(top_flange)
+            ax.add_patch(bottom_flange)
+            ax.add_patch(web)
+            
+            # Add dimensions
+            ax.annotate('', xy=(bf/2, d/2), xytext=(-bf/2, d/2),
+                       arrowprops=dict(arrowstyle='<->', color='red', lw=1.5))
+            ax.text(0, d/2 + 10, f'{bf:.0f} mm', ha='center', color='red', fontsize=10)
+            
+            ax.annotate('', xy=(bf/2 + 20, d/2), xytext=(bf/2 + 20, -d/2),
+                       arrowprops=dict(arrowstyle='<->', color='red', lw=1.5))
+            ax.text(bf/2 + 40, 0, f'{d:.0f} mm', ha='center', rotation=90, color='red', fontsize=10)
+            
+            # Axes
+            ax.axhline(y=0, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+            ax.axvline(x=0, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+            
+            ax.set_xlim([-bf, bf])
+            ax.set_ylim([-d, d])
+            ax.set_aspect('equal')
+            ax.grid(True, alpha=0.3)
+            ax.set_xlabel('Width (mm)')
+            ax.set_ylabel('Height (mm)')
+            
+            st.pyplot(fig)
 
-# ==================== TAB 2: SECTION SELECTION ====================
+# ==================== TAB 2: SECTION SELECTION WITH MULTI-SELECT ====================
 with tab2:
-    st.markdown('<h2 class="section-header">Section Selection Tool</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">Intelligent Section Selection Tool</h2>', unsafe_allow_html=True)
     
-    # Design inputs
+    # Design requirements input
+    st.markdown("### 📐 Design Requirements")
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("#### Moment Design")
         Mu = st.number_input("Design Moment Mu (kN·m):", min_value=0.0, value=500.0, step=50.0)
-        phi_b = st.selectbox("φb:", [0.9, 0.85], index=0)
+        phi = st.selectbox("Resistance Factor φ:", [0.9, 0.85, 0.75], index=0)
         
         # Calculate required Zx
-        Mu_tm = Mu / 9.81  # Convert to t·m
-        Fy = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
-        Zx_req = (Mu_tm * 100000) / (phi_b * Fy)  # cm³
-        st.success(f"Required Zx ≥ {Zx_req:.0f} cm³")
+        if Mu > 0:
+            required_zx = calculate_required_properties(Mu, phi)
+            st.markdown("**Required Zx (cm³):**")
+            for grade, zx in required_zx.items():
+                if grade == selected_material:
+                    st.success(f"{grade}: **{zx:.0f} cm³** ✓")
+                else:
+                    st.info(f"{grade}: {zx:.0f} cm³")
     
     with col2:
-        st.markdown("#### Service Load")
-        L_span = st.number_input("Span Length (m):", min_value=1.0, value=6.0, step=0.5)
-        Lb_service = st.number_input("Unbraced Length (m):", min_value=0.1, value=3.0, step=0.5)
+        st.markdown("#### Deflection Control")
+        L_span = st.number_input("Span Length L (m):", min_value=1.0, value=6.0, step=0.5)
+        w_load = st.number_input("Service Load w (kN/m):", min_value=0.0, value=10.0, step=1.0)
+        deflection_limit = st.selectbox("Deflection Limit:", 
+                                       ["L/200", "L/250", "L/300", "L/360", "L/400"],
+                                       index=2)
+        
+        # Calculate required Ix
+        if w_load > 0 and L_span > 0:
+            limit_value = float(deflection_limit.split('/')[1])
+            Ix_req = calculate_required_ix(w_load, L_span, limit_value)
+            st.success(f"**Required Ix: {Ix_req:.0f} cm⁴**")
     
     with col3:
-        st.markdown("#### Filters")
-        depth_max = st.number_input("Max Depth (mm):", min_value=0, value=0, help="0 = no limit")
-        weight_max = st.number_input("Max Weight (kg/m):", min_value=0, value=0, help="0 = no limit")
+        st.markdown("#### Additional Filters")
+        depth_max = st.number_input("Max Depth (mm):", min_value=0, value=0, step=50,
+                                   help="Enter 0 for no limit")
+        weight_max = st.number_input("Max Weight (kg/m):", min_value=0, value=200, step=10,
+                                    help="Enter 0 for no limit")
+        
+        # Preference
+        optimization = st.selectbox("Optimize for:",
+                                   ["Minimum Weight", "Minimum Depth", "Maximum Efficiency"],
+                                   index=0)
     
-    # Filter sections
+    st.markdown("---")
+    
+    # Apply filters automatically
     filtered_df = df.copy()
-    filtered_df = filtered_df[filtered_df['Zx [cm3]'] >= Zx_req]
     
+    # Filter by required Zx
+    if Mu > 0 and selected_material in calculate_required_properties(Mu, phi):
+        zx_min = calculate_required_properties(Mu, phi)[selected_material]
+        filtered_df = filtered_df[filtered_df['Zx [cm3]'] >= zx_min]
+    
+    # Filter by required Ix
+    if w_load > 0 and L_span > 0:
+        limit_value = float(deflection_limit.split('/')[1])
+        Ix_req = calculate_required_ix(w_load, L_span, limit_value)
+        filtered_df = filtered_df[filtered_df['Ix [cm4]'] >= Ix_req]
+    
+    # Filter by depth
     if depth_max > 0:
         filtered_df = filtered_df[filtered_df['d [mm]'] <= depth_max]
     
+    # Filter by weight
     if weight_max > 0:
         weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
         filtered_df = filtered_df[filtered_df[weight_col] <= weight_max]
     
-    # Calculate capacities for filtered sections
-    results = []
-    for section in filtered_df.index:
-        moment_results = calculate_F2_AISC(df, df_mat, section, selected_material, Lb_service)
-        if moment_results:
-            weight = filtered_df.loc[section, 'Unit Weight [kg/m]'] if 'Unit Weight [kg/m]' in filtered_df.columns else filtered_df.loc[section, 'w [kg/m]']
-            service_load = calculate_service_load_capacity(df, df_mat, section, selected_material, L_span, Lb_service)
-            
-            results.append({
-                'Section': section,
-                'Weight (kg/m)': weight,
-                'Zx (cm³)': filtered_df.loc[section, 'Zx [cm3]'],
-                'φMn (t·m)': moment_results['phi_Mn'],
-                'Service w (kg/m)': service_load,
-                'Efficiency': moment_results['phi_Mn'] / weight
-            })
+    # Sort by optimization criteria
+    if optimization == "Minimum Weight":
+        weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
+        filtered_df = filtered_df.sort_values(weight_col)
+    elif optimization == "Minimum Depth":
+        filtered_df = filtered_df.sort_values('d [mm]')
+    else:  # Maximum Efficiency
+        weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
+        filtered_df['efficiency'] = filtered_df['Zx [cm3]'] / filtered_df[weight_col]
+        filtered_df = filtered_df.sort_values('efficiency', ascending=False)
     
-    if results:
-        results_df = pd.DataFrame(results)
-        results_df = results_df.sort_values('Weight (kg/m)')
+    # Display results with AgGrid for multi-selection
+    st.markdown(f"### ✅ Found {len(filtered_df)} Suitable Sections")
+    
+    if len(filtered_df) > 0:
+        # Reset index to make Section a column
+        filtered_df_display = filtered_df.reset_index()
         
-        st.markdown(f"### Found {len(results_df)} Suitable Sections")
+        # Configure AgGrid
+        gb = GridOptionsBuilder.from_dataframe(filtered_df_display)
+        gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren=False, groupSelectsFiltered=True)
+        gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=20)
+        gb.configure_column("Section", headerCheckboxSelection=True)
         
-        # Configure grid for selection
-        gb = GridOptionsBuilder.from_dataframe(results_df)
-        gb.configure_selection('multiple', use_checkbox=True)
-        gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=15)
+        # Format columns
+        weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df_display.columns else 'w [kg/m]'
+        display_cols = ['Section', 'd [mm]', 'bf [mm]', weight_col, 'A [cm2]', 
+                       'Ix [cm4]', 'Zx [cm3]', 'Sx [cm3]', 'rx [cm]', 'ry [cm]']
+        available_cols = [col for col in display_cols if col in filtered_df_display.columns]
+        
         grid_options = gb.build()
         
         # Display grid
         grid_response = AgGrid(
-            results_df.round(2),
+            filtered_df_display[available_cols],
             gridOptions=grid_options,
             height=400,
+            width='100%',
             theme='streamlit',
-            update_mode=GridUpdateMode.SELECTION_CHANGED
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            allow_unsafe_jscode=True,
+            enable_enterprise_modules=False
         )
         
+        # Handle selected rows
         selected_rows = grid_response['selected_rows']
+        
         if selected_rows is not None and len(selected_rows) > 0:
-            st.session_state.selected_sections = [row['Section'] for row in selected_rows]
-            st.success(f"Selected {len(selected_rows)} sections for comparison")
+            selected_df = pd.DataFrame(selected_rows)
+            st.session_state.selected_sections = selected_df['Section'].tolist()
+            
+            st.success(f"✅ Selected {len(selected_rows)} sections for analysis")
+            
+            # Show selected sections with individual Lb values
+            with st.expander("📋 Selected Sections Configuration", expanded=True):
+                st.markdown("#### Configure Unbraced Length for Each Section")
+                
+                use_global_lb = st.checkbox("Use same Lb for all sections", value=False)
+                
+                if use_global_lb:
+                    global_lb = st.slider("Global Unbraced Length (m):", 0.0, 20.0, 3.0, 0.5)
+                    for section_name in st.session_state.selected_sections:
+                        st.session_state.section_lb_values[section_name] = global_lb
+                else:
+                    col_sec1, col_sec2 = st.columns(2)
+                    for i, section_name in enumerate(st.session_state.selected_sections):
+                        with col_sec1 if i % 2 == 0 else col_sec2:
+                            lb_value = st.number_input(
+                                f"Lb for {section_name} (m):", 
+                                min_value=0.0, 
+                                value=st.session_state.section_lb_values.get(section_name, 3.0),
+                                step=0.5,
+                                key=f"lb_{section_name}"
+                            )
+                            st.session_state.section_lb_values[section_name] = lb_value
+                
+                # Display summary table
+                if st.session_state.selected_sections:
+                    summary_data = []
+                    for section_name in st.session_state.selected_sections:
+                        weight = df.loc[section_name, weight_col] if section_name in df.index else 0
+                        summary_data.append({
+                            'Section': section_name,
+                            'Weight': f"{weight:.1f} kg/m",
+                            'Zx': f"{df.loc[section_name, 'Zx [cm3]']:.0f} cm³",
+                            'Ix': f"{df.loc[section_name, 'Ix [cm4]']:.0f} cm⁴",
+                            'Lb': f"{st.session_state.section_lb_values.get(section_name, 3.0):.1f} m"
+                        })
+                    
+                    st.markdown("#### Summary of Selected Sections")
+                    st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
+    else:
+        st.warning("No sections meet the specified criteria. Try adjusting your requirements.")
 
 # ==================== TAB 3: FLEXURAL DESIGN ====================
 with tab3:
-    st.markdown('<h2 class="section-header">Flexural Design - Mn vs Lb Curves</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">Flexural Member Design (Chapter F)</h2>', unsafe_allow_html=True)
     
-    if st.session_state.selected_section:
+    if st.session_state.selected_section and st.session_state.selected_material:
         section = st.session_state.selected_section
+        material = st.session_state.selected_material
         
-        # Interactive controls
-        col1, col2 = st.columns([1, 3])
+        st.info(f"**Analyzing:** {section} | **Material:** {material}")
+        
+        col1, col2 = st.columns([1, 2])
         
         with col1:
-            st.markdown("### Parameters")
-            Lb_current = st.slider("Unbraced Length Lb (m):", 0.1, 20.0, 3.0, 0.1)
-            Cb = st.slider("Cb Factor:", 1.0, 2.3, 1.0, 0.1)
-            show_phi = st.checkbox("Show φMn curve", value=True)
-            show_mn = st.checkbox("Show Mn curve", value=True)
+            st.markdown("### Design Parameters")
+            
+            # Interactive unbraced length input
+            Lb = st.slider("Unbraced Length Lb (m):", 
+                          min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+            
+            # Moment modification factor
+            Cb = st.number_input("Moment Factor Cb:", 
+                               min_value=1.0, value=1.0, max_value=3.0, step=0.1,
+                               help="1.0 for uniform moment, up to 2.3 for single curvature")
+            
+            # Load case
+            load_case = st.selectbox("Load Case:",
+                                    ["Uniform Load", "Point Load at Center", "End Moments"])
         
-        # Calculate current values
-        current_results = calculate_F2_AISC(df, df_mat, section, selected_material, Lb_current, Cb)
+        # Real-time analysis
+        results = flexural_analysis(df, df_mat, section, material, Lb)
         
-        if current_results:
-            st.markdown("### Current Design Point")
-            col_m1, col_m2, col_m3 = st.columns(3)
-            with col_m1:
-                st.metric("Mn", f"{current_results['Mn']:.2f} t·m")
-            with col_m2:
-                st.metric("φMn", f"{current_results['phi_Mn']:.2f} t·m")
-            with col_m3:
-                st.metric("Case", current_results['case'])
+        if results:
+            st.markdown("### 📊 Analysis Results")
+            
+            # Display results in metrics
+            col_r1, col_r2, col_r3 = st.columns(3)
+            
+            with col_r1:
+                st.metric("φMn", f"{results['phi_Mn']:.2f} t·m", 
+                        delta=f"Mn = {results['Mn']:.2f} t·m")
+            
+            with col_r2:
+                st.metric("Mp", f"{results['Mp']:.2f} t·m",
+                        delta=f"Plastic Capacity")
+            
+            with col_r3:
+                utilization = (results['Mn'] / results['Mp']) * 100
+                st.metric("Utilization", f"{utilization:.1f}%",
+                        delta=results['case'])
+            
+            # Classification
+            if utilization >= 90:
+                st.markdown('<div class="success-box">✅ <b>Compact Section - Full Plastic Capacity</b></div>', 
+                          unsafe_allow_html=True)
+            elif utilization >= 70:
+                st.markdown('<div class="warning-box">⚠️ <b>Lateral-Torsional Buckling Controls</b></div>', 
+                          unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="error-box">❌ <b>Significant Capacity Reduction - Consider Reducing Lb</b></div>', 
+                          unsafe_allow_html=True)
+            
+            # Critical lengths
+            st.markdown("### Critical Lengths")
+            col_l1, col_l2, col_l3 = st.columns(3)
+            
+            with col_l1:
+                st.write(f"**Lp = {results['Lp']:.2f} m**")
+                st.caption("Compact limit")
+            
+            with col_l2:
+                st.write(f"**Lr = {results['Lr']:.2f} m**")
+                st.caption("Inelastic limit")
+            
+            with col_l3:
+                st.write(f"**Lb = {Lb:.2f} m**")
+                st.caption("Actual unbraced")
         
         with col2:
-            # Generate curves
-            Lb_range = np.linspace(0.1, 20, 200)
+            st.markdown("### Moment Capacity Diagram")
+            
+            # Create Mn vs Lb plot
+            Lb_range = np.linspace(0, 15, 100)
             Mn_values = []
-            phi_Mn_values = []
             
             for lb in Lb_range:
-                results = calculate_F2_AISC(df, df_mat, section, selected_material, lb, Cb)
-                if results:
-                    Mn_values.append(results['Mn'])
-                    phi_Mn_values.append(results['phi_Mn'])
+                result = flexural_analysis(df, df_mat, section, material, lb)
+                if result:
+                    Mn_values.append(result['Mn'])
                 else:
                     Mn_values.append(0)
-                    phi_Mn_values.append(0)
             
-            # Create plot
-            fig = go.Figure()
-            
-            # Add Mn curve
-            if show_mn:
+            if results:
+                fig = go.Figure()
+                
+                # Main curve
                 fig.add_trace(go.Scatter(
                     x=Lb_range, y=Mn_values,
                     mode='lines',
@@ -636,296 +916,621 @@ with tab3:
                     line=dict(color='#1976d2', width=3),
                     hovertemplate='Lb: %{x:.1f} m<br>Mn: %{y:.2f} t·m<extra></extra>'
                 ))
-            
-            # Add φMn curve
-            if show_phi:
+                
+                # Current point
                 fig.add_trace(go.Scatter(
-                    x=Lb_range, y=phi_Mn_values,
-                    mode='lines',
-                    name='φMn (0.9×Mn)',
-                    line=dict(color='#4caf50', width=3, dash='dash'),
-                    hovertemplate='Lb: %{x:.1f} m<br>φMn: %{y:.2f} t·m<extra></extra>'
-                ))
-            
-            if current_results:
-                # Add current point
-                fig.add_trace(go.Scatter(
-                    x=[Lb_current], 
-                    y=[current_results['Mn'] if show_mn else current_results['phi_Mn']],
+                    x=[Lb], y=[results['Mn']],
                     mode='markers',
                     name='Current Design',
                     marker=dict(color='#f44336', size=12, symbol='star'),
-                    showlegend=True
+                    hovertemplate=f'Lb: {Lb:.1f} m<br>Mn: {results["Mn"]:.2f} t·m<extra></extra>'
                 ))
                 
                 # Add Lp and Lr lines
-                fig.add_vline(x=current_results['Lp'], 
-                            line_dash="dot", line_color="#ff9800", line_width=2,
-                            annotation_text=f"Lp = {current_results['Lp']:.2f} m",
-                            annotation_font_size=14)
-                fig.add_vline(x=current_results['Lr'], 
-                            line_dash="dot", line_color="#e91e63", line_width=2,
-                            annotation_text=f"Lr = {current_results['Lr']:.2f} m",
-                            annotation_font_size=14)
+                fig.add_vline(x=results['Lp'], line_dash="dash", line_color="#4caf50",
+                            annotation_text=f"Lp = {results['Lp']:.1f} m")
+                fig.add_vline(x=results['Lr'], line_dash="dash", line_color="#ff9800",
+                            annotation_text=f"Lr = {results['Lr']:.1f} m")
                 
                 # Add Mp line
-                fig.add_hline(y=current_results['Mp'], 
-                            line_dash="dot", line_color="#9c27b0", line_width=2,
-                            annotation_text=f"Mp = {current_results['Mp']:.2f} t·m",
-                            annotation_font_size=14)
+                fig.add_hline(y=results['Mp'], line_dash="dot", line_color="#9c27b0",
+                            annotation_text=f"Mp = {results['Mp']:.1f} t·m")
                 
-                # Add zones with larger labels
-                fig.add_vrect(x0=0, x1=current_results['Lp'],
-                            fillcolor="#4caf50", opacity=0.15,
-                            annotation_text="<b>YIELDING</b>", 
-                            annotation_position="top",
-                            annotation_font_size=16)
-                fig.add_vrect(x0=current_results['Lp'], x1=current_results['Lr'],
-                            fillcolor="#ff9800", opacity=0.15,
-                            annotation_text="<b>INELASTIC LTB</b>", 
-                            annotation_position="top",
-                            annotation_font_size=16)
-                fig.add_vrect(x0=current_results['Lr'], x1=20,
-                            fillcolor="#f44336", opacity=0.15,
-                            annotation_text="<b>ELASTIC LTB</b>", 
-                            annotation_position="top",
-                            annotation_font_size=16)
-            
-            fig.update_layout(
-                title=f"Moment Capacity vs Unbraced Length - {section}",
-                xaxis_title="Unbraced Length, Lb (m)",
-                yaxis_title="Moment Capacity (t·m)",
-                height=600,
-                hovermode='x unified',
-                showlegend=True,
-                legend=dict(x=0.7, y=0.95),
-                template='plotly_white'
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Summary table
-            st.markdown("### Critical Lengths Summary")
-            summary_df = pd.DataFrame({
-                'Parameter': ['Lp (Compact Limit)', 'Lr (Inelastic Limit)', 'Current Lb'],
-                'Value (m)': [current_results['Lp'], current_results['Lr'], Lb_current],
-                'Governing Case': ['Yielding', 'Transition to Elastic', current_results['case']]
-            })
-            st.dataframe(summary_df, use_container_width=True, hide_index=True)
+                # Add zones
+                fig.add_vrect(x0=0, x1=results['Lp'],
+                            fillcolor="#4caf50", opacity=0.1,
+                            annotation_text="Plastic", annotation_position="top left")
+                fig.add_vrect(x0=results['Lp'], x1=results['Lr'],
+                            fillcolor="#ff9800", opacity=0.1,
+                            annotation_text="Inelastic LTB", annotation_position="top left")
+                fig.add_vrect(x0=results['Lr'], x1=15,
+                            fillcolor="#f44336", opacity=0.1,
+                            annotation_text="Elastic LTB", annotation_position="top left")
+                
+                fig.update_layout(
+                    title=f"Moment Capacity vs Unbraced Length - {section}",
+                    xaxis_title="Unbraced Length, Lb (m)",
+                    yaxis_title="Nominal Moment, Mn (t·m)",
+                    height=500,
+                    hovermode='closest',
+                    showlegend=True,
+                    template='plotly_white'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("⚠️ Please select a section and material from the sidebar or Section Selection tab.")
 
-# ==================== TAB 4: COLUMN DESIGN ====================
+# ==================== TAB 4: COMPRESSION DESIGN WITH TORSIONAL BUCKLING ====================
 with tab4:
-    st.markdown('<h2 class="section-header">Column Design - Compression Capacity</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">Compression Member Design (Chapter E) - Including Flexural-Torsional Buckling</h2>', 
+               unsafe_allow_html=True)
     
-    if st.session_state.selected_section:
+    if st.session_state.selected_section and st.session_state.selected_material:
         section = st.session_state.selected_section
+        material = st.session_state.selected_material
         
-        # Input parameters
-        st.markdown("### Design Parameters")
-        col1, col2, col3 = st.columns(3)
+        st.info(f"**Analyzing:** {section} | **Material:** {material}")
+        
+        col1, col2 = st.columns([1, 2])
         
         with col1:
+            st.markdown("### Design Parameters")
+            
+            # Interactive effective length factors
             st.markdown("#### Effective Length Factors")
-            Kx = st.selectbox("Kx:", [0.5, 0.65, 0.7, 0.8, 1.0, 1.2, 2.0], index=4)
-            Ky = st.selectbox("Ky:", [0.5, 0.65, 0.7, 0.8, 1.0, 1.2, 2.0], index=4)
-            st.info(f"""
-            **K Factors:**
-            - 0.5: Fixed-Fixed
-            - 0.65: Fixed-Pinned (theoretical)
-            - 0.7: Fixed-Pinned (recommended)
-            - 1.0: Pinned-Pinned
-            - 2.0: Fixed-Free
-            """)
-        
-        with col2:
+            col_k1, col_k2 = st.columns(2)
+            
+            with col_k1:
+                end_condition_x = st.selectbox("X-axis End Condition:",
+                    ["Pinned-Pinned", "Fixed-Fixed", "Fixed-Pinned", "Fixed-Free"],
+                    index=0)
+                K_factors = {"Pinned-Pinned": 1.0, "Fixed-Fixed": 0.5, 
+                           "Fixed-Pinned": 0.7, "Fixed-Free": 2.0}
+                Kx = K_factors[end_condition_x]
+                st.caption(f"Kx = {Kx}")
+            
+            with col_k2:
+                end_condition_y = st.selectbox("Y-axis End Condition:",
+                    ["Pinned-Pinned", "Fixed-Fixed", "Fixed-Pinned", "Fixed-Free"],
+                    index=0)
+                Ky = K_factors[end_condition_y]
+                st.caption(f"Ky = {Ky}")
+            
+            # Torsional buckling parameters
+            st.markdown("#### Torsional Buckling")
+            consider_torsional = st.checkbox("Consider Flexural-Torsional Buckling", value=True)
+            
+            if consider_torsional:
+                end_condition_z = st.selectbox("Torsional End Condition:",
+                    ["Pinned-Pinned", "Fixed-Fixed", "Fixed-Pinned"],
+                    index=0)
+                Kz = K_factors.get(end_condition_z, 1.0)
+                st.caption(f"Kz = {Kz}")
+            else:
+                Kz = None
+            
+            # Interactive unbraced lengths
             st.markdown("#### Unbraced Lengths")
-            Lx = st.number_input("Lx (m):", min_value=0.1, value=3.0, step=0.1)
-            Ly = st.number_input("Ly (m):", min_value=0.1, value=3.0, step=0.1)
+            Lx = st.slider("Lx (m):", min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+            Ly = st.slider("Ly (m):", min_value=0.1, max_value=20.0, value=3.0, step=0.1)
             
-            # Calculate KL/r
-            rx = float(df.loc[section, 'rx [cm]'])
-            ry = float(df.loc[section, 'ry [cm]'])
-            KLr_x = (Kx * Lx * 100) / rx
-            KLr_y = (Ky * Ly * 100) / ry
+            if consider_torsional:
+                Lz = st.slider("Lz for torsion (m):", min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+            else:
+                Lz = None
             
-            st.metric("KL/rx", f"{KLr_x:.1f}")
-            if KLr_x > 200:
-                st.error("⚠️ KL/rx > 200 (exceeds limit)")
+            # Calculate effective lengths
+            KLx = Kx * Lx
+            KLy = Ky * Ly
             
-            st.metric("KL/ry", f"{KLr_y:.1f}")
-            if KLr_y > 200:
-                st.error("⚠️ KL/ry > 200 (exceeds limit)")
+            col_kl1, col_kl2 = st.columns(2)
+            with col_kl1:
+                st.metric("KLx", f"{KLx:.2f} m")
+            with col_kl2:
+                st.metric("KLy", f"{KLy:.2f} m")
+            
+            # Applied load
+            Pu = st.slider("Applied Axial Load Pu (tons):", 
+                          min_value=0.0, max_value=500.0, value=100.0, step=5.0)
         
-        with col3:
-            st.markdown("#### Applied Load")
-            Pu = st.number_input("Applied Load Pu (tons):", min_value=0.0, value=100.0, step=10.0)
+        # Real-time analysis
+        results = compression_analysis_advanced(df, df_mat, section, material, KLx, KLy, Kz, Lz)
+        
+        if results:
+            st.markdown("### 📊 Analysis Results")
             
-            # Select plane to display
-            display_plane = st.selectbox("Display Plane:", ["Both", "Strong Axis (X-X)", "Weak Axis (Y-Y)"])
-        
-        # Calculate capacity
-        comp_results = calculate_compression_capacity(df, df_mat, section, selected_material, Kx*Lx, Ky*Ly)
-        
-        if comp_results:
-            # Display results
-            st.markdown("### Analysis Results")
+            # Capacity check
+            capacity_ratio = Pu / results['phi_Pn']
+            
             col_r1, col_r2, col_r3 = st.columns(3)
             
             with col_r1:
-                st.metric("φPn", f"{comp_results['phi_Pn']:.2f} tons", 
-                         delta=f"Pn = {comp_results['Pn']:.2f} tons")
+                st.metric("φPn", f"{results['phi_Pn']:.2f} tons",
+                        delta=f"Pn = {results['Pn']:.2f} tons")
             
             with col_r2:
-                ratio = Pu / comp_results['phi_Pn']
-                st.metric("Utilization", f"{ratio:.3f}", 
-                         delta="OK" if ratio <= 1.0 else "NG")
+                st.metric("Demand/Capacity", f"{capacity_ratio:.3f}",
+                        delta=f"Pu = {Pu:.2f} tons")
             
             with col_r3:
-                if comp_results['lambda_max'] <= comp_results['lambda_limit']:
-                    buckling_type = "Inelastic"
-                    color = "🟡"
-                else:
-                    buckling_type = "Elastic"
-                    color = "🔵"
-                st.metric("Buckling Mode", f"{color} {buckling_type}",
-                         delta=f"λ = {comp_results['lambda_max']:.1f}")
+                safety_margin = (1 - capacity_ratio) * 100
+                st.metric("Safety Margin", f"{safety_margin:.1f}%",
+                        delta="SAFE" if capacity_ratio < 1.0 else "UNSAFE")
             
-            # Check status
-            if ratio <= 1.0:
-                st.success(f"✅ Design PASSES - Safety Factor: {1/ratio:.2f}")
+            # Pass/Fail indication
+            if capacity_ratio <= 1.0:
+                st.markdown(f'<div class="success-box">✅ <b>DESIGN PASSES</b> - Ratio: {capacity_ratio:.3f} ≤ 1.0</div>', 
+                          unsafe_allow_html=True)
             else:
-                st.error(f"❌ Design FAILS - Overstressed by {(ratio-1)*100:.1f}%")
-        
-        # Column visualization
-        st.markdown("### Column Visualization")
-        fig_col = visualize_column_2d(df, section, display_plane.lower())
-        st.pyplot(fig_col)
-        
-        # Capacity curve
-        st.markdown("### Column Capacity Curve")
-        
-        # Generate curve for selected plane
-        col_curve1, col_curve2 = st.columns([1, 2])
-        
-        with col_curve1:
-            curve_plane = st.radio("Select Axis:", ["Strong (X-X)", "Weak (Y-Y)"])
-            show_inelastic = st.checkbox("Show inelastic region", value=True)
-            show_elastic = st.checkbox("Show elastic region", value=True)
-        
-        with col_curve2:
-            # Generate capacity curve
-            KLr_range = np.linspace(1, 250, 500)
-            Pn_values = []
+                st.markdown(f'<div class="error-box">❌ <b>DESIGN FAILS</b> - Ratio: {capacity_ratio:.3f} > 1.0</div>', 
+                          unsafe_allow_html=True)
             
-            Fy = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
-            E = float(df_mat.loc[selected_material, "E"])
-            Ag = float(df.loc[section, 'A [cm2]'])
+            # Buckling mode indication
+            st.markdown("### Buckling Analysis")
+            col_b1, col_b2, col_b3 = st.columns(3)
             
-            lambda_limit = 4.71 * math.sqrt(E / Fy)
+            with col_b1:
+                st.write(f"**Governing Mode:**")
+                st.info(f"{results['buckling_mode']}")
             
-            for klr in KLr_range:
-                Fe = (math.pi**2 * E) / (klr**2)
-                
-                if klr <= lambda_limit:
-                    # Inelastic buckling
-                    Fcr = Fy * (0.658**(Fy/Fe))
+            with col_b2:
+                st.write(f"**Local Buckling:**")
+                st.info(f"{results['local_buckling']}")
+            
+            with col_b3:
+                st.write(f"**Q Factor:**")
+                st.info(f"{results['Q']:.2f}")
+            
+            # Slenderness parameters
+            st.markdown("### Slenderness & Critical Stresses")
+            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+            
+            with col_s1:
+                st.write(f"**λx = {results['lambda_x']:.1f}**")
+                st.caption(f"Fex = {results['Fex']:.0f} ksc")
+            
+            with col_s2:
+                st.write(f"**λy = {results['lambda_y']:.1f}**")
+                st.caption(f"Fey = {results['Fey']:.0f} ksc")
+            
+            with col_s3:
+                st.write(f"**λeff = {results['lambda_eff']:.1f}**")
+                st.caption(f"Fe = {results['Fe']:.0f} ksc")
+            
+            with col_s4:
+                if results['Fez']:
+                    st.write(f"**Torsional**")
+                    st.caption(f"Fez = {results['Fez']:.0f} ksc")
                 else:
-                    # Elastic buckling
-                    Fcr = 0.877 * Fe
-                
-                Pn = 0.9 * Fcr * Ag / 1000  # φPn in tons
-                Pn_values.append(Pn)
-            
-            # Create plot
-            fig_curve = go.Figure()
-            
-            # Add capacity curve
-            fig_curve.add_trace(go.Scatter(
-                x=KLr_range, y=Pn_values,
-                mode='lines',
-                name='φPn',
-                line=dict(color='#1976d2', width=3),
-                hovertemplate='KL/r: %{x:.1f}<br>φPn: %{y:.1f} tons<extra></extra>'
-            ))
-            
-            # Add current point
-            if comp_results:
-                current_klr = comp_results['lambda_x'] if "Strong" in curve_plane else comp_results['lambda_y']
-                fig_curve.add_trace(go.Scatter(
-                    x=[current_klr], y=[comp_results['phi_Pn']],
-                    mode='markers',
-                    name='Current Design',
-                    marker=dict(color='#f44336', size=12, symbol='star')
-                ))
-            
-            # Add transition line
-            fig_curve.add_vline(x=lambda_limit, 
-                              line_dash="dash", line_color="#ff9800", line_width=2,
-                              annotation_text=f"λ = {lambda_limit:.1f}",
-                              annotation_font_size=14)
-            
-            # Add regions
-            if show_inelastic:
-                fig_curve.add_vrect(x0=0, x1=lambda_limit,
-                                   fillcolor="#ffc107", opacity=0.1,
-                                   annotation_text="<b>INELASTIC</b><br>Fcr = 0.658^(Fy/Fe)·Fy",
-                                   annotation_position="top left",
-                                   annotation_font_size=14)
-            
-            if show_elastic:
-                fig_curve.add_vrect(x0=lambda_limit, x1=250,
-                                   fillcolor="#2196f3", opacity=0.1,
-                                   annotation_text="<b>ELASTIC</b><br>Fcr = 0.877·Fe",
-                                   annotation_position="top right",
-                                   annotation_font_size=14)
-            
-            # Add limit line at KL/r = 200
-            fig_curve.add_vline(x=200, 
-                              line_dash="dot", line_color="#f44336", line_width=2,
-                              annotation_text="KL/r = 200 (Limit)",
-                              annotation_font_size=12)
-            
-            # Add demand line
-            if Pu > 0:
-                fig_curve.add_hline(y=Pu, 
-                                  line_dash="dash", line_color="#4caf50", line_width=2,
-                                  annotation_text=f"Pu = {Pu:.1f} tons",
-                                  annotation_font_size=14)
-            
-            fig_curve.update_layout(
-                title=f"Column Capacity Curve - {curve_plane}",
-                xaxis_title="Slenderness Ratio (KL/r)",
-                yaxis_title="Design Capacity φPn (tons)",
-                height=500,
-                hovermode='x unified',
-                template='plotly_white',
-                showlegend=True
-            )
-            
-            # Highlight regions
-            fig_curve.update_xaxes(range=[0, 250])
-            
-            st.plotly_chart(fig_curve, use_container_width=True)
+                    st.write(f"**λc = {results['lambda_c']:.1f}**")
+                    st.caption(f"Fcr = {results['Fcr']:.0f} ksc")
         
-        # Summary table
-        st.markdown("### Design Summary")
-        summary_col = pd.DataFrame({
-            'Parameter': ['λx (KLx/rx)', 'λy (KLy/ry)', 'λ limit', 'Fe (ksc)', 'Fcr (ksc)', 
-                         'Pn (tons)', 'φPn (tons)', 'Pu (tons)', 'Utilization'],
-            'Value': [f"{comp_results['lambda_x']:.1f}", f"{comp_results['lambda_y']:.1f}",
-                     f"{comp_results['lambda_limit']:.1f}", f"{comp_results['Fe']:.1f}",
-                     f"{comp_results['Fcr']:.1f}", f"{comp_results['Pn']:.2f}",
-                     f"{comp_results['phi_Pn']:.2f}", f"{Pu:.2f}", 
-                     f"{Pu/comp_results['phi_Pn']:.3f}"]
-        })
-        st.dataframe(summary_col, use_container_width=True, hide_index=True)
+        with col2:
+            st.markdown("### Column Visualization & Capacity Curves")
+            
+            # Visualization of column with load
+            if st.session_state.selected_section and results:
+                fig = visualize_column_with_load(Pu, section, results['buckling_mode'])
+                st.pyplot(fig)
+                
+                # Create capacity curve
+                st.markdown("### Compression Capacity vs Slenderness")
+                
+                # Generate curve data
+                KL_r_range = np.linspace(10, 200, 100)
+                Pn_flexural = []
+                Pn_torsional = []
+                
+                for klr in KL_r_range:
+                    Fe_temp = (mt.pi**2 * 2.04e6) / (klr**2)
+                    Fy = float(df_mat.loc[material, "Yield Point (ksc)"])
+                    
+                    if klr <= mt.pi * mt.sqrt(2.04e6 / Fy):
+                        Fcr_temp = Fy * (0.658**(Fy/Fe_temp))
+                    else:
+                        Fcr_temp = 0.877 * Fe_temp
+                    
+                    Ag = float(df.loc[section, 'A [cm2]'])
+                    Pn_temp = 0.9 * Fcr_temp * Ag / 1000
+                    Pn_flexural.append(Pn_temp)
+                
+                # Plot
+                fig2 = go.Figure()
+                
+                fig2.add_trace(go.Scatter(
+                    x=KL_r_range, y=Pn_flexural,
+                    mode='lines',
+                    name='φPn (Flexural)',
+                    line=dict(color='#2196f3', width=3),
+                    hovertemplate='KL/r: %{x:.0f}<br>φPn: %{y:.1f} tons<extra></extra>'
+                ))
+                
+                # Add current point
+                fig2.add_trace(go.Scatter(
+                    x=[results['lambda_max']], y=[results['phi_Pn']],
+                    mode='markers',
+                    name=f'Current ({results["buckling_mode"]})',
+                    marker=dict(color='#f44336', size=12, symbol='star'),
+                    hovertemplate=f'KL/r: {results["lambda_max"]:.1f}<br>φPn: {results["phi_Pn"]:.1f} tons<br>Mode: {results["buckling_mode"]}<extra></extra>'
+                ))
+                
+                # Add demand line
+                fig2.add_hline(y=Pu, line_dash="dash", line_color="#ff5722",
+                             annotation_text=f"Pu = {Pu:.1f} tons")
+                
+                fig2.update_layout(
+                    title=f"Compression Capacity - {section}",
+                    xaxis_title="Slenderness Ratio (KL/r)",
+                    yaxis_title="Design Capacity φPn (tons)",
+                    height=400,
+                    template='plotly_white',
+                    hovermode='closest'
+                )
+                
+                st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.warning("⚠️ Please select a section and material from the sidebar or Section Selection tab.")
+
+# ==================== TAB 5: BEAM-COLUMN ====================
+with tab5:
+    st.markdown('<h2 class="section-header">Beam-Column Interaction Design (Chapter H)</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.selected_section and st.session_state.selected_material:
+        section = st.session_state.selected_section
+        material = st.session_state.selected_material
+        
+        st.info(f"**Analyzing:** {section} | **Material:** {material}")
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.markdown("### Combined Loading")
+            
+            # Interactive loads
+            Pu_bc = st.slider("Axial Load Pu (tons):", 
+                             min_value=0.0, max_value=200.0, value=50.0, step=1.0)
+            
+            st.markdown("#### Applied Moments")
+            Mux = st.slider("Moment Mux (t·m):", 
+                           min_value=0.0, max_value=100.0, value=30.0, step=1.0,
+                           help="Moment about strong axis")
+            Muy = st.slider("Moment Muy (t·m):", 
+                           min_value=0.0, max_value=50.0, value=5.0, step=0.5,
+                           help="Moment about weak axis")
+            
+            # Effective lengths
+            st.markdown("#### Effective Lengths")
+            KLx_bc = st.slider("KLx (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+            KLy_bc = st.slider("KLy (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+            Lb_bc = st.slider("Lb for LTB (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+        
+        # Real-time analysis
+        comp_results = compression_analysis_advanced(df, df_mat, section, material, KLx_bc, KLy_bc)
+        flex_results = flexural_analysis(df, df_mat, section, material, Lb_bc)
+        
+        if comp_results and flex_results:
+            # Calculate interaction ratios
+            Pc = comp_results['phi_Pn']
+            Mcx = flex_results['phi_Mn']
+            
+            # Simplified My calculation
+            Zy = float(df.loc[section, 'Zy [cm3]'])
+            Fy = float(df_mat.loc[material, "Yield Point (ksc)"])
+            Mcy = 0.9 * Fy * Zy / 100000  # t·m
+            
+            # Interaction check (H1-1)
+            if Pu_bc/Pc >= 0.2:
+                # H1-1a
+                interaction = Pu_bc/Pc + (8/9)*(Mux/Mcx + Muy/Mcy)
+                equation = "H1-1a"
+            else:
+                # H1-1b
+                interaction = Pu_bc/(2*Pc) + (Mux/Mcx + Muy/Mcy)
+                equation = "H1-1b"
+            
+            st.markdown("### 📊 Interaction Results")
+            
+            # Display results
+            col_r1, col_r2, col_r3 = st.columns(3)
+            
+            with col_r1:
+                st.metric("P/φPn", f"{Pu_bc/Pc:.3f}",
+                        delta=f"{Pu_bc:.1f}/{Pc:.1f} tons")
+            
+            with col_r2:
+                st.metric("Mx/φMnx", f"{Mux/Mcx:.3f}",
+                        delta=f"{Mux:.1f}/{Mcx:.1f} t·m")
+            
+            with col_r3:
+                st.metric("My/φMny", f"{Muy/Mcy:.3f}",
+                        delta=f"{Muy:.1f}/{Mcy:.1f} t·m")
+            
+            # Unity check
+            st.markdown("### Unity Check")
+            st.metric("Interaction Ratio", f"{interaction:.3f}",
+                    delta=f"Equation {equation}")
+            
+            if interaction <= 1.0:
+                st.markdown(f'<div class="success-box">✅ <b>DESIGN PASSES</b> - Unity Check: {interaction:.3f} ≤ 1.0<br>Safety Margin: {(1-interaction)*100:.1f}%</div>', 
+                          unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="error-box">❌ <b>DESIGN FAILS</b> - Unity Check: {interaction:.3f} > 1.0<br>Overstressed by: {(interaction-1)*100:.1f}%</div>', 
+                          unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("### P-M Interaction Diagram")
+            
+            if comp_results and flex_results:
+                # Generate interaction curve
+                P_ratios = np.linspace(0, 1, 50)
+                M_ratios = []
+                
+                for p_ratio in P_ratios:
+                    if p_ratio >= 0.2:
+                        m_ratio = (9/8) * (1 - p_ratio)
+                    else:
+                        m_ratio = 1 - p_ratio/2
+                    M_ratios.append(m_ratio)
+                
+                # Create plot
+                fig = go.Figure()
+                
+                # Interaction curve
+                fig.add_trace(go.Scatter(
+                    x=M_ratios, y=P_ratios,
+                    mode='lines',
+                    name='Interaction Curve',
+                    line=dict(color='#2196f3', width=3),
+                    fill='tozeroy',
+                    fillcolor='rgba(33, 150, 243, 0.2)',
+                    hovertemplate='M/Mc: %{x:.2f}<br>P/Pc: %{y:.2f}<extra></extra>'
+                ))
+                
+                # Add design point
+                M_combined = Mux/Mcx + Muy/Mcy
+                P_ratio = Pu_bc/Pc
+                
+                fig.add_trace(go.Scatter(
+                    x=[M_combined], y=[P_ratio],
+                    mode='markers',
+                    name='Design Point',
+                    marker=dict(color='#f44336', size=15, symbol='star'),
+                    hovertemplate=f'Design Point<br>P/Pc: {P_ratio:.3f}<br>ΣM/Mc: {M_combined:.3f}<br>Unity: {interaction:.3f}<extra></extra>'
+                ))
+                
+                # Add safety indication
+                if interaction <= 1.0:
+                    annotation_text = "✅ SAFE"
+                    annotation_color = "#4caf50"
+                else:
+                    annotation_text = "❌ UNSAFE"
+                    annotation_color = "#f44336"
+                
+                fig.add_annotation(
+                    x=M_combined, y=P_ratio,
+                    text=annotation_text,
+                    showarrow=True,
+                    arrowhead=2,
+                    bgcolor="white",
+                    bordercolor=annotation_color,
+                    borderwidth=2
+                )
+                
+                fig.update_layout(
+                    title="P-M Interaction Diagram (Real-time)",
+                    xaxis_title="Combined Moment Ratio (Mx/Mcx + My/Mcy)",
+                    yaxis_title="Axial Force Ratio (P/Pc)",
+                    height=500,
+                    template='plotly_white',
+                    hovermode='closest',
+                    xaxis=dict(range=[0, 1.2]),
+                    yaxis=dict(range=[0, 1.2])
+                )
+                
+                # Add grid
+                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                
+                st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("⚠️ Please select a section and material from the sidebar or Section Selection tab.")
+
+# ==================== TAB 6: COMPARISON ====================
+with tab6:
+    st.markdown('<h2 class="section-header">Multi-Section Comparison Tool</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.selected_sections:
+        st.info(f"Comparing {len(st.session_state.selected_sections)} sections")
+        
+        # Comparison parameters
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            comparison_type = st.selectbox("Comparison Type:",
+                ["Moment Capacity", "Compression Capacity", "Weight Efficiency", "Cost Analysis"])
+        
+        with col2:
+            Lb_comp = st.slider("Unbraced Length for Flexure (m):", 
+                               min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+        
+        with col3:
+            KL_comp = st.slider("Effective Length for Compression (m):", 
+                               min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+        
+        # Real-time comparison
+        comparison_data = []
+        
+        for section_name in st.session_state.selected_sections:
+            if section_name not in df.index:
+                continue
+                
+            # Get weight
+            weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
+            weight = df.loc[section_name, weight_col]
+            
+            # Flexural analysis
+            flex_results = flexural_analysis(df, df_mat, section_name, st.session_state.selected_material, Lb_comp)
+            
+            # Compression analysis
+            comp_results = compression_analysis_advanced(df, df_mat, section_name, st.session_state.selected_material, 
+                                                        KL_comp, KL_comp)
+            
+            if flex_results and comp_results:
+                comparison_data.append({
+                    'Section': section_name,
+                    'Weight (kg/m)': weight,
+                    'φMn (t·m)': flex_results['phi_Mn'],
+                    'φPn (tons)': comp_results['phi_Pn'],
+                    'Moment Efficiency': flex_results['phi_Mn'] / weight,
+                    'Compression Efficiency': comp_results['phi_Pn'] / weight,
+                    'Buckling Mode': comp_results['buckling_mode']
+                })
+        
+        if comparison_data:
+            df_comparison = pd.DataFrame(comparison_data)
+            
+            # Display comparison chart based on type
+            if comparison_type == "Moment Capacity":
+                # Multi-section moment curves
+                if st.session_state.section_lb_values:
+                    st.markdown("### Multi-Section Moment Capacity Curves")
+                    fig = create_multi_section_plot(df, df_mat, st.session_state.selected_sections, 
+                                                   st.session_state.selected_material, 
+                                                   st.session_state.section_lb_values)
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                # Bar chart comparison at specific Lb
+                fig_bar = go.Figure()
+                fig_bar.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['φMn (t·m)'],
+                    text=[f'{v:.2f}' for v in df_comparison['φMn (t·m)']],
+                    textposition='auto',
+                    marker_color='#2196f3'
+                ))
+                fig_bar.update_layout(
+                    title=f"Moment Capacity Comparison at Lb = {Lb_comp:.1f} m",
+                    yaxis_title="φMn (t·m)",
+                    template='plotly_white'
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+                
+            elif comparison_type == "Compression Capacity":
+                fig = go.Figure()
+                
+                # Group by buckling mode
+                colors = {'Flexural': '#2196f3', 'Torsional': '#ff9800', 'Flexural-Torsional': '#f44336'}
+                
+                for mode in df_comparison['Buckling Mode'].unique():
+                    df_mode = df_comparison[df_comparison['Buckling Mode'] == mode]
+                    fig.add_trace(go.Bar(
+                        x=df_mode['Section'],
+                        y=df_mode['φPn (tons)'],
+                        name=mode,
+                        text=[f'{v:.1f}' for v in df_mode['φPn (tons)']],
+                        textposition='auto',
+                        marker_color=colors.get(mode, '#9e9e9e')
+                    ))
+                
+                fig.update_layout(
+                    title=f"Compression Capacity Comparison at KL = {KL_comp:.1f} m",
+                    yaxis_title="φPn (tons)",
+                    barmode='group',
+                    template='plotly_white'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+            elif comparison_type == "Weight Efficiency":
+                fig = go.Figure()
+                
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['Moment Efficiency'],
+                    name='Moment Efficiency (t·m/kg/m)',
+                    marker_color='#2196f3'
+                ))
+                
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['Compression Efficiency'],
+                    name='Compression Efficiency (tons/kg/m)',
+                    marker_color='#4caf50'
+                ))
+                
+                fig.update_layout(
+                    title="Weight Efficiency Comparison",
+                    yaxis_title="Efficiency (Capacity/Weight)",
+                    barmode='group',
+                    template='plotly_white'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Display comparison table
+            st.markdown("### 📊 Detailed Comparison Table")
+            
+            # Format the dataframe for display
+            df_display = df_comparison.copy()
+            df_display['Weight (kg/m)'] = df_display['Weight (kg/m)'].round(1)
+            df_display['φMn (t·m)'] = df_display['φMn (t·m)'].round(2)
+            df_display['φPn (tons)'] = df_display['φPn (tons)'].round(1)
+            df_display['Moment Efficiency'] = df_display['Moment Efficiency'].round(3)
+            df_display['Compression Efficiency'] = df_display['Compression Efficiency'].round(3)
+            
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
+            
+            # Best section recommendation
+            st.markdown("### 🏆 Recommendations")
+            
+            col_rec1, col_rec2, col_rec3 = st.columns(3)
+            
+            with col_rec1:
+                best_moment = df_comparison.loc[df_comparison['φMn (t·m)'].idxmax()]
+                st.markdown(f'''<div class="info-box">
+                <b>Highest Moment Capacity:</b><br>
+                {best_moment["Section"]}<br>
+                φMn: {best_moment["φMn (t·m)"]:.2f} t·m
+                </div>''', unsafe_allow_html=True)
+            
+            with col_rec2:
+                best_compression = df_comparison.loc[df_comparison['φPn (tons)'].idxmax()]
+                st.markdown(f'''<div class="info-box">
+                <b>Highest Compression Capacity:</b><br>
+                {best_compression["Section"]}<br>
+                φPn: {best_compression["φPn (tons)"]:.1f} tons
+                </div>''', unsafe_allow_html=True)
+            
+            with col_rec3:
+                best_efficiency = df_comparison.loc[df_comparison['Moment Efficiency'].idxmax()]
+                st.markdown(f'''<div class="info-box">
+                <b>Most Efficient (Flexure):</b><br>
+                {best_efficiency["Section"]}<br>
+                Efficiency: {best_efficiency["Moment Efficiency"]:.3f}
+                </div>''', unsafe_allow_html=True)
+    else:
+        st.warning("⚠️ Please select sections from the 'Section Selection' tab first.")
+        st.markdown("""
+        ### 📖 How to Use Comparison Tool:
+        1. Go to **Section Selection** tab
+        2. Input your design requirements
+        3. Select multiple sections from the table using checkboxes
+        4. Configure individual Lb values if needed
+        5. Return here to compare selected sections
+        
+        This tool provides:
+        - Real-time interactive comparison
+        - Multiple analysis types
+        - Automatic best section recommendations
+        - Detailed performance metrics
+        """)
 
 # ==================== FOOTER ====================
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666; padding: 1rem;'>
-    <p><b>AISC Steel Design Tool v4.0</b></p>
-    <p>Based on AISC 360-16 Specification</p>
-    <p>Units: Forces in kg/cm², Dimensions in cm</p>
+<div style='text-align: center; color: #666; padding: 2rem;'>
+    <p><b>Steel Design Analysis System v3.1</b></p>
+    <p>Real-time Interactive Analysis | Multi-Section Selection | Flexural-Torsional Buckling</p>
+    <p>Based on AISC 360-16 Specification | Developed with Streamlit</p>
+    <p>© 2024 - Educational Tool for Structural Engineers</p>
 </div>
 """, unsafe_allow_html=True)
