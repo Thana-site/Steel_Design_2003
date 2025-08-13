@@ -930,12 +930,393 @@ with tab4:
     else:
         st.warning("⚠️ Please select a section from the sidebar")
 
-# ==================== FOOTER ====================
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666; padding: 1rem;'>
-    <p><b>AISC Steel Design Analysis v5.0</b></p>
-    <p>Enhanced with Correct F2 Function | Service Loads in kg/m</p>
-    <p>Based on AISC 360-16 Specification</p>
-</div>
-""", unsafe_allow_html=True)
+# ==================== TAB 5: BEAM-COLUMN ====================
+with tab5:
+    st.markdown('<h2 class="section-header">Beam-Column Interaction Design (Chapter H)</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.selected_section and selected_material:
+        section = st.session_state.selected_section
+        
+        st.info(f"**Analyzing:** {section} | **Material:** {selected_material}")
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.markdown("### Combined Loading")
+            
+            # Interactive loads
+            Pu_bc = st.slider("Axial Load Pu (tons):", 
+                             min_value=0.0, max_value=200.0, value=50.0, step=1.0)
+            
+            st.markdown("#### Applied Moments")
+            Mux = st.slider("Moment Mux (t·m):", 
+                           min_value=0.0, max_value=100.0, value=30.0, step=1.0,
+                           help="Moment about strong axis")
+            Muy = st.slider("Moment Muy (t·m):", 
+                           min_value=0.0, max_value=50.0, value=5.0, step=0.5,
+                           help="Moment about weak axis")
+            
+            # Effective lengths
+            st.markdown("#### Effective Lengths")
+            KLx_bc = st.slider("KLx (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+            KLy_bc = st.slider("KLy (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+            Lb_bc = st.slider("Lb for LTB (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+        
+        # Real-time analysis
+        comp_results = compression_analysis_advanced(df, df_mat, section, selected_material, KLx_bc, KLy_bc)
+        
+        # Get flexural capacity using F2
+        Mnx, _, _, _, Mpx, _, _, _ = F2(df, df_mat, section, selected_material, Lb_bc)
+        Mcx = 0.9 * Mnx  # φMn
+        
+        # Minor axis moment capacity (simplified)
+        Zy = float(df.loc[section, 'Zy [cm3]'])
+        Fy = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
+        Mny = Fy * Zy / 100000  # t·m
+        Mcy = 0.9 * Mny
+        
+        if comp_results:
+            # Calculate interaction ratios
+            Pc = comp_results['phi_Pn']
+            
+            # Interaction check (H1-1)
+            if Pc > 0 and Mcx > 0 and Mcy > 0:
+                if Pu_bc/Pc >= 0.2:
+                    # H1-1a
+                    interaction = Pu_bc/Pc + (8/9)*(Mux/Mcx + Muy/Mcy)
+                    equation = "H1-1a"
+                else:
+                    # H1-1b
+                    interaction = Pu_bc/(2*Pc) + (Mux/Mcx + Muy/Mcy)
+                    equation = "H1-1b"
+                
+                st.markdown("### 📊 Interaction Results")
+                
+                # Display results
+                col_r1, col_r2, col_r3 = st.columns(3)
+                
+                with col_r1:
+                    st.metric("P/φPn", f"{Pu_bc/Pc:.3f}",
+                            delta=f"{Pu_bc:.1f}/{Pc:.1f} tons")
+                
+                with col_r2:
+                    st.metric("Mx/φMnx", f"{Mux/Mcx:.3f}",
+                            delta=f"{Mux:.1f}/{Mcx:.1f} t·m")
+                
+                with col_r3:
+                    st.metric("My/φMny", f"{Muy/Mcy:.3f}",
+                            delta=f"{Muy:.1f}/{Mcy:.1f} t·m")
+                
+                # Unity check
+                st.markdown("### Unity Check")
+                st.metric("Interaction Ratio", f"{interaction:.3f}",
+                        delta=f"Equation {equation}")
+                
+                if interaction <= 1.0:
+                    st.markdown(f'<div class="success-box">✅ <b>DESIGN PASSES</b> - Unity Check: {interaction:.3f} ≤ 1.0<br>Safety Margin: {(1-interaction)*100:.1f}%</div>', 
+                              unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="error-box">❌ <b>DESIGN FAILS</b> - Unity Check: {interaction:.3f} > 1.0<br>Overstressed by: {(interaction-1)*100:.1f}%</div>', 
+                              unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("### P-M Interaction Diagram")
+            
+            if comp_results and Mcx > 0:
+                # Generate interaction curve
+                P_ratios = np.linspace(0, 1, 50)
+                M_ratios = []
+                
+                for p_ratio in P_ratios:
+                    if p_ratio >= 0.2:
+                        m_ratio = (9/8) * (1 - p_ratio)
+                    else:
+                        m_ratio = 1 - p_ratio/2
+                    M_ratios.append(m_ratio)
+                
+                # Create plot
+                fig = go.Figure()
+                
+                # Interaction curve
+                fig.add_trace(go.Scatter(
+                    x=M_ratios, y=P_ratios,
+                    mode='lines',
+                    name='Interaction Curve',
+                    line=dict(color='#2196f3', width=3),
+                    fill='tozeroy',
+                    fillcolor='rgba(33, 150, 243, 0.2)',
+                    hovertemplate='M/Mc: %{x:.2f}<br>P/Pc: %{y:.2f}<extra></extra>'
+                ))
+                
+                # Add design point
+                if 'interaction' in locals():
+                    M_combined = Mux/Mcx + Muy/Mcy
+                    P_ratio = Pu_bc/Pc
+                    
+                    fig.add_trace(go.Scatter(
+                        x=[M_combined], y=[P_ratio],
+                        mode='markers',
+                        name='Design Point',
+                        marker=dict(color='#f44336', size=15, symbol='star'),
+                        hovertemplate=f'Design Point<br>P/Pc: {P_ratio:.3f}<br>ΣM/Mc: {M_combined:.3f}<br>Unity: {interaction:.3f}<extra></extra>'
+                    ))
+                    
+                    # Add safety indication
+                    if interaction <= 1.0:
+                        annotation_text = "✅ SAFE"
+                        annotation_color = "#4caf50"
+                    else:
+                        annotation_text = "❌ UNSAFE"
+                        annotation_color = "#f44336"
+                    
+                    fig.add_annotation(
+                        x=M_combined, y=P_ratio,
+                        text=annotation_text,
+                        showarrow=True,
+                        arrowhead=2,
+                        bgcolor="white",
+                        bordercolor=annotation_color,
+                        borderwidth=2
+                    )
+                
+                fig.update_layout(
+                    title="P-M Interaction Diagram (Real-time)",
+                    xaxis_title="Combined Moment Ratio (Mx/Mcx + My/Mcy)",
+                    yaxis_title="Axial Force Ratio (P/Pc)",
+                    height=500,
+                    template='plotly_white',
+                    hovermode='closest',
+                    xaxis=dict(range=[0, 1.2]),
+                    yaxis=dict(range=[0, 1.2])
+                )
+                
+                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                
+                st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("⚠️ Please select a section and material from the sidebar")
+
+# ==================== TAB 6: COMPARISON ====================
+with tab6:
+    st.markdown('<h2 class="section-header">Multi-Section Comparison Tool</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.selected_sections:
+        st.info(f"Comparing {len(st.session_state.selected_sections)} sections")
+        
+        # Comparison parameters
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            comparison_type = st.selectbox("Comparison Type:",
+                ["Moment Capacity", "Compression Capacity", "Weight Efficiency", "Combined Performance"])
+        
+        with col2:
+            Lb_comp = st.slider("Unbraced Length for Flexure (m):", 
+                               min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+        
+        with col3:
+            KL_comp = st.slider("Effective Length for Compression (m):", 
+                               min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+        
+        # Real-time comparison
+        comparison_data = []
+        
+        for section_name in st.session_state.selected_sections:
+            if section_name not in df.index:
+                continue
+            
+            try:
+                # Get weight
+                weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
+                weight = df.loc[section_name, weight_col]
+                
+                # Flexural analysis using F2
+                Mn, _, _, _, Mp, _, _, _ = F2(df, df_mat, section_name, selected_material, Lb_comp)
+                
+                # Compression analysis
+                comp_results = compression_analysis_advanced(df, df_mat, section_name, selected_material, 
+                                                            KL_comp, KL_comp)
+                
+                if comp_results:
+                    comparison_data.append({
+                        'Section': section_name,
+                        'Weight (kg/m)': weight,
+                        'φMn (t·m)': 0.9 * Mn,
+                        'φPn (tons)': comp_results['phi_Pn'],
+                        'Moment Efficiency': (0.9 * Mn) / weight,
+                        'Compression Efficiency': comp_results['phi_Pn'] / weight,
+                        'Combined Score': ((0.9 * Mn) / weight) * (comp_results['phi_Pn'] / weight)
+                    })
+            except:
+                continue
+        
+        if comparison_data:
+            df_comparison = pd.DataFrame(comparison_data)
+            
+            # Display comparison chart based on type
+            if comparison_type == "Moment Capacity":
+                # Create multi-section Mn-Lb curves
+                fig = go.Figure()
+                colors = ['#2196f3', '#4caf50', '#ff9800', '#f44336', '#9c27b0', '#00bcd4']
+                
+                for i, section_name in enumerate(st.session_state.selected_sections[:6]):  # Limit to 6
+                    if section_name not in df.index:
+                        continue
+                    
+                    # Generate curve for each section
+                    Lb_range = np.linspace(0.1, 15, 100)
+                    Mn_values = []
+                    
+                    for lb in Lb_range:
+                        try:
+                            Mn_temp, _, _, _, _, _, _, _ = F2(df, df_mat, section_name, selected_material, lb)
+                            Mn_values.append(0.9 * Mn_temp)  # φMn
+                        except:
+                            Mn_values.append(0)
+                    
+                    color = colors[i % len(colors)]
+                    fig.add_trace(go.Scatter(
+                        x=Lb_range, y=Mn_values,
+                        mode='lines',
+                        name=section_name,
+                        line=dict(color=color, width=2),
+                        hovertemplate='%{y:.2f} t·m @ Lb=%{x:.1f}m<extra></extra>'
+                    ))
+                
+                fig.update_layout(
+                    title="Multi-Section Moment Capacity Comparison",
+                    xaxis_title="Unbraced Length, Lb (m)",
+                    yaxis_title="φMn (t·m)",
+                    height=500,
+                    template='plotly_white'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+            elif comparison_type == "Compression Capacity":
+                fig = go.Figure()
+                
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['φPn (tons)'],
+                    text=[f'{v:.1f}' for v in df_comparison['φPn (tons)']],
+                    textposition='auto',
+                    marker_color='#2196f3',
+                    name='φPn'
+                ))
+                
+                fig.update_layout(
+                    title=f"Compression Capacity at KL = {KL_comp:.1f} m",
+                    yaxis_title="φPn (tons)",
+                    template='plotly_white'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+            elif comparison_type == "Weight Efficiency":
+                fig = make_subplots(rows=1, cols=2,
+                                   subplot_titles=('Moment Efficiency', 'Compression Efficiency'))
+                
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['Moment Efficiency'],
+                    text=[f'{v:.3f}' for v in df_comparison['Moment Efficiency']],
+                    textposition='auto',
+                    marker_color='#4caf50',
+                    name='φMn/Weight'
+                ), row=1, col=1)
+                
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['Compression Efficiency'],
+                    text=[f'{v:.3f}' for v in df_comparison['Compression Efficiency']],
+                    textposition='auto',
+                    marker_color='#ff9800',
+                    name='φPn/Weight'
+                ), row=1, col=2)
+                
+                fig.update_layout(
+                    title="Weight Efficiency Comparison",
+                    height=400,
+                    template='plotly_white',
+                    showlegend=False
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            elif comparison_type == "Combined Performance":
+                # Radar chart for multi-criteria comparison
+                fig = go.Figure()
+                
+                categories = ['Weight', 'φMn', 'φPn', 'Moment Eff.', 'Compression Eff.']
+                
+                for idx, row in df_comparison.iterrows():
+                    # Normalize values for radar chart
+                    values = [
+                        1 - (row['Weight (kg/m)'] / df_comparison['Weight (kg/m)'].max()),
+                        row['φMn (t·m)'] / df_comparison['φMn (t·m)'].max(),
+                        row['φPn (tons)'] / df_comparison['φPn (tons)'].max(),
+                        row['Moment Efficiency'] / df_comparison['Moment Efficiency'].max(),
+                        row['Compression Efficiency'] / df_comparison['Compression Efficiency'].max()
+                    ]
+                    values.append(values[0])  # Close the polygon
+                    
+                    fig.add_trace(go.Scatterpolar(
+                        r=values,
+                        theta=categories + [categories[0]],
+                        fill='toself',
+                        name=row['Section']
+                    ))
+                
+                fig.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True,
+                            range=[0, 1]
+                        )),
+                    showlegend=True,
+                    title="Combined Performance Comparison",
+                    height=500
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Display comparison table
+            st.markdown("### 📊 Detailed Comparison Table")
+            
+            df_display = df_comparison.copy()
+            df_display = df_display.round(2)
+            
+            # Highlight best values
+            def highlight_max(s):
+                is_max = s == s.max()
+                return ['background-color: #e8f5e9' if v else '' for v in is_max]
+            
+            styled_df = df_display.style.apply(highlight_max, subset=['φMn (t·m)', 'φPn (tons)', 
+                                                                      'Moment Efficiency', 'Compression Efficiency'])
+            st.dataframe(styled_df, use_container_width=True)
+            
+            # Recommendations
+            st.markdown("### 🏆 Recommendations")
+            
+            col_rec1, col_rec2, col_rec3 = st.columns(3)
+            
+            with col_rec1:
+                best_moment = df_comparison.loc[df_comparison['φMn (t·m)'].idxmax()]
+                st.markdown(f'''<div class="info-box">
+                <b>Highest Moment Capacity:</b><br>
+                {best_moment["Section"]}<br>
+                φMn: {best_moment["φMn (t·m)"]:.2f} t·m
+                </div>''', unsafe_allow_html=True)
+            
+            with col_rec2:
+                best_compression = df_comparison.loc[df_comparison['φPn (tons)'].idxmax()]
+                st.markdown(f'''<div class="info-box">
+                <b>Highest Compression Capacity:</b><br>
+                {best_compression["Section"]}<br>
+                φPn: {best_compression["φPn (tons)"]:.1f} tons
+                </div>''', unsafe_allow_html=True)
+            
+            with col_rec3:
+                best_efficiency = df_comparison.loc[df_comparison['Combined Score'].idxmax()]
+                st.markdown(f'''<div class="info-box">
+                <b>Best Overall Performance:</b><br>
+                {best_efficiency["Section"]}<br>
+                Score: {best_efficiency["Combined Score
