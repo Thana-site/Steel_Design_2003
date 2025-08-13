@@ -1,5 +1,5 @@
 # ==================== ENHANCED STEEL DESIGN ANALYSIS APPLICATION ====================
-# Version: 5.0 - Based on working v3.1 with enhanced F2 calculations
+# Version: 5.0 - Complete with all 6 tabs and bug fixes
 # GitHub: Thana-site/Steel_Design_2003
 
 import streamlit as st
@@ -245,20 +245,12 @@ def F2(df, df_mat, option, option_mat, Lb):
         st.error(f"Error in F2 calculation: {str(e)}")
         return 0, 0, 0, 0, 0, [], [], "Error"
 
-def calculate_required_properties(Mu, phi=0.9):
+def calculate_required_properties(Mu, selected_material, Fy_value, phi=0.9):
     """Calculate required section properties based on design moment"""
     Mu_tm = Mu / 9.81
-    required_zx = {}
-    steel_grades = {
-        'SS400': 2400,
-        'SM490': 3300,
-        'SM520': 3600,
-        'SM570': 4600
-    }
-    for grade, Fy in steel_grades.items():
-        Zx_req = (Mu_tm * 100000) / (phi * Fy)
-        required_zx[grade] = Zx_req
-    return required_zx
+    # Use the actual Fy value from the selected material
+    Zx_req = (Mu_tm * 100000) / (phi * Fy_value)
+    return Zx_req
 
 def calculate_required_ix(w, L, delta_limit, E=2.04e6):
     """Calculate required Ix based on deflection limit"""
@@ -281,12 +273,11 @@ def calculate_service_load_capacity(df, df_mat, section, material, L, Lb):
     except:
         return 0
 
-def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy, Kz=None, Lz=None):
-    """Advanced compression member analysis including flexural-torsional buckling"""
+def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy):
+    """Advanced compression member analysis"""
     try:
         Fy = float(df_mat.loc[material, "Yield Point (ksc)"])
         E = float(df_mat.loc[material, "E"])
-        G = E / (2 * (1 + 0.3))
         
         Ag = float(df.loc[section, 'A [cm2]'])
         rx = float(df.loc[section, 'rx [cm]'])
@@ -415,7 +406,7 @@ if not success:
 
 # ==================== MAIN HEADER ====================
 st.markdown('<h1 class="main-header">🏗️ AISC Steel Design Analysis System v5.0</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #5e6c84;">Enhanced with Correct F2 Calculations</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #5e6c84;">Complete 6-Tab Analysis with AISC 360-16</p>', unsafe_allow_html=True)
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
@@ -459,11 +450,13 @@ with st.sidebar:
         """)
 
 # ==================== MAIN TABS ====================
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 Section Properties",
     "🔍 Section Selection",
-    "📈 Flexural Design (Mn-Lb)",
-    "🏢 Column Design"
+    "📈 Flexural Design",
+    "🏢 Column Design",
+    "🏗️ Beam-Column",
+    "📊 Comparison"
 ])
 
 # ==================== TAB 1: SECTION PROPERTIES ====================
@@ -528,9 +521,9 @@ with tab2:
         phi = 0.9
         
         if Mu > 0 and selected_material:
-            required_zx = calculate_required_properties(Mu, phi)
-            if selected_material in required_zx:
-                st.success(f"Required Zx ≥ {required_zx[selected_material]:.0f} cm³")
+            Fy_value = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
+            Zx_req = calculate_required_properties(Mu, selected_material, Fy_value, phi)
+            st.success(f"Required Zx ≥ {Zx_req:.0f} cm³")
     
     with col2:
         st.markdown("#### Service Load")
@@ -546,7 +539,8 @@ with tab2:
     filtered_df = df.copy()
     
     if Mu > 0 and selected_material:
-        zx_min = calculate_required_properties(Mu, phi)[selected_material]
+        Fy_value = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
+        zx_min = calculate_required_properties(Mu, selected_material, Fy_value, phi)
         filtered_df = filtered_df[filtered_df['Zx [cm3]'] >= zx_min]
     
     if depth_max > 0:
@@ -602,7 +596,7 @@ with tab2:
                 st.session_state.selected_sections = [row['Section'] for row in selected_rows]
                 st.success(f"✅ Selected {len(selected_rows)} sections for comparison")
 
-# ==================== TAB 3: FLEXURAL DESIGN WITH CORRECT F2 ====================
+# ==================== TAB 3: FLEXURAL DESIGN ====================
 with tab3:
     st.markdown('<h2 class="section-header">Flexural Design - Correct Mn vs Lb Curves</h2>', unsafe_allow_html=True)
     
@@ -1300,23 +1294,51 @@ with tab6:
             
             with col_rec1:
                 best_moment = df_comparison.loc[df_comparison['φMn (t·m)'].idxmax()]
-                st.markdown(f'''<div class="info-box">
-                <b>Highest Moment Capacity:</b><br>
-                {best_moment["Section"]}<br>
+                st.info(f"""
+                **Highest Moment Capacity:**
+                {best_moment["Section"]}
                 φMn: {best_moment["φMn (t·m)"]:.2f} t·m
-                </div>''', unsafe_allow_html=True)
+                """)
             
             with col_rec2:
                 best_compression = df_comparison.loc[df_comparison['φPn (tons)'].idxmax()]
-                st.markdown(f'''<div class="info-box">
-                <b>Highest Compression Capacity:</b><br>
-                {best_compression["Section"]}<br>
+                st.info(f"""
+                **Highest Compression Capacity:**
+                {best_compression["Section"]}
                 φPn: {best_compression["φPn (tons)"]:.1f} tons
-                </div>''', unsafe_allow_html=True)
+                """)
             
             with col_rec3:
                 best_efficiency = df_comparison.loc[df_comparison['Combined Score'].idxmax()]
-                st.markdown(f'''<div class="info-box">
-                <b>Best Overall Performance:</b><br>
-                {best_efficiency["Section"]}<br>
-                Score: {best_efficiency["Combined Score
+                st.info(f"""
+                **Best Overall Performance:**
+                {best_efficiency["Section"]}
+                Score: {best_efficiency["Combined Score"]:.3f}
+                """)
+    else:
+        st.warning("⚠️ Please select sections from the 'Section Selection' tab first")
+        st.markdown("""
+        ### 📖 How to Use Comparison Tool:
+        1. Go to **Section Selection** tab
+        2. Input your design requirements  
+        3. Select multiple sections using checkboxes
+        4. Return here to compare selected sections
+        
+        This tool provides:
+        - Multi-section moment capacity curves
+        - Compression capacity comparison
+        - Weight efficiency analysis
+        - Combined performance radar chart
+        - Automatic best section recommendations
+        """)
+
+# ==================== FOOTER ====================
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666; padding: 1rem;'>
+    <p><b>AISC Steel Design Analysis v5.0</b></p>
+    <p>Complete 6-Tab Analysis System</p>
+    <p>✓ Correct F2 Function | ✓ Service Loads in kg/m | ✓ AISC 360-16</p>
+    <p>© 2024 - Educational Tool for Structural Engineers</p>
+</div>
+""", unsafe_allow_html=True)
