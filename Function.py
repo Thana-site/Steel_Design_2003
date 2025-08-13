@@ -591,10 +591,36 @@ with tab2:
                 update_mode=GridUpdateMode.SELECTION_CHANGED
             )
             
-            selected_rows = grid_response['selected_rows']
-            if selected_rows is not None and len(selected_rows) > 0:
-                st.session_state.selected_sections = [row['Section'] for row in selected_rows]
-                st.success(f"✅ Selected {len(selected_rows)} sections for comparison")
+            # Fixed: Handle selected_rows properly
+            selected_rows = grid_response.get('selected_rows', None)
+            if selected_rows is not None and not selected_rows.empty:
+                # selected_rows is a DataFrame when rows are selected
+                selected_sections = selected_rows['Section'].tolist()
+                st.session_state.selected_sections = selected_sections
+                st.success(f"✅ Selected {len(selected_sections)} sections for comparison")
+                
+                # Show selected sections with Lb configuration
+                with st.expander("📋 Selected Sections Configuration", expanded=True):
+                    st.markdown("#### Configure Unbraced Length for Each Section")
+                    
+                    use_global_lb = st.checkbox("Use same Lb for all sections", value=False)
+                    
+                    if use_global_lb:
+                        global_lb = st.slider("Global Unbraced Length (m):", 0.0, 20.0, 3.0, 0.5)
+                        for section_name in st.session_state.selected_sections:
+                            st.session_state.section_lb_values[section_name] = global_lb
+                    else:
+                        col_sec1, col_sec2 = st.columns(2)
+                        for i, section_name in enumerate(st.session_state.selected_sections):
+                            with col_sec1 if i % 2 == 0 else col_sec2:
+                                lb_value = st.number_input(
+                                    f"Lb for {section_name} (m):", 
+                                    min_value=0.0, 
+                                    value=st.session_state.section_lb_values.get(section_name, 3.0),
+                                    step=0.5,
+                                    key=f"lb_{section_name}"
+                                )
+                                st.session_state.section_lb_values[section_name] = lb_value
 
 # ==================== TAB 3: FLEXURAL DESIGN ====================
 with tab3:
