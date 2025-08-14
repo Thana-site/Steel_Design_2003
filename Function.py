@@ -468,20 +468,6 @@ def visualize_column_2d_enhanced(df, section):
         return fig
     except Exception as e:
         st.error(f"Error in visualization: {e}")
-        return None fontweight='bold')
-        ax3.text(0, d/2 + 10, 'Y', fontsize=12, color='red', fontweight='bold')
-        
-        ax3.set_xlim([-bf*1.2, bf*1.2])
-        ax3.set_ylim([-d*1.2, d*1.2])
-        ax3.set_aspect('equal')
-        ax3.grid(True, alpha=0.3)
-        ax3.set_xlabel('Width (mm)')
-        ax3.set_ylabel('Height (mm)')
-        
-        plt.tight_layout()
-        return fig
-    except Exception as e:
-        st.error(f"Error in visualization: {e}")
         return None
 
 # ==================== LOAD DATA ====================
@@ -593,316 +579,6 @@ with tab1:
         # Full table
         with st.expander("📋 View All Properties"):
             st.dataframe(properties_df, use_container_width=True, hide_index=True)
-    else:
-        st.warning("⚠️ Please select a section from the sidebar")
-
-# ==================== TAB 2: SECTION SELECTION ====================
-with tab2:
-    st.markdown('<h2 class="section-header">Section Selection with Filters</h2>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("#### Moment Design")
-        Mu = st.number_input("Design Moment Mu (kN·m):", min_value=0.0, value=500.0, step=50.0)
-        phi = 0.9
-        
-        if Mu > 0 and selected_material:
-            Fy_value = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
-            Zx_req = calculate_required_properties(Mu, selected_material, Fy_value, phi)
-            st.success(f"Required Zx ≥ {Zx_req:.0f} cm³")
-    
-    with col2:
-        st.markdown("#### Deflection Control")
-        L_span = st.number_input("Span Length (m):", min_value=1.0, value=6.0, step=0.5)
-        w_load = st.number_input("Service Load w (kN/m):", min_value=0.0, value=10.0, step=1.0)
-        deflection_limit = st.selectbox("Deflection Limit:", 
-                                       ["L/200", "L/250", "L/300", "L/360", "L/400"],
-                                       index=2)
-        
-        # Calculate required Ix
-        if w_load > 0 and L_span > 0:
-            limit_value = float(deflection_limit.split('/')[1])
-            Ix_req = calculate_required_ix(w_load, L_span, limit_value)
-            st.success(f"Required Ix ≥ {Ix_req:.0f} cm⁴")
-    
-    with col3:
-        st.markdown("#### Additional Filters")
-        depth_max = st.number_input("Max Depth (mm):", min_value=0, value=0, help="0 = no limit")
-        weight_max = st.number_input("Max Weight (kg/m):", min_value=0, value=200, step=10,
-                                    help="0 = no limit")
-        
-        # Preference
-        optimization = st.selectbox("Optimize for:",
-                                   ["Minimum Weight", "Minimum Depth", "Maximum Efficiency"],
-                                   index=0)
-    
-    # Filter sections
-    filtered_df = df.copy()
-    
-    if Mu > 0 and selected_material:
-        Fy_value = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
-        zx_min = calculate_required_properties(Mu, selected_material, Fy_value, phi)
-        filtered_df = filtered_df[filtered_df['Zx [cm3]'] >= zx_min]
-    
-    if w_load > 0 and L_span > 0:
-        limit_value = float(deflection_limit.split('/')[1])
-        Ix_req = calculate_required_ix(w_load, L_span, limit_value)
-        filtered_df = filtered_df[filtered_df['Ix [cm4]'] >= Ix_req]
-    
-    if depth_max > 0:
-        filtered_df = filtered_df[filtered_df['d [mm]'] <= depth_max]
-    
-    if weight_max > 0:
-        weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
-        filtered_df = filtered_df[filtered_df[weight_col] <= weight_max]
-    
-    # Sort by optimization criteria
-    weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
-    if optimization == "Minimum Weight":
-        filtered_df = filtered_df.sort_values(weight_col)
-    elif optimization == "Minimum Depth":
-        filtered_df = filtered_df.sort_values('d [mm]')
-    else:  # Maximum Efficiency
-        filtered_df['efficiency'] = filtered_df['Zx [cm3]'] / filtered_df[weight_col]
-        filtered_df = filtered_df.sort_values('efficiency', ascending=False)
-    
-    # Display filtered sections with ALL properties
-    st.markdown(f"### Found {len(filtered_df)} Suitable Sections")
-    
-    if len(filtered_df) > 0:
-        # Reset index to make Section a column
-        filtered_df_display = filtered_df.reset_index()
-        
-        # Select important columns to display (show ALL section properties)
-        display_cols = ['Section', 'd [mm]', 'bf [mm]', 'tw [mm]', 'tf [mm]', 
-                       'A [cm2]', weight_col, 'Ix [cm4]', 'Iy [cm4]', 
-                       'Sx [cm3]', 'Sy [cm3]', 'Zx [cm3]', 'Zy [cm3]', 
-                       'rx [cm]', 'ry [cm]']
-        
-        # Only include columns that exist in the dataframe
-        available_cols = [col for col in display_cols if col in filtered_df_display.columns]
-        
-        # Configure AgGrid for multi-selection
-        gb = GridOptionsBuilder.from_dataframe(filtered_df_display[available_cols])
-        gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren=False, groupSelectsFiltered=True)
-        gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=20)
-        gb.configure_column("Section", headerCheckboxSelection=True)
-        gb.configure_default_column(resizable=True, filterable=True, sortable=True)
-        grid_options = gb.build()
-        
-        # Display grid with ALL section properties
-        st.markdown("#### 📋 Section Properties Database (Select sections using checkboxes)")
-        grid_response = AgGrid(
-            filtered_df_display[available_cols].round(2),
-            gridOptions=grid_options,
-            height=400,
-            width='100%',
-            theme='streamlit',
-            update_mode=GridUpdateMode.SELECTION_CHANGED
-        )
-        
-        # Handle selected rows
-        selected_rows = grid_response.get('selected_rows', None)
-        if selected_rows is not None and not selected_rows.empty:
-            # selected_rows is a DataFrame when rows are selected
-            selected_sections = selected_rows['Section'].tolist()
-            st.session_state.selected_sections = selected_sections
-            
-            st.success(f"✅ Selected {len(selected_sections)} sections for analysis")
-            
-            # Calculate capacity for selected sections
-            st.markdown("### 📊 Capacity Analysis for Selected Sections")
-            
-            # Unbraced length for capacity calculation
-            Lb_capacity = st.slider("Unbraced Length for Capacity Analysis (m):", 0.1, 20.0, 3.0, 0.5)
-            
-            capacity_results = []
-            for section_name in selected_sections:
-                try:
-                    # Calculate moment capacity
-                    Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section_name, selected_material, Lb_capacity)
-                    
-                    # Get weight
-                    weight = filtered_df.loc[section_name, weight_col] if section_name in filtered_df.index else 0
-                    
-                    # Calculate service load capacity
-                    service_w = calculate_service_load_capacity(df, df_mat, section_name, selected_material, L_span, Lb_capacity)
-                    
-                    capacity_results.append({
-                        'Section': section_name,
-                        'Weight (kg/m)': weight,
-                        'Mp (t·m)': Mp,
-                        'Mn (t·m)': Mn,
-                        'φMn (t·m)': 0.9 * Mn,
-                        'Service w (kg/m)': service_w,
-                        'Lp (m)': Lp,
-                        'Lr (m)': Lr,
-                        'Case': Case,
-                        'Efficiency': (0.9 * Mn) / weight if weight > 0 else 0
-                    })
-                except:
-                    continue
-            
-            if capacity_results:
-                capacity_df = pd.DataFrame(capacity_results)
-                st.dataframe(capacity_df.round(2), use_container_width=True, hide_index=True)
-                
-                # Show configuration for individual Lb values
-                with st.expander("⚙️ Configure Individual Lb Values for Comparison", expanded=False):
-                    use_global_lb = st.checkbox("Use same Lb for all sections", value=False)
-                    
-                    if use_global_lb:
-                        global_lb = st.slider("Global Unbraced Length (m):", 0.0, 20.0, 3.0, 0.5)
-                        for section_name in st.session_state.selected_sections:
-                            st.session_state.section_lb_values[section_name] = global_lb
-                    else:
-                        col_sec1, col_sec2 = st.columns(2)
-                        for i, section_name in enumerate(st.session_state.selected_sections):
-                            with col_sec1 if i % 2 == 0 else col_sec2:
-                                lb_value = st.number_input(
-                                    f"Lb for {section_name} (m):", 
-                                    min_value=0.0, 
-                                    value=st.session_state.section_lb_values.get(section_name, 3.0),
-                                    step=0.5,
-                                    key=f"lb_{section_name}"
-                                )
-                                st.session_state.section_lb_values[section_name] = lb_value
-
-# ==================== TAB 3: FLEXURAL DESIGN ====================
-with tab3:
-    st.markdown('<h2 class="section-header">Flexural Design - Correct Mn vs Lb Curves</h2>', unsafe_allow_html=True)
-    
-    if st.session_state.selected_section and selected_material:
-        section = st.session_state.selected_section
-        
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            st.markdown("### Parameters")
-            Lb_current = st.slider("Unbraced Length Lb (m):", 0.1, 20.0, 3.0, 0.1)
-            Cb = st.number_input("Cb Factor:", 1.0, 2.3, 1.0, 0.1)
-            
-            show_phi = st.checkbox("Show φMn curve", value=True)
-            show_mn = st.checkbox("Show Mn curve", value=True)
-            
-            # Calculate using F2 function
-            Mn, Lb_calc, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat, section, selected_material, Lb_current)
-            
-            st.markdown("### Current Point")
-            st.metric("Mn", f"{Mn:.2f} t·m")
-            st.metric("φMn", f"{0.9*Mn:.2f} t·m")
-            st.metric("Case", Case)
-            
-            # Classification
-            if Mn >= Mp * 0.9:
-                st.success("✅ Close to plastic capacity")
-            elif Mn >= Mp * 0.7:
-                st.warning("⚠️ Moderate reduction")
-            else:
-                st.error("❌ Significant reduction")
-            
-            # Critical lengths
-            st.markdown("### Critical Lengths")
-            st.write(f"**Lp = {Lp:.2f} m**")
-            st.caption("Plastic limit")
-            st.write(f"**Lr = {Lr:.2f} m**")
-            st.caption("Inelastic limit")
-        
-        with col2:
-            # Create plot using F2 arrays
-            if Mni and Lni:
-                try:
-                    # Flatten arrays for plotting
-                    Mni_flat = []
-                    Lni_flat = []
-                    
-                    for i in range(len(Mni)):
-                        if isinstance(Mni[i], list):
-                            Mni_flat.extend(Mni[i])
-                            Lni_flat.extend(Lni[i])
-                        else:
-                            Mni_flat.append(Mni[i])
-                            Lni_flat.append(Lni[i])
-                    
-                    fig = go.Figure()
-                    
-                    # Mn curve
-                    if show_mn:
-                        fig.add_trace(go.Scatter(
-                            x=Lni_flat, y=Mni_flat,
-                            mode='lines+markers',
-                            name='Mn',
-                            line=dict(color='#1976d2', width=3),
-                            marker=dict(size=6)
-                        ))
-                    
-                    # φMn curve
-                    if show_phi:
-                        phi_Mni = [0.9 * m for m in Mni_flat]
-                        fig.add_trace(go.Scatter(
-                            x=Lni_flat, y=phi_Mni,
-                            mode='lines',
-                            name='φMn (0.9×Mn)',
-                            line=dict(color='#4caf50', width=2, dash='dash')
-                        ))
-                    
-                    # Current point
-                    fig.add_trace(go.Scatter(
-                        x=[Lb_current], y=[Mn],
-                        mode='markers',
-                        name=f'Current (Lb={Lb_current}m)',
-                        marker=dict(color='#f44336', size=12, symbol='diamond')
-                    ))
-                    
-                    # Mp line
-                    fig.add_hline(y=Mp, line_dash="dot", line_color='#ff9800', line_width=2,
-                                annotation_text=f"Mp = {Mp:.2f} t·m", annotation_font_size=14)
-                    
-                    # Lp and Lr lines
-                    fig.add_vline(x=Lp, line_dash="dash", line_color='#9c27b0', line_width=2,
-                                annotation_text=f"Lp = {Lp:.2f} m", annotation_font_size=14)
-                    fig.add_vline(x=Lr, line_dash="dash", line_color='#e91e63', line_width=2,
-                                annotation_text=f"Lr = {Lr:.2f} m", annotation_font_size=14)
-                    
-                    # Zones with large labels
-                    fig.add_vrect(x0=0, x1=Lp, fillcolor='#4caf50', opacity=0.15,
-                                annotation_text="<b>YIELDING</b>", annotation_position="top",
-                                annotation_font_size=16)
-                    fig.add_vrect(x0=Lp, x1=Lr, fillcolor='#ff9800', opacity=0.15,
-                                annotation_text="<b>INELASTIC LTB</b>", annotation_position="top",
-                                annotation_font_size=16)
-                    
-                    max_x = max(Lni_flat) if Lni_flat else Lr + 10
-                    fig.add_vrect(x0=Lr, x1=max_x, fillcolor='#f44336', opacity=0.15,
-                                annotation_text="<b>ELASTIC LTB</b>", annotation_position="top",
-                                annotation_font_size=16)
-                    
-                    fig.update_layout(
-                        title=f"Moment Capacity vs Unbraced Length - {section}",
-                        xaxis_title="Unbraced Length, Lb (m)",
-                        yaxis_title="Moment Capacity (t·m)",
-                        height=600,
-                        hovermode='x unified',
-                        showlegend=True,
-                        template='plotly_white'
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                except Exception as e:
-                    st.error(f"Error in plotting: {str(e)}")
-            
-            # Summary table
-            st.markdown("### Summary")
-            summary_df = pd.DataFrame({
-                'Parameter': ['Mp', 'Mn at current Lb', 'φMn', 'Lp', 'Lr', 'Current Lb'],
-                'Value': [f"{Mp:.2f} t·m", f"{Mn:.2f} t·m", f"{0.9*Mn:.2f} t·m", 
-                         f"{Lp:.2f} m", f"{Lr:.2f} m", f"{Lb_current:.2f} m"],
-                'Status': ['Plastic Capacity', Case, 'Design Capacity', 
-                          'Yielding → Inelastic', 'Inelastic → Elastic', 'Design Point']
-            })
-            st.dataframe(summary_df, use_container_width=True, hide_index=True)
     else:
         st.warning("⚠️ Please select a section from the sidebar")
 
@@ -1515,3 +1191,313 @@ st.markdown("""
     <p>© 2024 - Educational Tool for Structural Engineers</p>
 </div>
 """, unsafe_allow_html=True)
+
+# ==================== TAB 2: SECTION SELECTION ====================
+with tab2:
+    st.markdown('<h2 class="section-header">Section Selection with Filters</h2>', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### Moment Design")
+        Mu = st.number_input("Design Moment Mu (kN·m):", min_value=0.0, value=500.0, step=50.0)
+        phi = 0.9
+        
+        if Mu > 0 and selected_material:
+            Fy_value = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
+            Zx_req = calculate_required_properties(Mu, selected_material, Fy_value, phi)
+            st.success(f"Required Zx ≥ {Zx_req:.0f} cm³")
+    
+    with col2:
+        st.markdown("#### Deflection Control")
+        L_span = st.number_input("Span Length (m):", min_value=1.0, value=6.0, step=0.5)
+        w_load = st.number_input("Service Load w (kN/m):", min_value=0.0, value=10.0, step=1.0)
+        deflection_limit = st.selectbox("Deflection Limit:", 
+                                       ["L/200", "L/250", "L/300", "L/360", "L/400"],
+                                       index=2)
+        
+        # Calculate required Ix
+        if w_load > 0 and L_span > 0:
+            limit_value = float(deflection_limit.split('/')[1])
+            Ix_req = calculate_required_ix(w_load, L_span, limit_value)
+            st.success(f"Required Ix ≥ {Ix_req:.0f} cm⁴")
+    
+    with col3:
+        st.markdown("#### Additional Filters")
+        depth_max = st.number_input("Max Depth (mm):", min_value=0, value=0, help="0 = no limit")
+        weight_max = st.number_input("Max Weight (kg/m):", min_value=0, value=200, step=10,
+                                    help="0 = no limit")
+        
+        # Preference
+        optimization = st.selectbox("Optimize for:",
+                                   ["Minimum Weight", "Minimum Depth", "Maximum Efficiency"],
+                                   index=0)
+    
+    # Filter sections
+    filtered_df = df.copy()
+    
+    if Mu > 0 and selected_material:
+        Fy_value = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
+        zx_min = calculate_required_properties(Mu, selected_material, Fy_value, phi)
+        filtered_df = filtered_df[filtered_df['Zx [cm3]'] >= zx_min]
+    
+    if w_load > 0 and L_span > 0:
+        limit_value = float(deflection_limit.split('/')[1])
+        Ix_req = calculate_required_ix(w_load, L_span, limit_value)
+        filtered_df = filtered_df[filtered_df['Ix [cm4]'] >= Ix_req]
+    
+    if depth_max > 0:
+        filtered_df = filtered_df[filtered_df['d [mm]'] <= depth_max]
+    
+    if weight_max > 0:
+        weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
+        filtered_df = filtered_df[filtered_df[weight_col] <= weight_max]
+    
+    # Sort by optimization criteria
+    weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
+    if optimization == "Minimum Weight":
+        filtered_df = filtered_df.sort_values(weight_col)
+    elif optimization == "Minimum Depth":
+        filtered_df = filtered_df.sort_values('d [mm]')
+    else:  # Maximum Efficiency
+        filtered_df['efficiency'] = filtered_df['Zx [cm3]'] / filtered_df[weight_col]
+        filtered_df = filtered_df.sort_values('efficiency', ascending=False)
+    
+    # Display filtered sections with ALL properties
+    st.markdown(f"### Found {len(filtered_df)} Suitable Sections")
+    
+    if len(filtered_df) > 0:
+        # Reset index to make Section a column
+        filtered_df_display = filtered_df.reset_index()
+        
+        # Select important columns to display (show ALL section properties)
+        display_cols = ['Section', 'd [mm]', 'bf [mm]', 'tw [mm]', 'tf [mm]', 
+                       'A [cm2]', weight_col, 'Ix [cm4]', 'Iy [cm4]', 
+                       'Sx [cm3]', 'Sy [cm3]', 'Zx [cm3]', 'Zy [cm3]', 
+                       'rx [cm]', 'ry [cm]']
+        
+        # Only include columns that exist in the dataframe
+        available_cols = [col for col in display_cols if col in filtered_df_display.columns]
+        
+        # Configure AgGrid for multi-selection
+        gb = GridOptionsBuilder.from_dataframe(filtered_df_display[available_cols])
+        gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren=False, groupSelectsFiltered=True)
+        gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=20)
+        gb.configure_column("Section", headerCheckboxSelection=True)
+        gb.configure_default_column(resizable=True, filterable=True, sortable=True)
+        grid_options = gb.build()
+        
+        # Display grid with ALL section properties
+        st.markdown("#### 📋 Section Properties Database (Select sections using checkboxes)")
+        grid_response = AgGrid(
+            filtered_df_display[available_cols].round(2),
+            gridOptions=grid_options,
+            height=400,
+            width='100%',
+            theme='streamlit',
+            update_mode=GridUpdateMode.SELECTION_CHANGED
+        )
+        
+        # Handle selected rows
+        selected_rows = grid_response.get('selected_rows', None)
+        if selected_rows is not None and not selected_rows.empty:
+            # selected_rows is a DataFrame when rows are selected
+            selected_sections = selected_rows['Section'].tolist()
+            st.session_state.selected_sections = selected_sections
+            
+            st.success(f"✅ Selected {len(selected_sections)} sections for analysis")
+            
+            # Calculate capacity for selected sections
+            st.markdown("### 📊 Capacity Analysis for Selected Sections")
+            
+            # Unbraced length for capacity calculation
+            Lb_capacity = st.slider("Unbraced Length for Capacity Analysis (m):", 0.1, 20.0, 3.0, 0.5)
+            
+            capacity_results = []
+            for section_name in selected_sections:
+                try:
+                    # Calculate moment capacity
+                    Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section_name, selected_material, Lb_capacity)
+                    
+                    # Get weight
+                    weight = filtered_df.loc[section_name, weight_col] if section_name in filtered_df.index else 0
+                    
+                    # Calculate service load capacity
+                    service_w = calculate_service_load_capacity(df, df_mat, section_name, selected_material, L_span, Lb_capacity)
+                    
+                    capacity_results.append({
+                        'Section': section_name,
+                        'Weight (kg/m)': weight,
+                        'Mp (t·m)': Mp,
+                        'Mn (t·m)': Mn,
+                        'φMn (t·m)': 0.9 * Mn,
+                        'Service w (kg/m)': service_w,
+                        'Lp (m)': Lp,
+                        'Lr (m)': Lr,
+                        'Case': Case,
+                        'Efficiency': (0.9 * Mn) / weight if weight > 0 else 0
+                    })
+                except:
+                    continue
+            
+            if capacity_results:
+                capacity_df = pd.DataFrame(capacity_results)
+                st.dataframe(capacity_df.round(2), use_container_width=True, hide_index=True)
+                
+                # Show configuration for individual Lb values
+                with st.expander("⚙️ Configure Individual Lb Values for Comparison", expanded=False):
+                    use_global_lb = st.checkbox("Use same Lb for all sections", value=False)
+                    
+                    if use_global_lb:
+                        global_lb = st.slider("Global Unbraced Length (m):", 0.0, 20.0, 3.0, 0.5)
+                        for section_name in st.session_state.selected_sections:
+                            st.session_state.section_lb_values[section_name] = global_lb
+                    else:
+                        col_sec1, col_sec2 = st.columns(2)
+                        for i, section_name in enumerate(st.session_state.selected_sections):
+                            with col_sec1 if i % 2 == 0 else col_sec2:
+                                lb_value = st.number_input(
+                                    f"Lb for {section_name} (m):", 
+                                    min_value=0.0, 
+                                    value=st.session_state.section_lb_values.get(section_name, 3.0),
+                                    step=0.5,
+                                    key=f"lb_{section_name}"
+                                )
+                                st.session_state.section_lb_values[section_name] = lb_value
+
+# ==================== TAB 3: FLEXURAL DESIGN ====================
+with tab3:
+    st.markdown('<h2 class="section-header">Flexural Design - Correct Mn vs Lb Curves</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.selected_section and selected_material:
+        section = st.session_state.selected_section
+        
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            st.markdown("### Parameters")
+            Lb_current = st.slider("Unbraced Length Lb (m):", 0.1, 20.0, 3.0, 0.1)
+            Cb = st.number_input("Cb Factor:", 1.0, 2.3, 1.0, 0.1)
+            
+            show_phi = st.checkbox("Show φMn curve", value=True)
+            show_mn = st.checkbox("Show Mn curve", value=True)
+            
+            # Calculate using F2 function
+            Mn, Lb_calc, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat, section, selected_material, Lb_current)
+            
+            st.markdown("### Current Point")
+            st.metric("Mn", f"{Mn:.2f} t·m")
+            st.metric("φMn", f"{0.9*Mn:.2f} t·m")
+            st.metric("Case", Case)
+            
+            # Classification
+            if Mn >= Mp * 0.9:
+                st.success("✅ Close to plastic capacity")
+            elif Mn >= Mp * 0.7:
+                st.warning("⚠️ Moderate reduction")
+            else:
+                st.error("❌ Significant reduction")
+            
+            # Critical lengths
+            st.markdown("### Critical Lengths")
+            st.write(f"**Lp = {Lp:.2f} m**")
+            st.caption("Plastic limit")
+            st.write(f"**Lr = {Lr:.2f} m**")
+            st.caption("Inelastic limit")
+        
+        with col2:
+            # Create plot using F2 arrays
+            if Mni and Lni:
+                try:
+                    # Flatten arrays for plotting
+                    Mni_flat = []
+                    Lni_flat = []
+                    
+                    for i in range(len(Mni)):
+                        if isinstance(Mni[i], list):
+                            Mni_flat.extend(Mni[i])
+                            Lni_flat.extend(Lni[i])
+                        else:
+                            Mni_flat.append(Mni[i])
+                            Lni_flat.append(Lni[i])
+                    
+                    fig = go.Figure()
+                    
+                    # Mn curve
+                    if show_mn:
+                        fig.add_trace(go.Scatter(
+                            x=Lni_flat, y=Mni_flat,
+                            mode='lines+markers',
+                            name='Mn',
+                            line=dict(color='#1976d2', width=3),
+                            marker=dict(size=6)
+                        ))
+                    
+                    # φMn curve
+                    if show_phi:
+                        phi_Mni = [0.9 * m for m in Mni_flat]
+                        fig.add_trace(go.Scatter(
+                            x=Lni_flat, y=phi_Mni,
+                            mode='lines',
+                            name='φMn (0.9×Mn)',
+                            line=dict(color='#4caf50', width=2, dash='dash')
+                        ))
+                    
+                    # Current point
+                    fig.add_trace(go.Scatter(
+                        x=[Lb_current], y=[Mn],
+                        mode='markers',
+                        name=f'Current (Lb={Lb_current}m)',
+                        marker=dict(color='#f44336', size=12, symbol='diamond')
+                    ))
+                    
+                    # Mp line
+                    fig.add_hline(y=Mp, line_dash="dot", line_color='#ff9800', line_width=2,
+                                annotation_text=f"Mp = {Mp:.2f} t·m", annotation_font_size=14)
+                    
+                    # Lp and Lr lines
+                    fig.add_vline(x=Lp, line_dash="dash", line_color='#9c27b0', line_width=2,
+                                annotation_text=f"Lp = {Lp:.2f} m", annotation_font_size=14)
+                    fig.add_vline(x=Lr, line_dash="dash", line_color='#e91e63', line_width=2,
+                                annotation_text=f"Lr = {Lr:.2f} m", annotation_font_size=14)
+                    
+                    # Zones with large labels
+                    fig.add_vrect(x0=0, x1=Lp, fillcolor='#4caf50', opacity=0.15,
+                                annotation_text="<b>YIELDING</b>", annotation_position="top",
+                                annotation_font_size=16)
+                    fig.add_vrect(x0=Lp, x1=Lr, fillcolor='#ff9800', opacity=0.15,
+                                annotation_text="<b>INELASTIC LTB</b>", annotation_position="top",
+                                annotation_font_size=16)
+                    
+                    max_x = max(Lni_flat) if Lni_flat else Lr + 10
+                    fig.add_vrect(x0=Lr, x1=max_x, fillcolor='#f44336', opacity=0.15,
+                                annotation_text="<b>ELASTIC LTB</b>", annotation_position="top",
+                                annotation_font_size=16)
+                    
+                    fig.update_layout(
+                        title=f"Moment Capacity vs Unbraced Length - {section}",
+                        xaxis_title="Unbraced Length, Lb (m)",
+                        yaxis_title="Moment Capacity (t·m)",
+                        height=600,
+                        hovermode='x unified',
+                        showlegend=True,
+                        template='plotly_white'
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                except Exception as e:
+                    st.error(f"Error in plotting: {str(e)}")
+            
+            # Summary table
+            st.markdown("### Summary")
+            summary_df = pd.DataFrame({
+                'Parameter': ['Mp', 'Mn at current Lb', 'φMn', 'Lp', 'Lr', 'Current Lb'],
+                'Value': [f"{Mp:.2f} t·m", f"{Mn:.2f} t·m", f"{0.9*Mn:.2f} t·m", 
+                         f"{Lp:.2f} m", f"{Lr:.2f} m", f"{Lb_current:.2f} m"],
+                'Status': ['Plastic Capacity', Case, 'Design Capacity', 
+                          'Yielding → Inelastic', 'Inelastic → Elastic', 'Design Point']
+            })
+            st.dataframe(summary_df, use_container_width=True, hide_index=True)
+    else:
+        st.warning("⚠️ Please select a section from the sidebar")
