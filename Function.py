@@ -247,17 +247,19 @@ def F2(df, df_mat, option, option_mat, Lb):
 
 def calculate_required_properties(Mu, selected_material, Fy_value, phi=0.9):
     """Calculate required section properties based on design moment"""
-    Mu_tm = Mu / 9.81
-    # Use the actual Fy value from the selected material
-    Zx_req = (Mu_tm * 100000) / (phi * Fy_value)
+    Mu_tm = Mu  # Already in kN·m, convert to t·m by dividing by 1000
+    Mu_tm = Mu_tm / 1000  # Convert kN·m to t·m
+    # Use the actual Fy value from the selected material  
+    Zx_req = (Mu_tm * 100000) / (phi * Fy_value)  # cm³
     return Zx_req
 
 def calculate_required_ix(w, L, delta_limit, E=2.04e6):
     """Calculate required Ix based on deflection limit"""
-    w_kg = w * 1000 / 9.81
-    L_cm = L * 100
+    w_kg_cm = w  # w is already in kg/m, convert to kg/cm
+    w_kg_cm = w / 100  # kg/cm
+    L_cm = L * 100  # Convert m to cm
     delta_max = L_cm / delta_limit
-    Ix_req = (5 * w_kg * L_cm**4) / (384 * E * delta_max)
+    Ix_req = (5 * w_kg_cm * L_cm**4) / (384 * E * delta_max)
     return Ix_req
 
 def calculate_service_load_capacity(df, df_mat, section, material, L, Lb):
@@ -316,9 +318,9 @@ def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy):
         return None
 
 def visualize_column_2d_enhanced(df, section):
-    """Enhanced 2D visualization showing column with proper support conditions"""
+    """Enhanced 2D visualization showing column buckling about strong and weak axes"""
     try:
-        fig, axes = plt.subplots(1, 3, figsize=(15, 8))
+        fig, axes = plt.subplots(1, 2, figsize=(12, 8))
         
         # Get dimensions
         d = float(df.loc[section, 'd [mm]'])
@@ -329,140 +331,110 @@ def visualize_column_2d_enhanced(df, section):
         # Column length for visualization
         L = 3000  # 3m column height in mm
         
-        # Strong axis view (Front View)
+        # Strong axis buckling (Left side - similar to your image)
         ax1 = axes[0]
-        ax1.set_title('Front View (Strong Axis X-X)', fontsize=14, fontweight='bold')
+        ax1.set_title('Strong Axis Buckling (X-X)', fontsize=14, fontweight='bold', color='#1a237e')
         
-        # Draw column as I-beam shape
-        # Top flange
-        ax1.add_patch(Rectangle((-bf/2, L - 50), bf, 50,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
-        # Web  
-        ax1.add_patch(Rectangle((-tw/2, 50), tw, L - 100,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#90caf9'))
-        # Bottom flange
-        ax1.add_patch(Rectangle((-bf/2, 0), bf, 50,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
+        # Draw column as simple rectangle (front view)
+        column_width = 40  # Simplified width for clear visualization
+        ax1.add_patch(Rectangle((-column_width/2, 0), column_width, L,
+                                linewidth=3, edgecolor='#d32f2f', facecolor='#ffcdd2'))
         
-        # Add buckled shape
+        # Add buckled shape for strong axis
         y = np.linspace(0, L, 100)
-        x = (bf/3) * np.sin(np.pi * y / L)
-        ax1.plot(x, y, 'r--', lw=2, alpha=0.7, label='Buckled shape')
+        x_buckled = 80 * np.sin(np.pi * y / L)  # Larger amplitude for clear visibility
+        ax1.plot(x_buckled, y, 'r-', lw=4, alpha=0.8, label='Buckled Shape')
         
         # Load arrow at top
-        ax1.arrow(0, L + 300, 0, -200, head_width=bf/2,
-                 head_length=80, fc='red', ec='red', lw=2)
-        ax1.text(0, L + 400, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
+        ax1.arrow(0, L + 200, 0, -150, head_width=30, head_length=50, 
+                 fc='red', ec='red', lw=3)
+        ax1.text(0, L + 280, 'P', ha='center', fontsize=18, fontweight='bold', color='red')
         
-        # Base support (pinned)
-        support_width = bf * 1.2
-        ax1.add_patch(Rectangle((-support_width/2, -100), support_width, 100,
-                                linewidth=2, edgecolor='black', facecolor='#808080'))
-        # Add pin symbol
-        ax1.plot(0, -50, 'o', markersize=10, color='black', markerfacecolor='white')
+        # Support symbols at base (pinned)
+        support_width = 80
+        # Base plate
+        ax1.add_patch(Rectangle((-support_width/2, -30), support_width, 30,
+                                linewidth=2, edgecolor='black', facecolor='#616161'))
+        
+        # Pin symbol
+        ax1.plot(0, -15, 'o', markersize=12, color='black', markerfacecolor='white', 
+                markeredgewidth=2)
         
         # Ground hatching
-        for i in range(8):
-            x_hatch = -support_width/2 - 50 + i * (support_width + 100) / 7
-            ax1.plot([x_hatch, x_hatch - 20], [-100, -150], 'k-', lw=1.5)
+        for i in range(-3, 4):
+            x_pos = i * 25
+            ax1.plot([x_pos, x_pos - 15], [-30, -60], 'k-', lw=2)
         
-        ax1.set_xlim([-bf*1.5, bf*1.5])
-        ax1.set_ylim([-200, L + 500])
-        ax1.set_xlabel('Width (mm)', fontsize=12)
+        # Dimension lines
+        ax1.annotate('', xy=(120, L), xytext=(120, 0),
+                    arrowprops=dict(arrowstyle='<->', color='blue', lw=2))
+        ax1.text(140, L/2, 'L', ha='center', rotation=90, fontsize=14, 
+                color='blue', fontweight='bold')
+        
+        ax1.set_xlim([-150, 180])
+        ax1.set_ylim([-80, L + 350])
+        ax1.set_xlabel('Strong Axis Direction', fontsize=12, fontweight='bold')
         ax1.set_ylabel('Height (mm)', fontsize=12)
         ax1.grid(True, alpha=0.3)
-        ax1.legend(loc='upper right')
+        ax1.legend(loc='upper right', fontsize=10)
         
-        # Weak axis view (Side View)
+        # Remove aspect ratio constraint for this view
+        ax1.set_aspect('auto')
+        
+        # Weak axis buckling (Right side - similar to your image)
         ax2 = axes[1]
-        ax2.set_title('Side View (Weak Axis Y-Y)', fontsize=14, fontweight='bold')
+        ax2.set_title('Weak Axis Buckling (Y-Y)', fontsize=14, fontweight='bold', color='#8B0000')
         
-        # Draw column side view (showing depth)
-        # Top flange
-        ax2.add_patch(Rectangle((-d/2, L - 50), d, 50,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
-        # Web (appears as full depth from side)
-        ax2.add_patch(Rectangle((-d/2, 50), d, L - 100,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#e3f2fd'))
-        # Bottom flange
-        ax2.add_patch(Rectangle((-d/2, 0), d, 50,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
+        # Draw column as thinner rectangle (side view)
+        column_depth = 20  # Much thinner for weak axis view
+        ax2.add_patch(Rectangle((-column_depth/2, 0), column_depth, L,
+                                linewidth=3, edgecolor='#8B0000', facecolor='#FFCCCB'))
         
-        # Buckled shape for weak axis
-        x2 = (d/3) * np.sin(np.pi * y / L)
-        ax2.plot(x2, y, 'r--', lw=2, alpha=0.7, label='Buckled shape')
+        # Add buckled shape for weak axis (smaller amplitude)
+        x_buckled_weak = 40 * np.sin(np.pi * y / L)  # Smaller amplitude for weak axis
+        ax2.plot(x_buckled_weak, y, color='#8B0000', linestyle='-', lw=4, alpha=0.8, 
+                label='Buckled Shape')
         
-        # Load arrow
-        ax2.arrow(0, L + 300, 0, -200, head_width=d/2,
-                 head_length=80, fc='red', ec='red', lw=2)
-        ax2.text(0, L + 400, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
+        # Load arrow at top
+        ax2.arrow(0, L + 200, 0, -150, head_width=15, head_length=50, 
+                 fc='red', ec='red', lw=3)
+        ax2.text(0, L + 280, 'P', ha='center', fontsize=18, fontweight='bold', color='red')
         
-        # Base support
-        support_depth = d * 1.2
-        ax2.add_patch(Rectangle((-support_depth/2, -100), support_depth, 100,
-                                linewidth=2, edgecolor='black', facecolor='#808080'))
-        ax2.plot(0, -50, 'o', markersize=10, color='black', markerfacecolor='white')
+        # Support symbols at base (pinned)
+        support_depth = 40
+        # Base plate
+        ax2.add_patch(Rectangle((-support_depth/2, -30), support_depth, 30,
+                                linewidth=2, edgecolor='black', facecolor='#616161'))
+        
+        # Pin symbol (I-shape for weak axis)
+        ax2.plot([-8, 8], [-15, -15], 'k-', lw=4)  # Top flange
+        ax2.plot([0, 0], [-10, -20], 'k-', lw=2)   # Web
+        ax2.plot([-8, 8], [-20, -20], 'k-', lw=4)  # Bottom flange
         
         # Ground hatching
-        for i in range(8):
-            x_hatch = -support_depth/2 - 50 + i * (support_depth + 100) / 7
-            ax2.plot([x_hatch, x_hatch - 20], [-100, -150], 'k-', lw=1.5)
+        for i in range(-2, 3):
+            x_pos = i * 15
+            ax2.plot([x_pos, x_pos - 10], [-30, -60], 'k-', lw=2)
         
-        ax2.set_xlim([-d*1.5, d*1.5])
-        ax2.set_ylim([-200, L + 500])
-        ax2.set_xlabel('Depth (mm)', fontsize=12)
+        # Dimension lines
+        ax2.annotate('', xy=(60, L), xytext=(60, 0),
+                    arrowprops=dict(arrowstyle='<->', color='blue', lw=2))
+        ax2.text(75, L/2, 'L', ha='center', rotation=90, fontsize=14, 
+                color='blue', fontweight='bold')
+        
+        ax2.set_xlim([-80, 90])
+        ax2.set_ylim([-80, L + 350])
+        ax2.set_xlabel('Weak Axis Direction', fontsize=12, fontweight='bold')
         ax2.set_ylabel('Height (mm)', fontsize=12)
         ax2.grid(True, alpha=0.3)
-        ax2.legend(loc='upper right')
+        ax2.legend(loc='upper right', fontsize=10)
         
-        # Cross-section view
-        ax3 = axes[2]
-        ax3.set_title(f'Cross-Section: {section}', fontsize=14, fontweight='bold')
+        # Remove aspect ratio constraint for this view
+        ax2.set_aspect('auto')
         
-        # Draw detailed H-section
-        # Top flange
-        ax3.add_patch(Rectangle((-bf/2, d/2 - tf), bf, tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
-        # Bottom flange
-        ax3.add_patch(Rectangle((-bf/2, -d/2), bf, tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
-        # Web
-        ax3.add_patch(Rectangle((-tw/2, -d/2 + tf), tw, d - 2*tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#90caf9'))
-        
-        # Principal axes
-        ax3.axhline(y=0, color='red', linewidth=2, linestyle='--', alpha=0.7)
-        ax3.axvline(x=0, color='red', linewidth=2, linestyle='--', alpha=0.7)
-        ax3.text(bf/2 + 15, 0, 'X', fontsize=14, color='red', fontweight='bold')
-        ax3.text(0, d/2 + 15, 'Y', fontsize=14, color='red', fontweight='bold')
-        
-        # Dimensions
-        # Width dimension
-        ax3.annotate('', xy=(bf/2, d/2 + 30), xytext=(-bf/2, d/2 + 30),
-                    arrowprops=dict(arrowstyle='<->', color='black', lw=1.5))
-        ax3.text(0, d/2 + 40, f'bf = {bf:.0f}', ha='center', fontsize=11)
-        
-        # Depth dimension
-        ax3.annotate('', xy=(bf/2 + 30, d/2), xytext=(bf/2 + 30, -d/2),
-                    arrowprops=dict(arrowstyle='<->', color='black', lw=1.5))
-        ax3.text(bf/2 + 50, 0, f'd = {d:.0f}', ha='center', rotation=90, fontsize=11)
-        
-        # Web thickness
-        ax3.annotate('', xy=(tw/2, 0), xytext=(-tw/2, 0),
-                    arrowprops=dict(arrowstyle='<->', color='blue', lw=1))
-        ax3.text(0, -20, f'tw = {tw:.1f}', ha='center', fontsize=10, color='blue')
-        
-        # Flange thickness
-        ax3.annotate('', xy=(-bf/3, d/2), xytext=(-bf/3, d/2 - tf),
-                    arrowprops=dict(arrowstyle='<->', color='green', lw=1))
-        ax3.text(-bf/3 - 30, d/2 - tf/2, f'tf = {tf:.1f}', ha='right', fontsize=10, color='green')
-        
-        ax3.set_xlim([-bf*0.8, bf*0.8])
-        ax3.set_ylim([-d*0.8, d*0.8])
-        ax3.set_aspect('equal')
-        ax3.grid(True, alpha=0.3)
-        ax3.set_xlabel('Width (mm)', fontsize=12)
-        ax3.set_ylabel('Height (mm)', fontsize=12)
+        # Add section info
+        fig.suptitle(f'Column Buckling Modes - Section: {section}', 
+                    fontsize=16, fontweight='bold', y=0.95)
         
         plt.tight_layout()
         return fig
@@ -665,7 +637,8 @@ with tab4:
                 st.error(f"❌ Design FAILS - Overstressed by {(ratio-1)*100:.1f}%")
         
         # Column visualization
-        st.markdown("### Column Visualization - Both Principal Planes")
+        st.markdown("### Column Buckling Visualization - Strong & Weak Axis")
+        st.info("📊 **Visualization shows:** Red = Strong Axis Buckling | Dark Red = Weak Axis Buckling")
         fig_vis = visualize_column_2d_enhanced(df, section)
         if fig_vis:
             st.pyplot(fig_vis)
@@ -1200,7 +1173,8 @@ with tab2:
     
     with col1:
         st.markdown("#### Moment Design")
-        Mu = st.number_input("Design Moment Mu (kN·m):", min_value=0.0, value=500.0, step=50.0)
+        Mu = st.number_input("Design Moment Mu (kN·m):", min_value=0.0, value=500.0, step=50.0,
+                            help="Enter design moment in kN·m")
         phi = 0.9
         
         if Mu > 0 and selected_material:
@@ -1210,11 +1184,13 @@ with tab2:
     
     with col2:
         st.markdown("#### Deflection Control")
-        L_span = st.number_input("Span Length (m):", min_value=1.0, value=6.0, step=0.5)
-        w_load = st.number_input("Service Load w (kN/m):", min_value=0.0, value=10.0, step=1.0)
+        L_span = st.number_input("Span Length (m):", min_value=1.0, value=6.0, step=0.5,
+                                help="Enter span length in meters")
+        w_load = st.number_input("Service Load w (kg/m):", min_value=0.0, value=100.0, step=10.0,
+                               help="Enter distributed load in kg/m")
         deflection_limit = st.selectbox("Deflection Limit:", 
                                        ["L/200", "L/250", "L/300", "L/360", "L/400"],
-                                       index=2)
+                                       index=2, help="Select deflection limit ratio")
         
         # Calculate required Ix
         if w_load > 0 and L_span > 0:
