@@ -316,7 +316,340 @@ def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy):
         st.error(f"Error in compression analysis: {e}")
         return None
 
-def visualize_column_2d_enhanced(df, section):
+def visualize_column_3d(df, section):
+    """3D visualization of H-shaped steel column with buckling modes"""
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        import numpy as np
+        
+        # Get dimensions
+        d = float(df.loc[section, 'd [mm]'])
+        bf = float(df.loc[section, 'bf [mm]'])
+        tw = float(df.loc[section, 'tw [mm]'])
+        tf = float(df.loc[section, 'tf [mm]'])
+        
+        # Column length
+        L = 3000  # 3m column height in mm
+        
+        # Create 3D H-section geometry
+        def create_h_section_3d(z_position):
+            """Create 3D coordinates for H-section at given z-position"""
+            
+            # Top flange coordinates
+            top_flange_x = [-bf/2, bf/2, bf/2, -bf/2, -bf/2]
+            top_flange_y = [d/2-tf, d/2-tf, d/2, d/2, d/2-tf]
+            top_flange_z = [z_position] * 5
+            
+            # Web coordinates  
+            web_x = [-tw/2, tw/2, tw/2, -tw/2, -tw/2]
+            web_y = [-d/2+tf, -d/2+tf, d/2-tf, d/2-tf, -d/2+tf]
+            web_z = [z_position] * 5
+            
+            # Bottom flange coordinates
+            bottom_flange_x = [-bf/2, bf/2, bf/2, -bf/2, -bf/2]
+            bottom_flange_y = [-d/2, -d/2, -d/2+tf, -d/2+tf, -d/2]
+            bottom_flange_z = [z_position] * 5
+            
+            return {
+                'top_flange': {'x': top_flange_x, 'y': top_flange_y, 'z': top_flange_z},
+                'web': {'x': web_x, 'y': web_y, 'z': web_z},
+                'bottom_flange': {'x': bottom_flange_x, 'y': bottom_flange_y, 'z': bottom_flange_z}
+            }
+        
+        # Create subplots for different views
+        fig = make_subplots(
+            rows=2, cols=2,
+            specs=[[{"type": "scatter3d", "colspan": 2}, None],
+                   [{"type": "scatter3d"}, {"type": "scatter3d"}]],
+            subplot_titles=[
+                f"3D H-Section Column: {section}",
+                "Strong Axis Buckling (X-X)",
+                "Weak Axis Buckling (Y-Y)"
+            ],
+            vertical_spacing=0.1
+        )
+        
+        # =================== MAIN 3D COLUMN ===================
+        z_positions = np.linspace(0, L, 20)
+        
+        for i, z_pos in enumerate(z_positions):
+            h_section = create_h_section_3d(z_pos)
+            
+            # Top flange
+            fig.add_trace(go.Scatter3d(
+                x=h_section['top_flange']['x'],
+                y=h_section['top_flange']['y'],
+                z=h_section['top_flange']['z'],
+                mode='lines',
+                line=dict(color='#1976d2', width=4),
+                showlegend=False if i > 0 else True,
+                name='Top Flange' if i == 0 else None
+            ), row=1, col=1)
+            
+            # Web
+            fig.add_trace(go.Scatter3d(
+                x=h_section['web']['x'],
+                y=h_section['web']['y'],
+                z=h_section['web']['z'],
+                mode='lines',
+                line=dict(color='#4caf50', width=3),
+                showlegend=False if i > 0 else True,
+                name='Web' if i == 0 else None
+            ), row=1, col=1)
+            
+            # Bottom flange
+            fig.add_trace(go.Scatter3d(
+                x=h_section['bottom_flange']['x'],
+                y=h_section['bottom_flange']['y'],
+                z=h_section['bottom_flange']['z'],
+                mode='lines',
+                line=dict(color='#f44336', width=4),
+                showlegend=False if i > 0 else True,
+                name='Bottom Flange' if i == 0 else None
+            ), row=1, col=1)
+        
+        # Add connecting lines between cross-sections
+        for i in range(len(z_positions)-1):
+            z1, z2 = z_positions[i], z_positions[i+1]
+            
+            # Connect top flange corners
+            for x, y in [(-bf/2, d/2), (bf/2, d/2), (bf/2, d/2-tf), (-bf/2, d/2-tf)]:
+                fig.add_trace(go.Scatter3d(
+                    x=[x, x], y=[y, y], z=[z1, z2],
+                    mode='lines',
+                    line=dict(color='#1976d2', width=2),
+                    showlegend=False
+                ), row=1, col=1)
+            
+            # Connect web corners
+            for x, y in [(-tw/2, d/2-tf), (tw/2, d/2-tf), (tw/2, -d/2+tf), (-tw/2, -d/2+tf)]:
+                fig.add_trace(go.Scatter3d(
+                    x=[x, x], y=[y, y], z=[z1, z2],
+                    mode='lines',
+                    line=dict(color='#4caf50', width=2),
+                    showlegend=False
+                ), row=1, col=1)
+            
+            # Connect bottom flange corners
+            for x, y in [(-bf/2, -d/2+tf), (bf/2, -d/2+tf), (bf/2, -d/2), (-bf/2, -d/2)]:
+                fig.add_trace(go.Scatter3d(
+                    x=[x, x], y=[y, y], z=[z1, z2],
+                    mode='lines',
+                    line=dict(color='#f44336', width=2),
+                    showlegend=False
+                ), row=1, col=1)
+        
+        # =================== STRONG AXIS BUCKLING ===================
+        z_buck = np.linspace(0, L, 50)
+        x_buck_strong = 100 * np.sin(np.pi * z_buck / L)  # Buckling in X direction
+        
+        # Buckled centerline
+        fig.add_trace(go.Scatter3d(
+            x=x_buck_strong, y=[0]*len(z_buck), z=z_buck,
+            mode='lines',
+            line=dict(color='red', width=6),
+            name='Strong Axis Buckling'
+        ), row=2, col=1)
+        
+        # Original position
+        fig.add_trace(go.Scatter3d(
+            x=[0]*len(z_buck), y=[0]*len(z_buck), z=z_buck,
+            mode='lines',
+            line=dict(color='blue', width=3, dash='dash'),
+            name='Original Position'
+        ), row=2, col=1)
+        
+        # Add H-section at key points for strong axis
+        for z_pos in [0, L/4, L/2, 3*L/4, L]:
+            x_offset = 100 * np.sin(np.pi * z_pos / L)
+            h_section = create_h_section_3d(z_pos)
+            
+            # Offset the section for buckling
+            for part in ['top_flange', 'web', 'bottom_flange']:
+                x_coords = [x + x_offset for x in h_section[part]['x']]
+                fig.add_trace(go.Scatter3d(
+                    x=x_coords,
+                    y=h_section[part]['y'],
+                    z=h_section[part]['z'],
+                    mode='lines',
+                    line=dict(color='red', width=2),
+                    showlegend=False
+                ), row=2, col=1)
+        
+        # =================== WEAK AXIS BUCKLING ===================
+        y_buck_weak = 60 * np.sin(np.pi * z_buck / L)  # Buckling in Y direction
+        
+        # Buckled centerline
+        fig.add_trace(go.Scatter3d(
+            x=[0]*len(z_buck), y=y_buck_weak, z=z_buck,
+            mode='lines',
+            line=dict(color='darkred', width=6),
+            name='Weak Axis Buckling'
+        ), row=2, col=2)
+        
+        # Original position
+        fig.add_trace(go.Scatter3d(
+            x=[0]*len(z_buck), y=[0]*len(z_buck), z=z_buck,
+            mode='lines',
+            line=dict(color='blue', width=3, dash='dash'),
+            name='Original Position'
+        ), row=2, col=2)
+        
+        # Add H-section at key points for weak axis
+        for z_pos in [0, L/4, L/2, 3*L/4, L]:
+            y_offset = 60 * np.sin(np.pi * z_pos / L)
+            h_section = create_h_section_3d(z_pos)
+            
+            # Offset the section for buckling
+            for part in ['top_flange', 'web', 'bottom_flange']:
+                y_coords = [y + y_offset for y in h_section[part]['y']]
+                fig.add_trace(go.Scatter3d(
+                    x=h_section[part]['x'],
+                    y=y_coords,
+                    z=h_section[part]['z'],
+                    mode='lines',
+                    line=dict(color='darkred', width=2),
+                    showlegend=False
+                ), row=2, col=2)
+        
+        # Update layout
+        fig.update_layout(
+            title=f"3D H-Section Column Analysis: {section}<br>" +
+                  f"Dimensions: d={d:.0f}mm, bf={bf:.0f}mm, tf={tf:.1f}mm, tw={tw:.1f}mm",
+            height=800,
+            showlegend=True
+        )
+        
+        # Update 3D scene properties
+        for row, col in [(1, 1), (2, 1), (2, 2)]:
+            fig.update_scenes(
+                xaxis_title="X (mm)",
+                yaxis_title="Y (mm)", 
+                zaxis_title="Z (mm)",
+                aspectmode='cube',
+                row=row, col=col
+            )
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error in 3D visualization: {e}")
+        return None
+
+def visualize_column_cross_section_3d(df, section):
+    """3D cross-section visualization of H-shaped steel section"""
+    try:
+        import plotly.graph_objects as go
+        import numpy as np
+        
+        # Get dimensions
+        d = float(df.loc[section, 'd [mm]'])
+        bf = float(df.loc[section, 'bf [mm]'])
+        tw = float(df.loc[section, 'tw [mm]'])
+        tf = float(df.loc[section, 'tf [mm]'])
+        
+        fig = go.Figure()
+        
+        # Create 3D H-section with thickness
+        thickness = 20  # Thickness for 3D effect
+        
+        # Top flange - 3D box
+        fig.add_trace(go.Mesh3d(
+            x=[-bf/2, bf/2, bf/2, -bf/2, -bf/2, bf/2, bf/2, -bf/2],
+            y=[d/2-tf, d/2-tf, d/2, d/2, d/2-tf, d/2-tf, d/2, d/2],
+            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
+            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
+            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
+            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
+            opacity=0.8,
+            color='lightblue',
+            name='Top Flange'
+        ))
+        
+        # Web - 3D box
+        fig.add_trace(go.Mesh3d(
+            x=[-tw/2, tw/2, tw/2, -tw/2, -tw/2, tw/2, tw/2, -tw/2],
+            y=[-d/2+tf, -d/2+tf, d/2-tf, d/2-tf, -d/2+tf, -d/2+tf, d/2-tf, d/2-tf],
+            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
+            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
+            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
+            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
+            opacity=0.8,
+            color='lightgreen',
+            name='Web'
+        ))
+        
+        # Bottom flange - 3D box
+        fig.add_trace(go.Mesh3d(
+            x=[-bf/2, bf/2, bf/2, -bf/2, -bf/2, bf/2, bf/2, -bf/2],
+            y=[-d/2, -d/2, -d/2+tf, -d/2+tf, -d/2, -d/2, -d/2+tf, -d/2+tf],
+            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
+            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
+            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
+            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
+            opacity=0.8,
+            color='lightcoral',
+            name='Bottom Flange'
+        ))
+        
+        # Add dimension lines and labels
+        # Flange width
+        fig.add_trace(go.Scatter3d(
+            x=[-bf/2, bf/2], y=[d/2+20, d/2+20], z=[thickness/2, thickness/2],
+            mode='lines+text',
+            line=dict(color='blue', width=4),
+            text=['', f'bf = {bf:.0f}mm'],
+            textposition='middle center',
+            name='Dimensions',
+            showlegend=False
+        ))
+        
+        # Depth
+        fig.add_trace(go.Scatter3d(
+            x=[bf/2+20, bf/2+20], y=[-d/2, d/2], z=[thickness/2, thickness/2],
+            mode='lines+text',
+            line=dict(color='red', width=4),
+            text=['', f'd = {d:.0f}mm'],
+            textposition='middle center',
+            showlegend=False
+        ))
+        
+        # Principal axes
+        # X-axis (strong)
+        fig.add_trace(go.Scatter3d(
+            x=[-bf/2-50, bf/2+50], y=[0, 0], z=[thickness/2, thickness/2],
+            mode='lines',
+            line=dict(color='red', width=6, dash='dash'),
+            name='X-X (Strong Axis)'
+        ))
+        
+        # Y-axis (weak)
+        fig.add_trace(go.Scatter3d(
+            x=[0, 0], y=[-d/2-50, d/2+50], z=[thickness/2, thickness/2],
+            mode='lines',
+            line=dict(color='orange', width=6, dash='dash'),
+            name='Y-Y (Weak Axis)'
+        ))
+        
+        fig.update_layout(
+            title=f"3D Cross-Section: {section}<br>" +
+                  f"d={d:.0f}mm, bf={bf:.0f}mm, tf={tf:.1f}mm, tw={tw:.1f}mm<br>" +
+                  f"Ix={df.loc[section, 'Ix [cm4]']:.0f} cm⁴, Iy={df.loc[section, 'Iy [cm4]']:.0f} cm⁴",
+            scene=dict(
+                xaxis_title="Width (mm)",
+                yaxis_title="Depth (mm)",
+                zaxis_title="Thickness (mm)",
+                aspectmode='cube'
+            ),
+            height=600
+        )
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error in 3D cross-section visualization: {e}")
+        return None
     """Enhanced 2D visualization showing column buckling with correct cross-sectional views"""
     try:
         fig, axes = plt.subplots(1, 2, figsize=(14, 8))
@@ -642,12 +975,29 @@ with tab4:
             else:
                 st.error(f"❌ Design FAILS - Overstressed by {(ratio-1)*100:.1f}%")
         
-        # Column visualization
-        st.markdown("### Column Buckling Analysis - Cross-Sectional Views")
-        st.info("📊 **Left:** Strong Axis Buckling (Edge View - Flange+Web) | **Right:** Weak Axis Buckling (Front View - Flanges Only)")
-        fig_vis = visualize_column_2d_enhanced(df, section)
-        if fig_vis:
-            st.pyplot(fig_vis)
+        # Column visualization options
+        st.markdown("### Column Visualization Options")
+        viz_type = st.radio("Select Visualization Type:", 
+                           ["2D Cross-Sectional Views", "3D Column with Buckling", "3D Cross-Section Detail"],
+                           index=0, horizontal=True)
+        
+        if viz_type == "2D Cross-Sectional Views":
+            st.info("📊 **Left:** Strong Axis Buckling (Edge View - Flange+Web) | **Right:** Weak Axis Buckling (Front View - Flanges Only)")
+            fig_vis = visualize_column_2d_enhanced(df, section)
+            if fig_vis:
+                st.pyplot(fig_vis)
+                
+        elif viz_type == "3D Column with Buckling":
+            st.info("🏗️ **3D Interactive View:** Complete column with buckling modes in both axes")
+            fig_3d = visualize_column_3d(df, section)
+            if fig_3d:
+                st.plotly_chart(fig_3d, use_container_width=True)
+                
+        elif viz_type == "3D Cross-Section Detail":
+            st.info("🔍 **3D Cross-Section:** Detailed view of H-section geometry with principal axes")
+            fig_cross = visualize_column_cross_section_3d(df, section)
+            if fig_cross:
+                st.plotly_chart(fig_cross, use_container_width=True)
         
         # Capacity curve
         st.markdown("### Column Capacity Curve")
