@@ -316,10 +316,146 @@ def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy):
         st.error(f"Error in compression analysis: {e}")
         return None
 
-def visualize_column_2d_enhanced(df, section):
-    """Enhanced 2D visualization showing column buckling with correct cross-sectional views"""
+        ax1.grid(True, alpha=0.3)
+        ax1.legend()
+        
+        # ===================== TOP RIGHT: PLAN VIEW =====================
+        ax2 = axes[0, 1]
+        ax2.set_title('Plan View - Showing Lateral Bracing', 
+                     fontsize=12, fontweight='bold', color='#8B0000')
+        
+        # Draw H-section in plan (top view)
+        # Top flange
+        ax2.add_patch(Rectangle((-bf/2, -d/2), bf, d,
+                                linewidth=2, edgecolor='#8B0000', facecolor='#ffcccb'))
+        
+        # Web line
+        ax2.plot([0, 0], [-d/2, d/2], 'k-', lw=2)
+        
+        # Lateral bracing beams in plan
+        brace_length = 400
+        ax2.add_patch(Rectangle((-20, -brace_length/2), 40, brace_length,
+                                linewidth=2, edgecolor='#ff9800', facecolor='#fff3e0'))
+        ax2.add_patch(Rectangle((-brace_length/2, -20), brace_length, 40,
+                                linewidth=2, edgecolor='#ff9800', facecolor='#fff3e0'))
+        
+        # Principal axes
+        ax2.plot([-bf/2-50, bf/2+50], [0, 0], 'r-', lw=3, label='X-X (Strong)')
+        ax2.plot([0, 0], [-d/2-50, d/2+50], 'orange', lw=3, label='Y-Y (Weak)')
+        
+        # Dimensions
+        ax2.text(0, d/2+30, f'bf = {bf:.0f}mm', ha='center', fontsize=10, fontweight='bold')
+        ax2.text(bf/2+30, 0, f'd = {d:.0f}mm', ha='center', rotation=90, fontsize=10, fontweight='bold')
+        
+        ax2.set_xlim([-brace_length*0.8, brace_length*0.8])
+        ax2.set_ylim([-brace_length*0.8, brace_length*0.8])
+        ax2.set_aspect('equal')
+        ax2.set_xlabel('X Direction (mm)', fontsize=11)
+        ax2.set_ylabel('Y Direction (mm)', fontsize=11)
+        ax2.grid(True, alpha=0.3)
+        ax2.legend()
+        
+        # ===================== BOTTOM LEFT: SIDE VIEW (Weak Axis) =====================
+        ax3 = axes[1, 0]
+        ax3.set_title('Side View - Weak Axis (Y-Y)\nNo Lateral Bracing', 
+                     fontsize=12, fontweight='bold', color='#8B0000')
+        
+        # Draw column (side view - shows depth)
+        column_depth = 40
+        ax3.add_patch(Rectangle((-column_depth/2, 0), column_depth, L_total,
+                                linewidth=3, edgecolor='#8B0000', facecolor='#ffcccb'))
+        
+        # Full height effective length Ly
+        ax3.annotate('', xy=(80, L_total), xytext=(80, 0),
+                    arrowprops=dict(arrowstyle='<->', color='darkred', lw=3))
+        ax3.text(100, L_total/2, f'Ly = {Ly:.1f} m', 
+                rotation=90, ha='center', fontsize=12, color='darkred', fontweight='bold')
+        
+        # Supports
+        # Base (fixed)
+        ax3.add_patch(Rectangle((-60, -40), 120, 40,
+                                linewidth=2, edgecolor='black', facecolor='#616161'))
+        for i in range(-3, 4):
+            x_pos = i * 25
+            ax3.plot([x_pos, x_pos - 15], [-40, -70], 'k-', lw=2)
+        
+        # Top (pinned)
+        ax3.plot(0, L_total + 20, 'o', markersize=12, color='black', markerfacecolor='white', 
+                markeredgewidth=3)
+        
+        # Buckled shape for weak axis (full height)
+        y_full = np.linspace(0, L_total, 100)
+        x_buckled_weak = 30 * np.sin(np.pi * y_full / L_total)
+        ax3.plot(x_buckled_weak, y_full, color='darkred', linestyle='--', lw=3, alpha=0.7, 
+                label='Buckled Shape')
+        
+        ax3.set_xlim([-120, 140])
+        ax3.set_ylim([-100, L_total + 100])
+        ax3.set_xlabel('Depth Direction (mm)', fontsize=11)
+        ax3.set_ylabel('Height (mm)', fontsize=11)
+        ax3.grid(True, alpha=0.3)
+        ax3.legend()
+        
+        # ===================== BOTTOM RIGHT: EFFECTIVE LENGTH SUMMARY =====================
+        ax4 = axes[1, 1]
+        ax4.set_title('Effective Length Analysis Summary', 
+                     fontsize=12, fontweight='bold', color='#1565c0')
+        
+        # Create summary table
+        summary_data = [
+            ['Parameter', 'Strong Axis (X-X)', 'Weak Axis (Y-Y)'],
+            ['Unbraced Length', f'{Lx:.1f} m', f'{Ly:.1f} m'],
+            ['K Factor', f'{KLx/Lx:.1f}', f'{KLy/Ly:.1f}'],
+            ['Effective Length KL', f'{KLx:.1f} m', f'{KLy:.1f} m'],
+            ['Radius of Gyration', f'{df.loc[section, "rx [cm]"]:.1f} cm', f'{df.loc[section, "ry [cm]"]:.1f} cm'],
+            ['Slenderness KL/r', f'{(KLx*100)/float(df.loc[section, "rx [cm]"]):.1f}', f'{(KLy*100)/float(df.loc[section, "ry [cm]"]):.1f}'],
+            ['Critical Axis', 'With Bracing', 'WITHOUT Bracing'],
+            ['Buckling Mode', 'Local (between braces)', 'Global (full height)']
+        ]
+        
+        # Create table
+        table = ax4.table(cellText=summary_data[1:], colLabels=summary_data[0],
+                         loc='center', cellLoc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1.2, 2)
+        
+        # Color coding
+        for i in range(len(summary_data[0])):
+            table[(0, i)].set_facecolor('#e3f2fd')
+            table[(0, i)].set_text_props(weight='bold')
+        
+        # Highlight critical values
+        for i in range(1, len(summary_data)):
+            table[(i, 2)].set_facecolor('#ffebee')  # Weak axis column in light red
+        
+        ax4.axis('off')
+        
+        # Add notes
+        ax4.text(0.5, 0.1, 
+                'Note: Weak axis typically controls due to larger KL/r ratio\n' +
+                'Lateral bracing reduces effective length in strong axis only',
+                transform=ax4.transAxes, ha='center', fontsize=10,
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow"))
+        
+        # Main title
+        fig.suptitle(f'Structural Layout Analysis - Section: {section}\n' +
+                    f'Column Height: 4m | Lateral Bracing at Mid-Height', 
+                    fontsize=16, fontweight='bold', y=0.95)
+        
+        plt.tight_layout()
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error in structural layout visualization: {e}")
+        return None
+
+def visualize_column_3d(df, section):
+    """3D visualization of H-shaped steel column with buckling modes"""
     try:
-        fig, axes = plt.subplots(1, 2, figsize=(14, 8))
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        import numpy as np
         
         # Get dimensions
         d = float(df.loc[section, 'd [mm]'])
@@ -327,199 +463,329 @@ def visualize_column_2d_enhanced(df, section):
         tw = float(df.loc[section, 'tw [mm]'])
         tf = float(df.loc[section, 'tf [mm]'])
         
-        # Column length for visualization
+        # Column length
         L = 3000  # 3m column height in mm
         
-        # ===================== STRONG AXIS BUCKLING =====================
-        # When buckling about strong axis (X-X), we see the EDGE view (flange + web)
-        ax1 = axes[0]
-        ax1.set_title('Strong Axis Buckling (X-X)\n[Edge View - Flange + Web]', 
-                     fontsize=12, fontweight='bold', color='#1a237e')
+        # Create 3D H-section geometry
+        def create_h_section_3d(z_position):
+            """Create 3D coordinates for H-section at given z-position"""
+            
+            # Top flange coordinates
+            top_flange_x = [-bf/2, bf/2, bf/2, -bf/2, -bf/2]
+            top_flange_y = [d/2-tf, d/2-tf, d/2, d/2, d/2-tf]
+            top_flange_z = [z_position] * 5
+            
+            # Web coordinates  
+            web_x = [-tw/2, tw/2, tw/2, -tw/2, -tw/2]
+            web_y = [-d/2+tf, -d/2+tf, d/2-tf, d/2-tf, -d/2+tf]
+            web_z = [z_position] * 5
+            
+            # Bottom flange coordinates
+            bottom_flange_x = [-bf/2, bf/2, bf/2, -bf/2, -bf/2]
+            bottom_flange_y = [-d/2, -d/2, -d/2+tf, -d/2+tf, -d/2]
+            bottom_flange_z = [z_position] * 5
+            
+            return {
+                'top_flange': {'x': top_flange_x, 'y': top_flange_y, 'z': top_flange_z},
+                'web': {'x': web_x, 'y': web_y, 'z': web_z},
+                'bottom_flange': {'x': bottom_flange_x, 'y': bottom_flange_y, 'z': bottom_flange_z}
+            }
         
-        # Draw H-section edge view (shows flange thickness and web)
-        # Top flange (edge view)
-        ax1.add_patch(Rectangle((-tf/2, L - tf), tf, tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
-        # Web (full height)
-        ax1.add_patch(Rectangle((-tw/2, tf), tw, L - 2*tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
-        # Bottom flange (edge view)
-        ax1.add_patch(Rectangle((-tf/2, 0), tf, tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
+        # Create subplots for different views
+        fig = make_subplots(
+            rows=2, cols=2,
+            specs=[[{"type": "scatter3d", "colspan": 2}, None],
+                   [{"type": "scatter3d"}, {"type": "scatter3d"}]],
+            subplot_titles=[
+                f"3D H-Section Column: {section}",
+                "Strong Axis Buckling (X-X)",
+                "Weak Axis Buckling (Y-Y)"
+            ],
+            vertical_spacing=0.1
+        )
         
-        # Add buckled shape for strong axis (larger amplitude)
-        y = np.linspace(0, L, 100)
-        x_buckled = 100 * np.sin(np.pi * y / L)  # Large amplitude for strong axis
-        ax1.plot(x_buckled, y, 'r-', lw=4, alpha=0.8, label='Buckled Shape')
+        # =================== MAIN 3D COLUMN ===================
+        z_positions = np.linspace(0, L, 20)
         
-        # Load arrow at top
-        ax1.arrow(0, L + 200, 0, -150, head_width=25, head_length=50, 
-                 fc='red', ec='red', lw=3)
-        ax1.text(0, L + 280, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
+        for i, z_pos in enumerate(z_positions):
+            h_section = create_h_section_3d(z_pos)
+            
+            # Top flange
+            fig.add_trace(go.Scatter3d(
+                x=h_section['top_flange']['x'],
+                y=h_section['top_flange']['y'],
+                z=h_section['top_flange']['z'],
+                mode='lines',
+                line=dict(color='#1976d2', width=4),
+                showlegend=False if i > 0 else True,
+                name='Top Flange' if i == 0 else None
+            ), row=1, col=1)
+            
+            # Web
+            fig.add_trace(go.Scatter3d(
+                x=h_section['web']['x'],
+                y=h_section['web']['y'],
+                z=h_section['web']['z'],
+                mode='lines',
+                line=dict(color='#4caf50', width=3),
+                showlegend=False if i > 0 else True,
+                name='Web' if i == 0 else None
+            ), row=1, col=1)
+            
+            # Bottom flange
+            fig.add_trace(go.Scatter3d(
+                x=h_section['bottom_flange']['x'],
+                y=h_section['bottom_flange']['y'],
+                z=h_section['bottom_flange']['z'],
+                mode='lines',
+                line=dict(color='#f44336', width=4),
+                showlegend=False if i > 0 else True,
+                name='Bottom Flange' if i == 0 else None
+            ), row=1, col=1)
         
-        # Support at base
-        support_width = max(tf, 40)
-        ax1.add_patch(Rectangle((-support_width/2, -30), support_width, 30,
-                                linewidth=2, edgecolor='black', facecolor='#616161'))
-        ax1.plot(0, -15, 'o', markersize=10, color='black', markerfacecolor='white', 
-                markeredgewidth=2)
+        # Add connecting lines between cross-sections
+        for i in range(len(z_positions)-1):
+            z1, z2 = z_positions[i], z_positions[i+1]
+            
+            # Connect top flange corners
+            for x, y in [(-bf/2, d/2), (bf/2, d/2), (bf/2, d/2-tf), (-bf/2, d/2-tf)]:
+                fig.add_trace(go.Scatter3d(
+                    x=[x, x], y=[y, y], z=[z1, z2],
+                    mode='lines',
+                    line=dict(color='#1976d2', width=2),
+                    showlegend=False
+                ), row=1, col=1)
+            
+            # Connect web corners
+            for x, y in [(-tw/2, d/2-tf), (tw/2, d/2-tf), (tw/2, -d/2+tf), (-tw/2, -d/2+tf)]:
+                fig.add_trace(go.Scatter3d(
+                    x=[x, x], y=[y, y], z=[z1, z2],
+                    mode='lines',
+                    line=dict(color='#4caf50', width=2),
+                    showlegend=False
+                ), row=1, col=1)
+            
+            # Connect bottom flange corners
+            for x, y in [(-bf/2, -d/2+tf), (bf/2, -d/2+tf), (bf/2, -d/2), (-bf/2, -d/2)]:
+                fig.add_trace(go.Scatter3d(
+                    x=[x, x], y=[y, y], z=[z1, z2],
+                    mode='lines',
+                    line=dict(color='#f44336', width=2),
+                    showlegend=False
+                ), row=1, col=1)
         
-        # Ground hatching
-        for i in range(-4, 5):
-            x_pos = i * 20
-            ax1.plot([x_pos, x_pos - 15], [-30, -60], 'k-', lw=2)
+        # =================== STRONG AXIS BUCKLING ===================
+        z_buck = np.linspace(0, L, 50)
+        x_buck_strong = 100 * np.sin(np.pi * z_buck / L)  # Buckling in X direction
         
-        # Dimension and labels
-        ax1.text(60, L/2, f'tf = {tf:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='blue', fontweight='bold')
-        ax1.text(-60, L/2, f'tw = {tw:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='green', fontweight='bold')
+        # Buckled centerline
+        fig.add_trace(go.Scatter3d(
+            x=x_buck_strong, y=[0]*len(z_buck), z=z_buck,
+            mode='lines',
+            line=dict(color='red', width=6),
+            name='Strong Axis Buckling'
+        ), row=2, col=1)
         
-        ax1.set_xlim([-150, 150])
-        ax1.set_ylim([-80, L + 350])
-        ax1.set_xlabel('Buckling Direction (Strong Axis)', fontsize=11, fontweight='bold')
-        ax1.set_ylabel('Height (mm)', fontsize=11)
-        ax1.grid(True, alpha=0.3)
-        ax1.legend(loc='upper right', fontsize=10)
+        # Original position
+        fig.add_trace(go.Scatter3d(
+            x=[0]*len(z_buck), y=[0]*len(z_buck), z=z_buck,
+            mode='lines',
+            line=dict(color='blue', width=3, dash='dash'),
+            name='Original Position'
+        ), row=2, col=1)
         
-        # ===================== WEAK AXIS BUCKLING =====================
-        # When buckling about weak axis (Y-Y), we see the FRONT view (only flanges)
-        ax2 = axes[1]
-        ax2.set_title('Weak Axis Buckling (Y-Y)\n[Front View - Flanges Only]', 
-                     fontsize=12, fontweight='bold', color='#8B0000')
+        # Add H-section at key points for strong axis
+        for z_pos in [0, L/4, L/2, 3*L/4, L]:
+            x_offset = 100 * np.sin(np.pi * z_pos / L)
+            h_section = create_h_section_3d(z_pos)
+            
+            # Offset the section for buckling
+            for part in ['top_flange', 'web', 'bottom_flange']:
+                x_coords = [x + x_offset for x in h_section[part]['x']]
+                fig.add_trace(go.Scatter3d(
+                    x=x_coords,
+                    y=h_section[part]['y'],
+                    z=h_section[part]['z'],
+                    mode='lines',
+                    line=dict(color='red', width=2),
+                    showlegend=False
+                ), row=2, col=1)
         
-        # Draw H-section front view (shows only flanges, web is perpendicular to view)
-        # Top flange (full width)
-        ax2.add_patch(Rectangle((-bf/2, L - tf), bf, tf,
-                                linewidth=2, edgecolor='#8B0000', facecolor='#FFCCCB'))
-        # Web line (appears as thin line from front)
-        ax2.plot([0, 0], [tf, L - tf], 'k-', lw=1, alpha=0.5, label='Web (edge)')
+        # =================== WEAK AXIS BUCKLING ===================
+        y_buck_weak = 60 * np.sin(np.pi * z_buck / L)  # Buckling in Y direction
         
-        # Bottom flange (full width)
-        ax2.add_patch(Rectangle((-bf/2, 0), bf, tf,
-                                linewidth=2, edgecolor='#8B0000', facecolor='#FFCCCB'))
+        # Buckled centerline
+        fig.add_trace(go.Scatter3d(
+            x=[0]*len(z_buck), y=y_buck_weak, z=z_buck,
+            mode='lines',
+            line=dict(color='darkred', width=6),
+            name='Weak Axis Buckling'
+        ), row=2, col=2)
         
-        # Add buckled shape for weak axis (smaller amplitude)
-        x_buckled_weak = 60 * np.sin(np.pi * y / L)  # Smaller amplitude for weak axis
-        ax2.plot(x_buckled_weak, y, color='#8B0000', linestyle='-', lw=4, alpha=0.8, 
-                label='Buckled Shape')
+        # Original position
+        fig.add_trace(go.Scatter3d(
+            x=[0]*len(z_buck), y=[0]*len(z_buck), z=z_buck,
+            mode='lines',
+            line=dict(color='blue', width=3, dash='dash'),
+            name='Original Position'
+        ), row=2, col=2)
         
-        # Load arrow at top
-        ax2.arrow(0, L + 200, 0, -150, head_width=bf/8, head_length=50, 
-                 fc='red', ec='red', lw=3)
-        ax2.text(0, L + 280, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
+        # Add H-section at key points for weak axis
+        for z_pos in [0, L/4, L/2, 3*L/4, L]:
+            y_offset = 60 * np.sin(np.pi * z_pos / L)
+            h_section = create_h_section_3d(z_pos)
+            
+            # Offset the section for buckling
+            for part in ['top_flange', 'web', 'bottom_flange']:
+                y_coords = [y + y_offset for y in h_section[part]['y']]
+                fig.add_trace(go.Scatter3d(
+                    x=h_section[part]['x'],
+                    y=y_coords,
+                    z=h_section[part]['z'],
+                    mode='lines',
+                    line=dict(color='darkred', width=2),
+                    showlegend=False
+                ), row=2, col=2)
         
-        # Support at base
-        support_width = bf * 1.1
-        ax2.add_patch(Rectangle((-support_width/2, -30), support_width, 30,
-                                linewidth=2, edgecolor='black', facecolor='#616161'))
-        # I-beam pin representation
-        ax2.plot([-bf/4, bf/4], [-15, -15], 'k-', lw=4)  # Top flange line
-        ax2.plot([0, 0], [-10, -20], 'k-', lw=2)           # Web line
-        ax2.plot([-bf/4, bf/4], [-20, -20], 'k-', lw=4)  # Bottom flange line
+        # Update layout
+        fig.update_layout(
+            title=f"3D H-Section Column Analysis: {section}<br>" +
+                  f"Dimensions: d={d:.0f}mm, bf={bf:.0f}mm, tf={tf:.1f}mm, tw={tw:.1f}mm",
+            height=800,
+            showlegend=True
+        )
         
-        # Ground hatching
-        for i in range(-3, 4):
-            x_pos = i * bf/4
-            ax2.plot([x_pos, x_pos - 15], [-30, -60], 'k-', lw=2)
+        # Update 3D scene properties
+        for row, col in [(1, 1), (2, 1), (2, 2)]:
+            fig.update_scenes(
+                xaxis_title="X (mm)",
+                yaxis_title="Y (mm)", 
+                zaxis_title="Z (mm)",
+                aspectmode='cube',
+                row=row, col=col
+            )
         
-        # Dimension and labels
-        ax2.text(0, L + 100, f'bf = {bf:.0f}mm', ha='center', 
-                fontsize=10, color='blue', fontweight='bold')
-        ax2.text(bf/2 + 30, L/2, f'tf = {tf:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='green', fontweight='bold')
-        
-        ax2.set_xlim([-bf*0.8, bf*0.8])
-        ax2.set_ylim([-80, L + 350])
-        ax2.set_xlabel('Buckling Direction (Weak Axis)', fontsize=11, fontweight='bold')
-        ax2.set_ylabel('Height (mm)', fontsize=11)
-        ax2.grid(True, alpha=0.3)
-        ax2.legend(loc='upper right', fontsize=10)
-        
-        # Add section info with buckling explanation
-        fig.suptitle(f'Column Buckling Analysis - Section: {section}\n' +
-                    f'Strong Axis: Ix = {df.loc[section, "Ix [cm4]"]:.0f} cm⁴ | ' +
-                    f'Weak Axis: Iy = {df.loc[section, "Iy [cm4]"]:.0f} cm⁴', 
-                    fontsize=14, fontweight='bold', y=0.95)
-        
-        plt.tight_layout()
         return fig
+        
     except Exception as e:
-        st.error(f"Error in visualization: {e}")
+        st.error(f"Error in 3D visualization: {e}")
         return None
 
-def visualize_column_structural_layout(df, section, KLx, KLy, Lx, Ly):
-    """Structural layout visualization showing column with lateral bracing and effective lengths"""
+def visualize_column_cross_section_3d(df, section):
+    """3D cross-section visualization of H-shaped steel section"""
     try:
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        import plotly.graph_objects as go
+        import numpy as np
         
         # Get dimensions
         d = float(df.loc[section, 'd [mm]'])
         bf = float(df.loc[section, 'bf [mm]'])
+        tw = float(df.loc[section, 'tw [mm]'])
+        tf = float(df.loc[section, 'tf [mm]'])
         
-        # ===================== TOP LEFT: ELEVATION VIEW (Strong Axis) =====================
-        ax1 = axes[0, 0]
-        ax1.set_title('Elevation View - Strong Axis (X-X)\nWith Lateral Bracing', 
-                     fontsize=12, fontweight='bold', color='#1a237e')
+        fig = go.Figure()
         
-        # Column height
-        L_total = 4000  # 4m total height in mm
+        # Create 3D H-section with thickness
+        thickness = 20  # Thickness for 3D effect
         
-        # Draw column (front view - shows width)
-        column_width = 60
-        ax1.add_patch(Rectangle((-column_width/2, 0), column_width, L_total,
-                                linewidth=3, edgecolor='#1a237e', facecolor='#e3f2fd'))
+        # Top flange - 3D box
+        fig.add_trace(go.Mesh3d(
+            x=[-bf/2, bf/2, bf/2, -bf/2, -bf/2, bf/2, bf/2, -bf/2],
+            y=[d/2-tf, d/2-tf, d/2, d/2, d/2-tf, d/2-tf, d/2, d/2],
+            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
+            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
+            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
+            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
+            opacity=0.8,
+            color='lightblue',
+            name='Top Flange'
+        ))
         
-        # Add lateral bracing at mid-height (for Lx)
-        brace_height = L_total / 2
-        brace_width = 200
+        # Web - 3D box
+        fig.add_trace(go.Mesh3d(
+            x=[-tw/2, tw/2, tw/2, -tw/2, -tw/2, tw/2, tw/2, -tw/2],
+            y=[-d/2+tf, -d/2+tf, d/2-tf, d/2-tf, -d/2+tf, -d/2+tf, d/2-tf, d/2-tf],
+            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
+            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
+            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
+            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
+            opacity=0.8,
+            color='lightgreen',
+            name='Web'
+        ))
         
-        # Lateral braces (horizontal beams)
-        ax1.add_patch(Rectangle((-brace_width/2, brace_height - 20), brace_width, 40,
-                                linewidth=2, edgecolor='#ff9800', facecolor='#fff3e0'))
+        # Bottom flange - 3D box
+        fig.add_trace(go.Mesh3d(
+            x=[-bf/2, bf/2, bf/2, -bf/2, -bf/2, bf/2, bf/2, -bf/2],
+            y=[-d/2, -d/2, -d/2+tf, -d/2+tf, -d/2, -d/2, -d/2+tf, -d/2+tf],
+            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
+            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
+            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
+            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
+            opacity=0.8,
+            color='lightcoral',
+            name='Bottom Flange'
+        ))
         
-        # Bracing connections
-        ax1.plot([-brace_width/2, -column_width/2], [brace_height, brace_height], 'k-', lw=3)
-        ax1.plot([brace_width/2, column_width/2], [brace_height, brace_height], 'k-', lw=3)
+        # Add dimension lines and labels
+        # Flange width
+        fig.add_trace(go.Scatter3d(
+            x=[-bf/2, bf/2], y=[d/2+20, d/2+20], z=[thickness/2, thickness/2],
+            mode='lines+text',
+            line=dict(color='blue', width=4),
+            text=['', f'bf = {bf:.0f}mm'],
+            textposition='middle center',
+            name='Dimensions',
+            showlegend=False
+        ))
         
-        # Effective length Lx
-        ax1.annotate('', xy=(120, L_total), xytext=(120, brace_height),
-                    arrowprops=dict(arrowstyle='<->', color='red', lw=3))
-        ax1.text(140, (L_total + brace_height)/2, f'Lx = {Lx:.1f} m', 
-                rotation=90, ha='center', fontsize=12, color='red', fontweight='bold')
+        # Depth
+        fig.add_trace(go.Scatter3d(
+            x=[bf/2+20, bf/2+20], y=[-d/2, d/2], z=[thickness/2, thickness/2],
+            mode='lines+text',
+            line=dict(color='red', width=4),
+            text=['', f'd = {d:.0f}mm'],
+            textposition='middle center',
+            showlegend=False
+        ))
         
-        ax1.annotate('', xy=(120, brace_height), xytext=(120, 0),
-                    arrowprops=dict(arrowstyle='<->', color='red', lw=3))
-        ax1.text(140, brace_height/2, f'Lx = {Lx:.1f} m', 
-                rotation=90, ha='center', fontsize=12, color='red', fontweight='bold')
+        # Principal axes
+        # X-axis (strong)
+        fig.add_trace(go.Scatter3d(
+            x=[-bf/2-50, bf/2+50], y=[0, 0], z=[thickness/2, thickness/2],
+            mode='lines',
+            line=dict(color='red', width=6, dash='dash'),
+            name='X-X (Strong Axis)'
+        ))
         
-        # Supports
-        # Base (fixed)
-        base_width = 120
-        ax1.add_patch(Rectangle((-base_width/2, -40), base_width, 40,
-                                linewidth=2, edgecolor='black', facecolor='#616161'))
-        # Fixed support symbols (hatching)
-        for i in range(-4, 5):
-            x_pos = i * 20
-            ax1.plot([x_pos, x_pos - 15], [-40, -70], 'k-', lw=2)
+        # Y-axis (weak)
+        fig.add_trace(go.Scatter3d(
+            x=[0, 0], y=[-d/2-50, d/2+50], z=[thickness/2, thickness/2],
+            mode='lines',
+            line=dict(color='orange', width=6, dash='dash'),
+            name='Y-Y (Weak Axis)'
+        ))
         
-        # Top (pinned)
-        ax1.plot(0, L_total + 20, 'o', markersize=12, color='black', markerfacecolor='white', 
-                markeredgewidth=3)
+        fig.update_layout(
+            title=f"3D Cross-Section: {section}<br>" +
+                  f"d={d:.0f}mm, bf={bf:.0f}mm, tf={tf:.1f}mm, tw={tw:.1f}mm<br>" +
+                  f"Ix={df.loc[section, 'Ix [cm4]']:.0f} cm⁴, Iy={df.loc[section, 'Iy [cm4]']:.0f} cm⁴",
+            scene=dict(
+                xaxis_title="Width (mm)",
+                yaxis_title="Depth (mm)",
+                zaxis_title="Thickness (mm)",
+                aspectmode='cube'
+            ),
+            height=600
+        )
         
-        # Buckled shape for strong axis
-        y = np.linspace(0, brace_height, 50)
-        x_buckled1 = 40 * np.sin(np.pi * y / brace_height)
-        ax1.plot(x_buckled1, y, 'r--', lw=3, alpha=0.7, label='Buckled Shape')
+        return fig
         
-        y2 = np.linspace(brace_height, L_total, 50)
-        x_buckled2 = 40 * np.sin(np.pi * (y2 - brace_height) / (L_total - brace_height))
-        ax1.plot(x_buckled2, y2, 'r--', lw=3, alpha=0.7)
-        
-        ax1.set_xlim([-200, 200])
-        ax1.set_ylim([-100, L_total + 100])
-        ax1.set_xlabel('Width Direction (mm)', fontsize=11)
-        ax1.set_ylabel('Height (mm)', fontsize=11)
+    except Exception as e:
+        st.error(f"Error in 3D cross-section visualization: {e}")
+        return None
+
+def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy):
         ax1.grid(True, alpha=0.3)
         ax1.legend()
         
