@@ -316,9 +316,9 @@ def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy):
         return None
 
 def visualize_column_2d_enhanced(df, section):
-    """Enhanced 2D visualization showing both principal planes"""
+    """Enhanced 2D visualization showing column with proper support conditions"""
     try:
-        fig, axes = plt.subplots(1, 3, figsize=(15, 6))
+        fig, axes = plt.subplots(1, 3, figsize=(15, 8))
         
         # Get dimensions
         d = float(df.loc[section, 'd [mm]'])
@@ -326,62 +326,149 @@ def visualize_column_2d_enhanced(df, section):
         tw = float(df.loc[section, 'tw [mm]'])
         tf = float(df.loc[section, 'tf [mm]'])
         
-        # Strong axis view
+        # Column length for visualization
+        L = 3000  # 3m column height in mm
+        
+        # Strong axis view (Front View)
         ax1 = axes[0]
-        ax1.set_title('Strong Axis (X-X)', fontsize=14, fontweight='bold')
-        column_height = 3000
+        ax1.set_title('Front View (Strong Axis X-X)', fontsize=14, fontweight='bold')
         
-        ax1.add_patch(Rectangle((-bf/2, 0), bf, column_height,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#e3f2fd'))
+        # Draw column as I-beam shape
+        # Top flange
+        ax1.add_patch(Rectangle((-bf/2, L - 50), bf, 50,
+                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
+        # Web  
+        ax1.add_patch(Rectangle((-tw/2, 50), tw, L - 100,
+                                linewidth=2, edgecolor='#1a237e', facecolor='#90caf9'))
+        # Bottom flange
+        ax1.add_patch(Rectangle((-bf/2, 0), bf, 50,
+                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
         
-        y = np.linspace(0, column_height, 100)
-        x = (bf/4) * np.sin(np.pi * y / column_height)
+        # Add buckled shape
+        y = np.linspace(0, L, 100)
+        x = (bf/3) * np.sin(np.pi * y / L)
         ax1.plot(x, y, 'r--', lw=2, alpha=0.7, label='Buckled shape')
         
-        ax1.arrow(0, column_height + 200, 0, -150, head_width=bf/3,
-                 head_length=50, fc='red', ec='red')
-        ax1.text(0, column_height + 300, 'P', ha='center', fontsize=14, fontweight='bold')
+        # Load arrow at top
+        ax1.arrow(0, L + 300, 0, -200, head_width=bf/2,
+                 head_length=80, fc='red', ec='red', lw=2)
+        ax1.text(0, L + 400, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
         
-        ax1.set_xlim([-bf, bf])
-        ax1.set_ylim([-100, column_height + 400])
-        ax1.set_xlabel('Width (mm)')
-        ax1.set_ylabel('Height (mm)')
-        ax1.legend()
+        # Base support (pinned)
+        support_width = bf * 1.2
+        ax1.add_patch(Rectangle((-support_width/2, -100), support_width, 100,
+                                linewidth=2, edgecolor='black', facecolor='#808080'))
+        # Add pin symbol
+        ax1.plot(0, -50, 'o', markersize=10, color='black', markerfacecolor='white')
         
-        # Weak axis view
+        # Ground hatching
+        for i in range(8):
+            x_hatch = -support_width/2 - 50 + i * (support_width + 100) / 7
+            ax1.plot([x_hatch, x_hatch - 20], [-100, -150], 'k-', lw=1.5)
+        
+        ax1.set_xlim([-bf*1.5, bf*1.5])
+        ax1.set_ylim([-200, L + 500])
+        ax1.set_xlabel('Width (mm)', fontsize=12)
+        ax1.set_ylabel('Height (mm)', fontsize=12)
+        ax1.grid(True, alpha=0.3)
+        ax1.legend(loc='upper right')
+        
+        # Weak axis view (Side View)
         ax2 = axes[1]
-        ax2.set_title('Weak Axis (Y-Y)', fontsize=14, fontweight='bold')
+        ax2.set_title('Side View (Weak Axis Y-Y)', fontsize=14, fontweight='bold')
         
-        ax2.add_patch(Rectangle((-d/2, 0), d, column_height,
+        # Draw column side view (showing depth)
+        # Top flange
+        ax2.add_patch(Rectangle((-d/2, L - 50), d, 50,
+                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
+        # Web (appears as full depth from side)
+        ax2.add_patch(Rectangle((-d/2, 50), d, L - 100,
                                 linewidth=2, edgecolor='#1a237e', facecolor='#e3f2fd'))
+        # Bottom flange
+        ax2.add_patch(Rectangle((-d/2, 0), d, 50,
+                                linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
         
-        x2 = (d/4) * np.sin(np.pi * y / column_height)
+        # Buckled shape for weak axis
+        x2 = (d/3) * np.sin(np.pi * y / L)
         ax2.plot(x2, y, 'r--', lw=2, alpha=0.7, label='Buckled shape')
         
-        ax2.arrow(0, column_height + 200, 0, -150, head_width=d/3,
-                 head_length=50, fc='red', ec='red')
-        ax2.text(0, column_height + 300, 'P', ha='center', fontsize=14, fontweight='bold')
+        # Load arrow
+        ax2.arrow(0, L + 300, 0, -200, head_width=d/2,
+                 head_length=80, fc='red', ec='red', lw=2)
+        ax2.text(0, L + 400, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
         
-        ax2.set_xlim([-d, d])
-        ax2.set_ylim([-100, column_height + 400])
-        ax2.set_xlabel('Depth (mm)')
-        ax2.legend()
+        # Base support
+        support_depth = d * 1.2
+        ax2.add_patch(Rectangle((-support_depth/2, -100), support_depth, 100,
+                                linewidth=2, edgecolor='black', facecolor='#808080'))
+        ax2.plot(0, -50, 'o', markersize=10, color='black', markerfacecolor='white')
         
-        # Cross-section
+        # Ground hatching
+        for i in range(8):
+            x_hatch = -support_depth/2 - 50 + i * (support_depth + 100) / 7
+            ax2.plot([x_hatch, x_hatch - 20], [-100, -150], 'k-', lw=1.5)
+        
+        ax2.set_xlim([-d*1.5, d*1.5])
+        ax2.set_ylim([-200, L + 500])
+        ax2.set_xlabel('Depth (mm)', fontsize=12)
+        ax2.set_ylabel('Height (mm)', fontsize=12)
+        ax2.grid(True, alpha=0.3)
+        ax2.legend(loc='upper right')
+        
+        # Cross-section view
         ax3 = axes[2]
         ax3.set_title(f'Cross-Section: {section}', fontsize=14, fontweight='bold')
         
-        # Draw H-section
+        # Draw detailed H-section
+        # Top flange
         ax3.add_patch(Rectangle((-bf/2, d/2 - tf), bf, tf,
                                 linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
+        # Bottom flange
         ax3.add_patch(Rectangle((-bf/2, -d/2), bf, tf,
                                 linewidth=2, edgecolor='#1a237e', facecolor='#bbdefb'))
+        # Web
         ax3.add_patch(Rectangle((-tw/2, -d/2 + tf), tw, d - 2*tf,
                                 linewidth=2, edgecolor='#1a237e', facecolor='#90caf9'))
         
-        ax3.axhline(y=0, color='red', linewidth=1, linestyle='--', alpha=0.7)
-        ax3.axvline(x=0, color='red', linewidth=1, linestyle='--', alpha=0.7)
-        ax3.text(bf/2 + 10, 0, 'X', fontsize=12, color='red', fontweight='bold')
+        # Principal axes
+        ax3.axhline(y=0, color='red', linewidth=2, linestyle='--', alpha=0.7)
+        ax3.axvline(x=0, color='red', linewidth=2, linestyle='--', alpha=0.7)
+        ax3.text(bf/2 + 15, 0, 'X', fontsize=14, color='red', fontweight='bold')
+        ax3.text(0, d/2 + 15, 'Y', fontsize=14, color='red', fontweight='bold')
+        
+        # Dimensions
+        # Width dimension
+        ax3.annotate('', xy=(bf/2, d/2 + 30), xytext=(-bf/2, d/2 + 30),
+                    arrowprops=dict(arrowstyle='<->', color='black', lw=1.5))
+        ax3.text(0, d/2 + 40, f'bf = {bf:.0f}', ha='center', fontsize=11)
+        
+        # Depth dimension
+        ax3.annotate('', xy=(bf/2 + 30, d/2), xytext=(bf/2 + 30, -d/2),
+                    arrowprops=dict(arrowstyle='<->', color='black', lw=1.5))
+        ax3.text(bf/2 + 50, 0, f'd = {d:.0f}', ha='center', rotation=90, fontsize=11)
+        
+        # Web thickness
+        ax3.annotate('', xy=(tw/2, 0), xytext=(-tw/2, 0),
+                    arrowprops=dict(arrowstyle='<->', color='blue', lw=1))
+        ax3.text(0, -20, f'tw = {tw:.1f}', ha='center', fontsize=10, color='blue')
+        
+        # Flange thickness
+        ax3.annotate('', xy=(-bf/3, d/2), xytext=(-bf/3, d/2 - tf),
+                    arrowprops=dict(arrowstyle='<->', color='green', lw=1))
+        ax3.text(-bf/3 - 30, d/2 - tf/2, f'tf = {tf:.1f}', ha='right', fontsize=10, color='green')
+        
+        ax3.set_xlim([-bf*0.8, bf*0.8])
+        ax3.set_ylim([-d*0.8, d*0.8])
+        ax3.set_aspect('equal')
+        ax3.grid(True, alpha=0.3)
+        ax3.set_xlabel('Width (mm)', fontsize=12)
+        ax3.set_ylabel('Height (mm)', fontsize=12)
+        
+        plt.tight_layout()
+        return fig
+    except Exception as e:
+        st.error(f"Error in visualization: {e}")
+        return None fontweight='bold')
         ax3.text(0, d/2 + 10, 'Y', fontsize=12, color='red', fontweight='bold')
         
         ax3.set_xlim([-bf*1.2, bf*1.2])
@@ -526,14 +613,29 @@ with tab2:
             st.success(f"Required Zx ≥ {Zx_req:.0f} cm³")
     
     with col2:
-        st.markdown("#### Service Load")
+        st.markdown("#### Deflection Control")
         L_span = st.number_input("Span Length (m):", min_value=1.0, value=6.0, step=0.5)
-        Lb_service = st.number_input("Unbraced Length (m):", min_value=0.1, value=3.0, step=0.5)
+        w_load = st.number_input("Service Load w (kN/m):", min_value=0.0, value=10.0, step=1.0)
+        deflection_limit = st.selectbox("Deflection Limit:", 
+                                       ["L/200", "L/250", "L/300", "L/360", "L/400"],
+                                       index=2)
+        
+        # Calculate required Ix
+        if w_load > 0 and L_span > 0:
+            limit_value = float(deflection_limit.split('/')[1])
+            Ix_req = calculate_required_ix(w_load, L_span, limit_value)
+            st.success(f"Required Ix ≥ {Ix_req:.0f} cm⁴")
     
     with col3:
-        st.markdown("#### Filters")
+        st.markdown("#### Additional Filters")
         depth_max = st.number_input("Max Depth (mm):", min_value=0, value=0, help="0 = no limit")
-        weight_max = st.number_input("Max Weight (kg/m):", min_value=0, value=0, help="0 = no limit")
+        weight_max = st.number_input("Max Weight (kg/m):", min_value=0, value=200, step=10,
+                                    help="0 = no limit")
+        
+        # Preference
+        optimization = st.selectbox("Optimize for:",
+                                   ["Minimum Weight", "Minimum Depth", "Maximum Efficiency"],
+                                   index=0)
     
     # Filter sections
     filtered_df = df.copy()
@@ -543,6 +645,11 @@ with tab2:
         zx_min = calculate_required_properties(Mu, selected_material, Fy_value, phi)
         filtered_df = filtered_df[filtered_df['Zx [cm3]'] >= zx_min]
     
+    if w_load > 0 and L_span > 0:
+        limit_value = float(deflection_limit.split('/')[1])
+        Ix_req = calculate_required_ix(w_load, L_span, limit_value)
+        filtered_df = filtered_df[filtered_df['Ix [cm4]'] >= Ix_req]
+    
     if depth_max > 0:
         filtered_df = filtered_df[filtered_df['d [mm]'] <= depth_max]
     
@@ -550,59 +657,99 @@ with tab2:
         weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
         filtered_df = filtered_df[filtered_df[weight_col] <= weight_max]
     
-    # Calculate capacities
+    # Sort by optimization criteria
+    weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in filtered_df.columns else 'w [kg/m]'
+    if optimization == "Minimum Weight":
+        filtered_df = filtered_df.sort_values(weight_col)
+    elif optimization == "Minimum Depth":
+        filtered_df = filtered_df.sort_values('d [mm]')
+    else:  # Maximum Efficiency
+        filtered_df['efficiency'] = filtered_df['Zx [cm3]'] / filtered_df[weight_col]
+        filtered_df = filtered_df.sort_values('efficiency', ascending=False)
+    
+    # Display filtered sections with ALL properties
     st.markdown(f"### Found {len(filtered_df)} Suitable Sections")
     
     if len(filtered_df) > 0:
-        # Calculate φMn and service load for each section
-        results = []
-        for section in filtered_df.index[:20]:  # Limit to 20 for performance
-            try:
-                Mn, _, _, _, _, _, _, _ = F2(df, df_mat, section, selected_material, Lb_service)
-                weight = filtered_df.loc[section, 'Unit Weight [kg/m]'] if 'Unit Weight [kg/m]' in filtered_df.columns else filtered_df.loc[section, 'w [kg/m]']
-                service_w = calculate_service_load_capacity(df, df_mat, section, selected_material, L_span, Lb_service)
-                
-                results.append({
-                    'Section': section,
-                    'Weight (kg/m)': weight,
-                    'Zx (cm³)': filtered_df.loc[section, 'Zx [cm3]'],
-                    'Ix (cm⁴)': filtered_df.loc[section, 'Ix [cm4]'],
-                    'φMn (t·m)': 0.9 * Mn,
-                    'Service w (kg/m)': service_w
-                })
-            except:
-                continue
+        # Reset index to make Section a column
+        filtered_df_display = filtered_df.reset_index()
         
-        if results:
-            results_df = pd.DataFrame(results)
-            results_df = results_df.sort_values('Weight (kg/m)')
+        # Select important columns to display (show ALL section properties)
+        display_cols = ['Section', 'd [mm]', 'bf [mm]', 'tw [mm]', 'tf [mm]', 
+                       'A [cm2]', weight_col, 'Ix [cm4]', 'Iy [cm4]', 
+                       'Sx [cm3]', 'Sy [cm3]', 'Zx [cm3]', 'Zy [cm3]', 
+                       'rx [cm]', 'ry [cm]']
+        
+        # Only include columns that exist in the dataframe
+        available_cols = [col for col in display_cols if col in filtered_df_display.columns]
+        
+        # Configure AgGrid for multi-selection
+        gb = GridOptionsBuilder.from_dataframe(filtered_df_display[available_cols])
+        gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren=False, groupSelectsFiltered=True)
+        gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=20)
+        gb.configure_column("Section", headerCheckboxSelection=True)
+        gb.configure_default_column(resizable=True, filterable=True, sortable=True)
+        grid_options = gb.build()
+        
+        # Display grid with ALL section properties
+        st.markdown("#### 📋 Section Properties Database (Select sections using checkboxes)")
+        grid_response = AgGrid(
+            filtered_df_display[available_cols].round(2),
+            gridOptions=grid_options,
+            height=400,
+            width='100%',
+            theme='streamlit',
+            update_mode=GridUpdateMode.SELECTION_CHANGED
+        )
+        
+        # Handle selected rows
+        selected_rows = grid_response.get('selected_rows', None)
+        if selected_rows is not None and not selected_rows.empty:
+            # selected_rows is a DataFrame when rows are selected
+            selected_sections = selected_rows['Section'].tolist()
+            st.session_state.selected_sections = selected_sections
             
-            # Configure grid for multi-selection
-            gb = GridOptionsBuilder.from_dataframe(results_df)
-            gb.configure_selection('multiple', use_checkbox=True)
-            gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=15)
-            grid_options = gb.build()
+            st.success(f"✅ Selected {len(selected_sections)} sections for analysis")
             
-            grid_response = AgGrid(
-                results_df.round(2),
-                gridOptions=grid_options,
-                height=400,
-                theme='streamlit',
-                update_mode=GridUpdateMode.SELECTION_CHANGED
-            )
+            # Calculate capacity for selected sections
+            st.markdown("### 📊 Capacity Analysis for Selected Sections")
             
-            # Fixed: Handle selected_rows properly
-            selected_rows = grid_response.get('selected_rows', None)
-            if selected_rows is not None and not selected_rows.empty:
-                # selected_rows is a DataFrame when rows are selected
-                selected_sections = selected_rows['Section'].tolist()
-                st.session_state.selected_sections = selected_sections
-                st.success(f"✅ Selected {len(selected_sections)} sections for comparison")
-                
-                # Show selected sections with Lb configuration
-                with st.expander("📋 Selected Sections Configuration", expanded=True):
-                    st.markdown("#### Configure Unbraced Length for Each Section")
+            # Unbraced length for capacity calculation
+            Lb_capacity = st.slider("Unbraced Length for Capacity Analysis (m):", 0.1, 20.0, 3.0, 0.5)
+            
+            capacity_results = []
+            for section_name in selected_sections:
+                try:
+                    # Calculate moment capacity
+                    Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section_name, selected_material, Lb_capacity)
                     
+                    # Get weight
+                    weight = filtered_df.loc[section_name, weight_col] if section_name in filtered_df.index else 0
+                    
+                    # Calculate service load capacity
+                    service_w = calculate_service_load_capacity(df, df_mat, section_name, selected_material, L_span, Lb_capacity)
+                    
+                    capacity_results.append({
+                        'Section': section_name,
+                        'Weight (kg/m)': weight,
+                        'Mp (t·m)': Mp,
+                        'Mn (t·m)': Mn,
+                        'φMn (t·m)': 0.9 * Mn,
+                        'Service w (kg/m)': service_w,
+                        'Lp (m)': Lp,
+                        'Lr (m)': Lr,
+                        'Case': Case,
+                        'Efficiency': (0.9 * Mn) / weight if weight > 0 else 0
+                    })
+                except:
+                    continue
+            
+            if capacity_results:
+                capacity_df = pd.DataFrame(capacity_results)
+                st.dataframe(capacity_df.round(2), use_container_width=True, hide_index=True)
+                
+                # Show configuration for individual Lb values
+                with st.expander("⚙️ Configure Individual Lb Values for Comparison", expanded=False):
                     use_global_lb = st.checkbox("Use same Lb for all sections", value=False)
                     
                     if use_global_lb:
