@@ -316,131 +316,83 @@ def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy):
         st.error(f"Error in compression analysis: {e}")
         return None
 
-        ax1.grid(True, alpha=0.3)
-        ax1.legend()
+def visualize_column_structural_layout(df, section, KLx, KLy, Lx, Ly):
+    """Structural layout visualization showing column with lateral bracing and effective lengths"""
+    try:
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
         
-        # ===================== TOP RIGHT: PLAN VIEW =====================
-        ax2 = axes[0, 1]
-        ax2.set_title('Plan View - Showing Lateral Bracing', 
-                     fontsize=12, fontweight='bold', color='#8B0000')
+        # Get dimensions
+        d = float(df.loc[section, 'd [mm]'])
+        bf = float(df.loc[section, 'bf [mm]'])
         
-        # Draw H-section in plan (top view)
-        # Top flange
-        ax2.add_patch(Rectangle((-bf/2, -d/2), bf, d,
-                                linewidth=2, edgecolor='#8B0000', facecolor='#ffcccb'))
+        # ===================== TOP LEFT: ELEVATION VIEW (Strong Axis) =====================
+        ax1 = axes[0, 0]
+        ax1.set_title('Elevation View - Strong Axis (X-X)\nWith Lateral Bracing', 
+                     fontsize=12, fontweight='bold', color='#1a237e')
         
-        # Web line
-        ax2.plot([0, 0], [-d/2, d/2], 'k-', lw=2)
+        # Column height
+        L_total = 4000  # 4m total height in mm
         
-        # Lateral bracing beams in plan
-        brace_length = 400
-        ax2.add_patch(Rectangle((-20, -brace_length/2), 40, brace_length,
+        # Draw column (front view - shows width)
+        column_width = 60
+        ax1.add_patch(Rectangle((-column_width/2, 0), column_width, L_total,
+                                linewidth=3, edgecolor='#1a237e', facecolor='#e3f2fd'))
+        
+        # Add lateral bracing at mid-height (for Lx)
+        brace_height = L_total / 2
+        brace_width = 200
+        
+        # Lateral braces (horizontal beams)
+        ax1.add_patch(Rectangle((-brace_width/2, brace_height - 20), brace_width, 40,
                                 linewidth=2, edgecolor='#ff9800', facecolor='#fff3e0'))
-        ax2.add_patch(Rectangle((-brace_length/2, -20), brace_length, 40,
-                                linewidth=2, edgecolor='#ff9800', facecolor='#fff3e0'))
         
-        # Principal axes
-        ax2.plot([-bf/2-50, bf/2+50], [0, 0], 'r-', lw=3, label='X-X (Strong)')
-        ax2.plot([0, 0], [-d/2-50, d/2+50], 'orange', lw=3, label='Y-Y (Weak)')
+        # Bracing connections
+        ax1.plot([-brace_width/2, -column_width/2], [brace_height, brace_height], 'k-', lw=3)
+        ax1.plot([brace_width/2, column_width/2], [brace_height, brace_height], 'k-', lw=3)
         
-        # Dimensions
-        ax2.text(0, d/2+30, f'bf = {bf:.0f}mm', ha='center', fontsize=10, fontweight='bold')
-        ax2.text(bf/2+30, 0, f'd = {d:.0f}mm', ha='center', rotation=90, fontsize=10, fontweight='bold')
+        # Effective length Lx
+        ax1.annotate('', xy=(120, L_total), xytext=(120, brace_height),
+                    arrowprops=dict(arrowstyle='<->', color='red', lw=3))
+        ax1.text(140, (L_total + brace_height)/2, f'Lx = {Lx:.1f} m', 
+                rotation=90, ha='center', fontsize=12, color='red', fontweight='bold')
         
-        ax2.set_xlim([-brace_length*0.8, brace_length*0.8])
-        ax2.set_ylim([-brace_length*0.8, brace_length*0.8])
-        ax2.set_aspect('equal')
-        ax2.set_xlabel('X Direction (mm)', fontsize=11)
-        ax2.set_ylabel('Y Direction (mm)', fontsize=11)
-        ax2.grid(True, alpha=0.3)
-        ax2.legend()
-        
-        # ===================== BOTTOM LEFT: SIDE VIEW (Weak Axis) =====================
-        ax3 = axes[1, 0]
-        ax3.set_title('Side View - Weak Axis (Y-Y)\nNo Lateral Bracing', 
-                     fontsize=12, fontweight='bold', color='#8B0000')
-        
-        # Draw column (side view - shows depth)
-        column_depth = 40
-        ax3.add_patch(Rectangle((-column_depth/2, 0), column_depth, L_total,
-                                linewidth=3, edgecolor='#8B0000', facecolor='#ffcccb'))
-        
-        # Full height effective length Ly
-        ax3.annotate('', xy=(80, L_total), xytext=(80, 0),
-                    arrowprops=dict(arrowstyle='<->', color='darkred', lw=3))
-        ax3.text(100, L_total/2, f'Ly = {Ly:.1f} m', 
-                rotation=90, ha='center', fontsize=12, color='darkred', fontweight='bold')
+        ax1.annotate('', xy=(120, brace_height), xytext=(120, 0),
+                    arrowprops=dict(arrowstyle='<->', color='red', lw=3))
+        ax1.text(140, brace_height/2, f'Lx = {Lx:.1f} m', 
+                rotation=90, ha='center', fontsize=12, color='red', fontweight='bold')
         
         # Supports
         # Base (fixed)
-        ax3.add_patch(Rectangle((-60, -40), 120, 40,
+        base_width = 120
+        ax1.add_patch(Rectangle((-base_width/2, -40), base_width, 40,
                                 linewidth=2, edgecolor='black', facecolor='#616161'))
-        for i in range(-3, 4):
-            x_pos = i * 25
-            ax3.plot([x_pos, x_pos - 15], [-40, -70], 'k-', lw=2)
+        # Fixed support symbols (hatching)
+        for i in range(-4, 5):
+            x_pos = i * 20
+            ax1.plot([x_pos, x_pos - 15], [-40, -70], 'k-', lw=2)
         
         # Top (pinned)
-        ax3.plot(0, L_total + 20, 'o', markersize=12, color='black', markerfacecolor='white', 
+        ax1.plot(0, L_total + 20, 'o', markersize=12, color='black', markerfacecolor='white', 
                 markeredgewidth=3)
         
-        # Buckled shape for weak axis (full height)
-        y_full = np.linspace(0, L_total, 100)
-        x_buckled_weak = 30 * np.sin(np.pi * y_full / L_total)
-        ax3.plot(x_buckled_weak, y_full, color='darkred', linestyle='--', lw=3, alpha=0.7, 
-                label='Buckled Shape')
+        # Buckled shape for strong axis
+        y = np.linspace(0, brace_height, 50)
+        x_buckled1 = 40 * np.sin(np.pi * y / brace_height)
+        ax1.plot(x_buckled1, y, 'r--', lw=3, alpha=0.7, label='Buckled Shape')
         
-        ax3.set_xlim([-120, 140])
-        ax3.set_ylim([-100, L_total + 100])
-        ax3.set_xlabel('Depth Direction (mm)', fontsize=11)
-        ax3.set_ylabel('Height (mm)', fontsize=11)
-        ax3.grid(True, alpha=0.3)
-        ax3.legend()
+        y2 = np.linspace(brace_height, L_total, 50)
+        x_buckled2 = 40 * np.sin(np.pi * (y2 - brace_height) / (L_total - brace_height))
+        ax1.plot(x_buckled2, y2, 'r--', lw=3, alpha=0.7)
         
-        # ===================== BOTTOM RIGHT: EFFECTIVE LENGTH SUMMARY =====================
-        ax4 = axes[1, 1]
-        ax4.set_title('Effective Length Analysis Summary', 
-                     fontsize=12, fontweight='bold', color='#1565c0')
-        
-        # Create summary table
-        summary_data = [
-            ['Parameter', 'Strong Axis (X-X)', 'Weak Axis (Y-Y)'],
-            ['Unbraced Length', f'{Lx:.1f} m', f'{Ly:.1f} m'],
-            ['K Factor', f'{KLx/Lx:.1f}', f'{KLy/Ly:.1f}'],
-            ['Effective Length KL', f'{KLx:.1f} m', f'{KLy:.1f} m'],
-            ['Radius of Gyration', f'{df.loc[section, "rx [cm]"]:.1f} cm', f'{df.loc[section, "ry [cm]"]:.1f} cm'],
-            ['Slenderness KL/r', f'{(KLx*100)/float(df.loc[section, "rx [cm]"]):.1f}', f'{(KLy*100)/float(df.loc[section, "ry [cm]"]):.1f}'],
-            ['Critical Axis', 'With Bracing', 'WITHOUT Bracing'],
-            ['Buckling Mode', 'Local (between braces)', 'Global (full height)']
-        ]
-        
-        # Create table
-        table = ax4.table(cellText=summary_data[1:], colLabels=summary_data[0],
-                         loc='center', cellLoc='center')
-        table.auto_set_font_size(False)
-        table.set_fontsize(10)
-        table.scale(1.2, 2)
-        
-        # Color coding
-        for i in range(len(summary_data[0])):
-            table[(0, i)].set_facecolor('#e3f2fd')
-            table[(0, i)].set_text_props(weight='bold')
-        
-        # Highlight critical values
-        for i in range(1, len(summary_data)):
-            table[(i, 2)].set_facecolor('#ffebee')  # Weak axis column in light red
-        
-        ax4.axis('off')
-        
-        # Add notes
-        ax4.text(0.5, 0.1, 
-                'Note: Weak axis typically controls due to larger KL/r ratio\n' +
-                'Lateral bracing reduces effective length in strong axis only',
-                transform=ax4.transAxes, ha='center', fontsize=10,
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow"))
+        ax1.set_xlim([-200, 200])
+        ax1.set_ylim([-100, L_total + 100])
+        ax1.set_xlabel('Width Direction (mm)', fontsize=11)
+        ax1.set_ylabel('Height (mm)', fontsize=11)
+        ax1.grid(True, alpha=0.3)
+        ax1.legend()
         
         # Main title
-        fig.suptitle(f'Structural Layout Analysis - Section: {section}\n' +
-                    f'Column Height: 4m | Lateral Bracing at Mid-Height', 
+        fig.suptitle(f'Structural Layout Analysis - Section: {section}', 
                     fontsize=16, fontweight='bold', y=0.95)
         
         plt.tight_layout()
