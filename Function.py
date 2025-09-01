@@ -1,5 +1,5 @@
 # ==================== ENHANCED STEEL DESIGN ANALYSIS APPLICATION ====================
-# Version: 5.0 - Complete with all 6 tabs and bug fixes
+# Version: 5.1 - Corrected and Optimized
 # GitHub: Thana-site/Steel_Design_2003
 
 import streamlit as st
@@ -25,7 +25,6 @@ st.set_page_config(
 # ==================== CUSTOM CSS ====================
 st.markdown("""
 <style>
-    /* Clean, modern design with better readability */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: #f8f9fa;
@@ -124,13 +123,12 @@ def load_data():
         st.error(f"Error loading data: {e}")
         return pd.DataFrame(), pd.DataFrame(), False
 
-# ==================== CORRECT F2 FUNCTION FROM ORIGINAL ====================
-def F2(df, df_mat, option, option_mat, Lb):
-    """F2 Analysis for doubly symmetric compact I-shaped members - Corrected Version"""
+# ==================== CORRECTED F2 FUNCTION ====================
+def F2(df, df_mat, section, material, Lb):
+    """F2 Analysis for doubly symmetric compact I-shaped members - CORRECTED VERSION"""
     try:
-        Cb = 1
-        section = option
-        Lb = Lb * 100  # Convert Lb from m to cm
+        Cb = 1.0
+        Lb_cm = Lb * 100  # Convert Lb from m to cm
         
         # Get section properties
         Lp = float(df.loc[section, "Lp [cm]"])
@@ -148,114 +146,71 @@ def F2(df, df_mat, option, option_mat, Lb):
             rts = ry * 1.1  # Approximation
         
         j = float(df.loc[section, 'j [cm4]']) if 'j [cm4]' in df.columns else 1.0
-        c = 1
+        c = 1.0
         h0 = float(df.loc[section, 'ho [mm]']) / 10 if 'ho [mm]' in df.columns else float(df.loc[section, 'd [mm]']) / 10
         
         # Material properties
-        Fy = float(df_mat.loc[option_mat, "Yield Point (ksc)"])
-        E = float(df_mat.loc[option_mat, "E"])
-        
-        # Initialize arrays for plotting
-        Mni = []
-        Mnr = []
-        Lni = []
-        Lri_values = []
+        Fy = float(df_mat.loc[material, "Yield Point (ksc)"])
+        E = float(df_mat.loc[material, "E"])
         
         # Calculate Mn based on Lb
-        if Lb < Lp:
+        if Lb_cm < Lp:
             Case = "F2.1 - Plastic Yielding"
             Mp = Fy * Z_Major 
-            Mn = Mp / 100000
-            Mn = np.floor(Mn * 100) / 100
-            Mp = np.floor(Mp * 100) / 100
-        elif Lp <= Lb < Lr:
+            Mn = Mp
+        elif Lp <= Lb_cm < Lr:
             Case = "F2.2 - Inelastic LTB"
             Mp = Fy * Z_Major
-            Mn = Cb * (Mp - ((Mp - 0.7 * Fy * S_Major) * ((Lb - Lp) / (Lr - Lp))))
-            Mn = Mn / 100000
-            Mp = Mp / 100000
-            Mn = min(Mp, Mn)
-            Mn = np.floor(Mn * 100) / 100
-            Mp = np.floor(Mp * 100) / 100
+            Mn = Cb * (Mp - ((Mp - 0.7 * Fy * S_Major) * ((Lb_cm - Lp) / (Lr - Lp))))
+            Mp = Mp / 100000  # Convert to t·m
+            Mn = min(Mp * 100000, Mn) / 100000  # Convert to t·m and ensure Mn ≤ Mp
         else:
             Case = "F2.3 - Elastic LTB"
-            Term_1 = (Cb * mt.pi ** 2 * E) / (((Lb) / rts) ** 2)
-            Term_2 = 0.078 * ((j * c) / (S_Major * h0)) * (((Lb) / rts) ** 2)
+            Mp = Fy * Z_Major / 100000  # t·m
+            Term_1 = (Cb * mt.pi ** 2 * E) / (((Lb_cm) / rts) ** 2)
+            Term_2 = 0.078 * ((j * c) / (S_Major * h0)) * (((Lb_cm) / rts) ** 2)
             Term12 = Term_1 * mt.sqrt(1 + Term_2)
-            Mn = Term12 * S_Major
-            Mn = Mn / 100000
-            Mp = Fy * Z_Major 
-            Mp = Mp / 100000
-            Mn = np.floor(Mn * 100) / 100
-            Mp = np.floor(Mp * 100) / 100
+            Mn = Term12 * S_Major / 100000  # Convert to t·m
         
-        Mn = np.floor(Mn * 100) / 100
-        Mn_F2C = 0.7 * Fy * S_Major / 100000
-        Mn_F2C = np.floor(Mn_F2C * 100) / 100
+        # Convert all to t·m
+        if Case != "F2.3 - Elastic LTB":
+            Mp = Mp / 100000 if isinstance(Mp, (int, float)) and Mp > 1000 else Mp
+            Mn = Mn / 100000 if isinstance(Mn, (int, float)) and Mn > 1000 else Mn
         
-        # Build arrays for plotting
-        Mni.append(Mp)
-        Lni.append(0)
+        # Convert lengths back to meters
+        Lp_m = Lp / 100
+        Lr_m = Lr / 100
         
-        Mni.append(Mp)
-        Lni.append(np.floor((Lp / 100) * 100) / 100)
-        
-        Mni.append(Mn_F2C)
-        Lni.append(np.floor((Lr / 100) * 100) / 100)
-        
-        # Elastic region calculations
-        Lro = Lr
-        Lr = Lr / 100
-        Lr = np.ceil(Lr * 100) / 100
-        Lr += 0.01
-        Lrii = Lr
-        Lriii = Lrii + 11
-        
-        i = Lrii
-        while i < Lriii:
-            Lbi = i * 100
-            rounded_i = np.floor(i * 100) / 100
-            Lri_values.append(rounded_i)
-            
-            Term_1 = (Cb * mt.pi ** 2 * E) / ((Lbi / rts) ** 2)
-            Term_2 = 0.078 * ((j * c) / (S_Major * h0)) * ((Lbi / rts) ** 2)
-            fcr = Term_1 * mt.sqrt(1 + Term_2)
-            Mnc = fcr * S_Major
-            Mnc = Mnc / 100000
-            Mnc = np.floor(Mnc * 100) / 100
-            Mnr.append(Mnc)
-            
-            i += 0.5
-        
-        Mni.append(Mnr)
-        Lni.append(Lri_values)
-        
-        # Convert back to meters
-        Lb = Lb / 100
-        Lp = Lp / 100
-        Lr = Lro / 100
-        
-        Lb = np.floor(Lb * 100) / 100
-        Lp = np.floor(Lp * 100) / 100
-        Lr = np.floor(Lr * 100) / 100
-        
-        return Mn, Lb, Lp, Lr, Mp, Mni, Lni, Case
+        return Mn, Lb, Lp_m, Lr_m, Mp, Case
         
     except Exception as e:
         st.error(f"Error in F2 calculation: {str(e)}")
-        return 0, 0, 0, 0, 0, [], [], "Error"
+        return 0, 0, 0, 0, 0, "Error"
+
+def generate_moment_capacity_curve(df, df_mat, section, material, Lb_max=20.0):
+    """Generate moment capacity curve for plotting"""
+    try:
+        Lb_range = np.linspace(0.1, Lb_max, 200)
+        Mn_values = []
+        
+        for lb in Lb_range:
+            Mn, _, _, _, _, _ = F2(df, df_mat, section, material, lb)
+            Mn_values.append(Mn)
+        
+        return Lb_range, Mn_values
+    except Exception as e:
+        st.error(f"Error generating curve: {str(e)}")
+        return [], []
 
 def calculate_required_properties(Mu, selected_material, Fy_value, phi=0.9):
     """Calculate required section properties based on design moment"""
     Mu_tm = Mu  # Already in t·m (ton-meter)
-    # Use the actual Fy value from the selected material  
     Zx_req = (Mu_tm * 100000) / (phi * Fy_value)  # cm³
     return Zx_req
 
 def calculate_required_ix(w, L, delta_limit, E=2.04e6):
     """Calculate required Ix based on deflection limit"""
-    w_kg_cm = w  # w is already in kg/m, convert to kg/cm
-    w_kg_cm = w / 100  # kg/cm
+    w_kg_cm = w / 100  # Convert kg/m to kg/cm
     L_cm = L * 100  # Convert m to cm
     delta_max = L_cm / delta_limit
     Ix_req = (5 * w_kg_cm * L_cm**4) / (384 * E * delta_max)
@@ -264,7 +219,7 @@ def calculate_required_ix(w, L, delta_limit, E=2.04e6):
 def calculate_service_load_capacity(df, df_mat, section, material, L, Lb):
     """Calculate service load capacity in kg/m"""
     try:
-        Mn, _, _, _, _, _, _, _ = F2(df, df_mat, section, material, Lb)
+        Mn, _, _, _, _, _ = F2(df, df_mat, section, material, Lb)
         phi_Mn = 0.9 * Mn  # t·m
         phi_Mn_kg_cm = phi_Mn * 100000
         L_cm = L * 100
@@ -316,10 +271,10 @@ def compression_analysis_advanced(df, df_mat, section, material, KLx, KLy):
         st.error(f"Error in compression analysis: {e}")
         return None
 
-def visualize_column_2d_enhanced(df, section):
-    """Enhanced 2D visualization showing column buckling with correct cross-sectional views"""
+def visualize_column_2d_simple(df, section):
+    """Simplified 2D column visualization"""
     try:
-        fig, axes = plt.subplots(1, 2, figsize=(14, 8))
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
         
         # Get dimensions
         d = float(df.loc[section, 'd [mm]'])
@@ -327,919 +282,44 @@ def visualize_column_2d_enhanced(df, section):
         tw = float(df.loc[section, 'tw [mm]'])
         tf = float(df.loc[section, 'tf [mm]'])
         
-        # Column length for visualization
-        L = 3000  # 3m column height in mm
+        # Strong axis buckling (edge view)
+        ax1.set_title('Strong Axis Buckling\n(Edge View)', fontweight='bold')
         
-        # ===================== STRONG AXIS BUCKLING =====================
-        # When buckling about strong axis (X-X), we see the EDGE view (flange + web)
-        ax1 = axes[0]
-        ax1.set_title('Strong Axis Buckling (X-X)\n[Edge View - Flange + Web]', 
-                     fontsize=12, fontweight='bold', color='#1a237e')
+        # Draw section edge view
+        ax1.add_patch(Rectangle((-tf/2, 0), tf, tf, facecolor='lightblue', edgecolor='blue'))
+        ax1.add_patch(Rectangle((-tw/2, tf), tw, d-2*tf, facecolor='lightgreen', edgecolor='blue'))
+        ax1.add_patch(Rectangle((-tf/2, d-tf), tf, tf, facecolor='lightblue', edgecolor='blue'))
         
-        # Draw H-section edge view (shows flange thickness and web)
-        # Top flange (edge view)
-        ax1.add_patch(Rectangle((-tf/2, L - tf), tf, tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
-        # Web (full height)
-        ax1.add_patch(Rectangle((-tw/2, tf), tw, L - 2*tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
-        # Bottom flange (edge view)
-        ax1.add_patch(Rectangle((-tf/2, 0), tf, tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
+        # Buckling curve
+        y = np.linspace(0, d, 100)
+        x_buckled = 30 * np.sin(np.pi * y / d)
+        ax1.plot(x_buckled, y, 'r-', linewidth=3, label='Buckled Shape')
         
-        # Add buckled shape for strong axis (larger amplitude)
-        y = np.linspace(0, L, 100)
-        x_buckled = 100 * np.sin(np.pi * y / L)  # Large amplitude for strong axis
-        ax1.plot(x_buckled, y, 'r-', lw=4, alpha=0.8, label='Buckled Shape')
-        
-        # Load arrow at top
-        ax1.arrow(0, L + 200, 0, -150, head_width=25, head_length=50, 
-                 fc='red', ec='red', lw=3)
-        ax1.text(0, L + 280, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
-        
-        # Support at base
-        support_width = max(tf, 40)
-        ax1.add_patch(Rectangle((-support_width/2, -30), support_width, 30,
-                                linewidth=2, edgecolor='black', facecolor='#616161'))
-        ax1.plot(0, -15, 'o', markersize=10, color='black', markerfacecolor='white', 
-                markeredgewidth=2)
-        
-        # Ground hatching
-        for i in range(-4, 5):
-            x_pos = i * 20
-            ax1.plot([x_pos, x_pos - 15], [-30, -60], 'k-', lw=2)
-        
-        # Dimension and labels
-        ax1.text(60, L/2, f'tf = {tf:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='blue', fontweight='bold')
-        ax1.text(-60, L/2, f'tw = {tw:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='green', fontweight='bold')
-        
-        ax1.set_xlim([-150, 150])
-        ax1.set_ylim([-80, L + 350])
-        ax1.set_xlabel('Buckling Direction (Strong Axis)', fontsize=11, fontweight='bold')
-        ax1.set_ylabel('Height (mm)', fontsize=11)
+        ax1.set_xlim([-60, 60])
+        ax1.set_ylim([-20, d+20])
+        ax1.set_aspect('equal')
         ax1.grid(True, alpha=0.3)
-        ax1.legend(loc='upper right', fontsize=10)
+        ax1.legend()
         
-        # ===================== WEAK AXIS BUCKLING =====================
-        # When buckling about weak axis (Y-Y), we see the FRONT view (only flanges)
-        ax2 = axes[1]
-        ax2.set_title('Weak Axis Buckling (Y-Y)\n[Front View - Flanges Only]', 
-                     fontsize=12, fontweight='bold', color='#8B0000')
+        # Weak axis buckling (front view)
+        ax2.set_title('Weak Axis Buckling\n(Front View)', fontweight='bold')
         
-        # Draw H-section front view (shows only flanges, web is perpendicular to view)
-        # Top flange (full width)
-        ax2.add_patch(Rectangle((-bf/2, L - tf), bf, tf,
-                                linewidth=2, edgecolor='#8B0000', facecolor='#FFCCCB'))
-        # Web line (appears as thin line from front)
-        ax2.plot([0, 0], [tf, L - tf], 'k-', lw=1, alpha=0.5, label='Web (edge)')
+        # Draw section front view
+        ax2.add_patch(Rectangle((-bf/2, 0), bf, tf, facecolor='lightcoral', edgecolor='red'))
+        ax2.add_patch(Rectangle((-bf/2, d-tf), bf, tf, facecolor='lightcoral', edgecolor='red'))
+        ax2.plot([0, 0], [tf, d-tf], 'k-', linewidth=2, alpha=0.5, label='Web')
         
-        # Bottom flange (full width)
-        ax2.add_patch(Rectangle((-bf/2, 0), bf, tf,
-                                linewidth=2, edgecolor='#8B0000', facecolor='#FFCCCB'))
+        # Buckling curve
+        x_buckled_weak = 20 * np.sin(np.pi * y / d)
+        ax2.plot(x_buckled_weak, y, 'r-', linewidth=3, label='Buckled Shape')
         
-        # Add buckled shape for weak axis (smaller amplitude)
-        x_buckled_weak = 60 * np.sin(np.pi * y / L)  # Smaller amplitude for weak axis
-        ax2.plot(x_buckled_weak, y, color='#8B0000', linestyle='-', lw=4, alpha=0.8, 
-                label='Buckled Shape')
-        
-        # Load arrow at top
-        ax2.arrow(0, L + 200, 0, -150, head_width=bf/8, head_length=50, 
-                 fc='red', ec='red', lw=3)
-        ax2.text(0, L + 280, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
-        
-        # Support at base
-        support_width = bf * 1.1
-        ax2.add_patch(Rectangle((-support_width/2, -30), support_width, 30,
-                                linewidth=2, edgecolor='black', facecolor='#616161'))
-        # I-beam pin representation
-        ax2.plot([-bf/4, bf/4], [-15, -15], 'k-', lw=4)  # Top flange line
-        ax2.plot([0, 0], [-10, -20], 'k-', lw=2)           # Web line
-        ax2.plot([-bf/4, bf/4], [-20, -20], 'k-', lw=4)  # Bottom flange line
-        
-        # Ground hatching
-        for i in range(-3, 4):
-            x_pos = i * bf/4
-            ax2.plot([x_pos, x_pos - 15], [-30, -60], 'k-', lw=2)
-        
-        # Dimension and labels
-        ax2.text(0, L + 100, f'bf = {bf:.0f}mm', ha='center', 
-                fontsize=10, color='blue', fontweight='bold')
-        ax2.text(bf/2 + 30, L/2, f'tf = {tf:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='green', fontweight='bold')
-        
-        ax2.set_xlim([-bf*0.8, bf*0.8])
-        ax2.set_ylim([-80, L + 350])
-        ax2.set_xlabel('Buckling Direction (Weak Axis)', fontsize=11, fontweight='bold')
-        ax2.set_ylabel('Height (mm)', fontsize=11)
+        ax2.set_xlim([-bf*0.7, bf*0.7])
+        ax2.set_ylim([-20, d+20])
+        ax2.set_aspect('equal')
         ax2.grid(True, alpha=0.3)
-        ax2.legend(loc='upper right', fontsize=10)
+        ax2.legend()
         
-        # Add section info with buckling explanation
-        fig.suptitle(f'Column Buckling Analysis - Section: {section}\n' +
-                    f'Strong Axis: Ix = {df.loc[section, "Ix [cm4]"]:.0f} cm⁴ | ' +
-                    f'Weak Axis: Iy = {df.loc[section, "Iy [cm4]"]:.0f} cm⁴', 
-                    fontsize=14, fontweight='bold', y=0.95)
-        
-        plt.tight_layout()
-        return fig
-    except Exception as e:
-        st.error(f"Error in visualization: {e}")
-        return None
-
-def visualize_column_3d(df, section):
-    """3D visualization of H-shaped steel column with buckling modes"""
-    try:
-        import plotly.graph_objects as go
-        from plotly.subplots import make_subplots
-        import numpy as np
-        
-        # Get dimensions
-        d = float(df.loc[section, 'd [mm]'])
-        bf = float(df.loc[section, 'bf [mm]'])
-        tw = float(df.loc[section, 'tw [mm]'])
-        tf = float(df.loc[section, 'tf [mm]'])
-        
-        # Column length
-        L = 3000  # 3m column height in mm
-        
-        # Create 3D H-section geometry
-        def create_h_section_3d(z_position):
-            """Create 3D coordinates for H-section at given z-position"""
-            
-            # Top flange coordinates
-            top_flange_x = [-bf/2, bf/2, bf/2, -bf/2, -bf/2]
-            top_flange_y = [d/2-tf, d/2-tf, d/2, d/2, d/2-tf]
-            top_flange_z = [z_position] * 5
-            
-            # Web coordinates  
-            web_x = [-tw/2, tw/2, tw/2, -tw/2, -tw/2]
-            web_y = [-d/2+tf, -d/2+tf, d/2-tf, d/2-tf, -d/2+tf]
-            web_z = [z_position] * 5
-            
-            # Bottom flange coordinates
-            bottom_flange_x = [-bf/2, bf/2, bf/2, -bf/2, -bf/2]
-            bottom_flange_y = [-d/2, -d/2, -d/2+tf, -d/2+tf, -d/2]
-            bottom_flange_z = [z_position] * 5
-            
-            return {
-                'top_flange': {'x': top_flange_x, 'y': top_flange_y, 'z': top_flange_z},
-                'web': {'x': web_x, 'y': web_y, 'z': web_z},
-                'bottom_flange': {'x': bottom_flange_x, 'y': bottom_flange_y, 'z': bottom_flange_z}
-            }
-        
-        # Create subplots for different views
-        fig = make_subplots(
-            rows=2, cols=2,
-            specs=[[{"type": "scatter3d", "colspan": 2}, None],
-                   [{"type": "scatter3d"}, {"type": "scatter3d"}]],
-            subplot_titles=[
-                f"3D H-Section Column: {section}",
-                "Strong Axis Buckling (X-X)",
-                "Weak Axis Buckling (Y-Y)"
-            ],
-            vertical_spacing=0.1
-        )
-        
-        # =================== MAIN 3D COLUMN ===================
-        z_positions = np.linspace(0, L, 20)
-        
-        for i, z_pos in enumerate(z_positions):
-            h_section = create_h_section_3d(z_pos)
-            
-            # Top flange
-            fig.add_trace(go.Scatter3d(
-                x=h_section['top_flange']['x'],
-                y=h_section['top_flange']['y'],
-                z=h_section['top_flange']['z'],
-                mode='lines',
-                line=dict(color='#1976d2', width=4),
-                showlegend=False if i > 0 else True,
-                name='Top Flange' if i == 0 else None
-            ), row=1, col=1)
-            
-            # Web
-            fig.add_trace(go.Scatter3d(
-                x=h_section['web']['x'],
-                y=h_section['web']['y'],
-                z=h_section['web']['z'],
-                mode='lines',
-                line=dict(color='#4caf50', width=3),
-                showlegend=False if i > 0 else True,
-                name='Web' if i == 0 else None
-            ), row=1, col=1)
-            
-            # Bottom flange
-            fig.add_trace(go.Scatter3d(
-                x=h_section['bottom_flange']['x'],
-                y=h_section['bottom_flange']['y'],
-                z=h_section['bottom_flange']['z'],
-                mode='lines',
-                line=dict(color='#f44336', width=4),
-                showlegend=False if i > 0 else True,
-                name='Bottom Flange' if i == 0 else None
-            ), row=1, col=1)
-        
-        # Add connecting lines between cross-sections
-        for i in range(len(z_positions)-1):
-            z1, z2 = z_positions[i], z_positions[i+1]
-            
-            # Connect top flange corners
-            for x, y in [(-bf/2, d/2), (bf/2, d/2), (bf/2, d/2-tf), (-bf/2, d/2-tf)]:
-                fig.add_trace(go.Scatter3d(
-                    x=[x, x], y=[y, y], z=[z1, z2],
-                    mode='lines',
-                    line=dict(color='#1976d2', width=2),
-                    showlegend=False
-                ), row=1, col=1)
-            
-            # Connect web corners
-            for x, y in [(-tw/2, d/2-tf), (tw/2, d/2-tf), (tw/2, -d/2+tf), (-tw/2, -d/2+tf)]:
-                fig.add_trace(go.Scatter3d(
-                    x=[x, x], y=[y, y], z=[z1, z2],
-                    mode='lines',
-                    line=dict(color='#4caf50', width=2),
-                    showlegend=False
-                ), row=1, col=1)
-            
-            # Connect bottom flange corners
-            for x, y in [(-bf/2, -d/2+tf), (bf/2, -d/2+tf), (bf/2, -d/2), (-bf/2, -d/2)]:
-                fig.add_trace(go.Scatter3d(
-                    x=[x, x], y=[y, y], z=[z1, z2],
-                    mode='lines',
-                    line=dict(color='#f44336', width=2),
-                    showlegend=False
-                ), row=1, col=1)
-        
-        # =================== STRONG AXIS BUCKLING ===================
-        z_buck = np.linspace(0, L, 50)
-        x_buck_strong = 100 * np.sin(np.pi * z_buck / L)  # Buckling in X direction
-        
-        # Buckled centerline
-        fig.add_trace(go.Scatter3d(
-            x=x_buck_strong, y=[0]*len(z_buck), z=z_buck,
-            mode='lines',
-            line=dict(color='red', width=6),
-            name='Strong Axis Buckling'
-        ), row=2, col=1)
-        
-        # Original position
-        fig.add_trace(go.Scatter3d(
-            x=[0]*len(z_buck), y=[0]*len(z_buck), z=z_buck,
-            mode='lines',
-            line=dict(color='blue', width=3, dash='dash'),
-            name='Original Position'
-        ), row=2, col=1)
-        
-        # Add H-section at key points for strong axis
-        for z_pos in [0, L/4, L/2, 3*L/4, L]:
-            x_offset = 100 * np.sin(np.pi * z_pos / L)
-            h_section = create_h_section_3d(z_pos)
-            
-            # Offset the section for buckling
-            for part in ['top_flange', 'web', 'bottom_flange']:
-                x_coords = [x + x_offset for x in h_section[part]['x']]
-                fig.add_trace(go.Scatter3d(
-                    x=x_coords,
-                    y=h_section[part]['y'],
-                    z=h_section[part]['z'],
-                    mode='lines',
-                    line=dict(color='red', width=2),
-                    showlegend=False
-                ), row=2, col=1)
-        
-        # =================== WEAK AXIS BUCKLING ===================
-        y_buck_weak = 60 * np.sin(np.pi * z_buck / L)  # Buckling in Y direction
-        
-        # Buckled centerline
-        fig.add_trace(go.Scatter3d(
-            x=[0]*len(z_buck), y=y_buck_weak, z=z_buck,
-            mode='lines',
-            line=dict(color='darkred', width=6),
-            name='Weak Axis Buckling'
-        ), row=2, col=2)
-        
-        # Original position
-        fig.add_trace(go.Scatter3d(
-            x=[0]*len(z_buck), y=[0]*len(z_buck), z=z_buck,
-            mode='lines',
-            line=dict(color='blue', width=3, dash='dash'),
-            name='Original Position'
-        ), row=2, col=2)
-        
-        # Add H-section at key points for weak axis
-        for z_pos in [0, L/4, L/2, 3*L/4, L]:
-            y_offset = 60 * np.sin(np.pi * z_pos / L)
-            h_section = create_h_section_3d(z_pos)
-            
-            # Offset the section for buckling
-            for part in ['top_flange', 'web', 'bottom_flange']:
-                y_coords = [y + y_offset for y in h_section[part]['y']]
-                fig.add_trace(go.Scatter3d(
-                    x=h_section[part]['x'],
-                    y=y_coords,
-                    z=h_section[part]['z'],
-                    mode='lines',
-                    line=dict(color='darkred', width=2),
-                    showlegend=False
-                ), row=2, col=2)
-        
-        # Update layout
-        fig.update_layout(
-            title=f"3D H-Section Column Analysis: {section}<br>" +
-                  f"Dimensions: d={d:.0f}mm, bf={bf:.0f}mm, tf={tf:.1f}mm, tw={tw:.1f}mm",
-            height=800,
-            showlegend=True
-        )
-        
-        # Update 3D scene properties
-        for row, col in [(1, 1), (2, 1), (2, 2)]:
-            fig.update_scenes(
-                xaxis_title="X (mm)",
-                yaxis_title="Y (mm)", 
-                zaxis_title="Z (mm)",
-                aspectmode='cube',
-                row=row, col=col
-            )
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"Error in 3D visualization: {e}")
-        return None
-
-def visualize_column_cross_section_3d(df, section):
-    """3D cross-section visualization of H-shaped steel section"""
-    try:
-        import plotly.graph_objects as go
-        import numpy as np
-        
-        # Get dimensions
-        d = float(df.loc[section, 'd [mm]'])
-        bf = float(df.loc[section, 'bf [mm]'])
-        tw = float(df.loc[section, 'tw [mm]'])
-        tf = float(df.loc[section, 'tf [mm]'])
-        
-        fig = go.Figure()
-        
-        # Create 3D H-section with thickness
-        thickness = 20  # Thickness for 3D effect
-        
-        # Top flange - 3D box
-        fig.add_trace(go.Mesh3d(
-            x=[-bf/2, bf/2, bf/2, -bf/2, -bf/2, bf/2, bf/2, -bf/2],
-            y=[d/2-tf, d/2-tf, d/2, d/2, d/2-tf, d/2-tf, d/2, d/2],
-            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
-            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
-            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
-            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
-            opacity=0.8,
-            color='lightblue',
-            name='Top Flange'
-        ))
-        
-        # Web - 3D box
-        fig.add_trace(go.Mesh3d(
-            x=[-tw/2, tw/2, tw/2, -tw/2, -tw/2, tw/2, tw/2, -tw/2],
-            y=[-d/2+tf, -d/2+tf, d/2-tf, d/2-tf, -d/2+tf, -d/2+tf, d/2-tf, d/2-tf],
-            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
-            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
-            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
-            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
-            opacity=0.8,
-            color='lightgreen',
-            name='Web'
-        ))
-        
-        # Bottom flange - 3D box
-        fig.add_trace(go.Mesh3d(
-            x=[-bf/2, bf/2, bf/2, -bf/2, -bf/2, bf/2, bf/2, -bf/2],
-            y=[-d/2, -d/2, -d/2+tf, -d/2+tf, -d/2, -d/2, -d/2+tf, -d/2+tf],
-            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
-            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
-            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
-            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
-            opacity=0.8,
-            color='lightcoral',
-            name='Bottom Flange'
-        ))
-        
-        # Add dimension lines and labels
-        # Flange width
-        fig.add_trace(go.Scatter3d(
-            x=[-bf/2, bf/2], y=[d/2+20, d/2+20], z=[thickness/2, thickness/2],
-            mode='lines+text',
-            line=dict(color='blue', width=4),
-            text=['', f'bf = {bf:.0f}mm'],
-            textposition='middle center',
-            name='Dimensions',
-            showlegend=False
-        ))
-        
-        # Depth
-        fig.add_trace(go.Scatter3d(
-            x=[bf/2+20, bf/2+20], y=[-d/2, d/2], z=[thickness/2, thickness/2],
-            mode='lines+text',
-            line=dict(color='red', width=4),
-            text=['', f'd = {d:.0f}mm'],
-            textposition='middle center',
-            showlegend=False
-        ))
-        
-        # Principal axes
-        # X-axis (strong)
-        fig.add_trace(go.Scatter3d(
-            x=[-bf/2-50, bf/2+50], y=[0, 0], z=[thickness/2, thickness/2],
-            mode='lines',
-            line=dict(color='red', width=6, dash='dash'),
-            name='X-X (Strong Axis)'
-        ))
-        
-        # Y-axis (weak)
-        fig.add_trace(go.Scatter3d(
-            x=[0, 0], y=[-d/2-50, d/2+50], z=[thickness/2, thickness/2],
-            mode='lines',
-            line=dict(color='orange', width=6, dash='dash'),
-            name='Y-Y (Weak Axis)'
-        ))
-        
-        fig.update_layout(
-            title=f"3D Cross-Section: {section}<br>" +
-                  f"d={d:.0f}mm, bf={bf:.0f}mm, tf={tf:.1f}mm, tw={tw:.1f}mm<br>" +
-                  f"Ix={df.loc[section, 'Ix [cm4]']:.0f} cm⁴, Iy={df.loc[section, 'Iy [cm4]']:.0f} cm⁴",
-            scene=dict(
-                xaxis_title="Width (mm)",
-                yaxis_title="Depth (mm)",
-                zaxis_title="Thickness (mm)",
-                aspectmode='cube'
-            ),
-            height=600
-        )
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"Error in 3D cross-section visualization: {e}")
-        return None
-    """3D visualization of H-shaped steel column with buckling modes"""
-    try:
-        import plotly.graph_objects as go
-        from plotly.subplots import make_subplots
-        import numpy as np
-        
-        # Get dimensions
-        d = float(df.loc[section, 'd [mm]'])
-        bf = float(df.loc[section, 'bf [mm]'])
-        tw = float(df.loc[section, 'tw [mm]'])
-        tf = float(df.loc[section, 'tf [mm]'])
-        
-        # Column length
-        L = 3000  # 3m column height in mm
-        
-        # Create 3D H-section geometry
-        def create_h_section_3d(z_position):
-            """Create 3D coordinates for H-section at given z-position"""
-            
-            # Top flange coordinates
-            top_flange_x = [-bf/2, bf/2, bf/2, -bf/2, -bf/2]
-            top_flange_y = [d/2-tf, d/2-tf, d/2, d/2, d/2-tf]
-            top_flange_z = [z_position] * 5
-            
-            # Web coordinates  
-            web_x = [-tw/2, tw/2, tw/2, -tw/2, -tw/2]
-            web_y = [-d/2+tf, -d/2+tf, d/2-tf, d/2-tf, -d/2+tf]
-            web_z = [z_position] * 5
-            
-            # Bottom flange coordinates
-            bottom_flange_x = [-bf/2, bf/2, bf/2, -bf/2, -bf/2]
-            bottom_flange_y = [-d/2, -d/2, -d/2+tf, -d/2+tf, -d/2]
-            bottom_flange_z = [z_position] * 5
-            
-            return {
-                'top_flange': {'x': top_flange_x, 'y': top_flange_y, 'z': top_flange_z},
-                'web': {'x': web_x, 'y': web_y, 'z': web_z},
-                'bottom_flange': {'x': bottom_flange_x, 'y': bottom_flange_y, 'z': bottom_flange_z}
-            }
-        
-        # Create subplots for different views
-        fig = make_subplots(
-            rows=2, cols=2,
-            specs=[[{"type": "scatter3d", "colspan": 2}, None],
-                   [{"type": "scatter3d"}, {"type": "scatter3d"}]],
-            subplot_titles=[
-                f"3D H-Section Column: {section}",
-                "Strong Axis Buckling (X-X)",
-                "Weak Axis Buckling (Y-Y)"
-            ],
-            vertical_spacing=0.1
-        )
-        
-        # =================== MAIN 3D COLUMN ===================
-        z_positions = np.linspace(0, L, 20)
-        
-        for i, z_pos in enumerate(z_positions):
-            h_section = create_h_section_3d(z_pos)
-            
-            # Top flange
-            fig.add_trace(go.Scatter3d(
-                x=h_section['top_flange']['x'],
-                y=h_section['top_flange']['y'],
-                z=h_section['top_flange']['z'],
-                mode='lines',
-                line=dict(color='#1976d2', width=4),
-                showlegend=False if i > 0 else True,
-                name='Top Flange' if i == 0 else None
-            ), row=1, col=1)
-            
-            # Web
-            fig.add_trace(go.Scatter3d(
-                x=h_section['web']['x'],
-                y=h_section['web']['y'],
-                z=h_section['web']['z'],
-                mode='lines',
-                line=dict(color='#4caf50', width=3),
-                showlegend=False if i > 0 else True,
-                name='Web' if i == 0 else None
-            ), row=1, col=1)
-            
-            # Bottom flange
-            fig.add_trace(go.Scatter3d(
-                x=h_section['bottom_flange']['x'],
-                y=h_section['bottom_flange']['y'],
-                z=h_section['bottom_flange']['z'],
-                mode='lines',
-                line=dict(color='#f44336', width=4),
-                showlegend=False if i > 0 else True,
-                name='Bottom Flange' if i == 0 else None
-            ), row=1, col=1)
-        
-        # Add connecting lines between cross-sections
-        for i in range(len(z_positions)-1):
-            z1, z2 = z_positions[i], z_positions[i+1]
-            
-            # Connect top flange corners
-            for x, y in [(-bf/2, d/2), (bf/2, d/2), (bf/2, d/2-tf), (-bf/2, d/2-tf)]:
-                fig.add_trace(go.Scatter3d(
-                    x=[x, x], y=[y, y], z=[z1, z2],
-                    mode='lines',
-                    line=dict(color='#1976d2', width=2),
-                    showlegend=False
-                ), row=1, col=1)
-            
-            # Connect web corners
-            for x, y in [(-tw/2, d/2-tf), (tw/2, d/2-tf), (tw/2, -d/2+tf), (-tw/2, -d/2+tf)]:
-                fig.add_trace(go.Scatter3d(
-                    x=[x, x], y=[y, y], z=[z1, z2],
-                    mode='lines',
-                    line=dict(color='#4caf50', width=2),
-                    showlegend=False
-                ), row=1, col=1)
-            
-            # Connect bottom flange corners
-            for x, y in [(-bf/2, -d/2+tf), (bf/2, -d/2+tf), (bf/2, -d/2), (-bf/2, -d/2)]:
-                fig.add_trace(go.Scatter3d(
-                    x=[x, x], y=[y, y], z=[z1, z2],
-                    mode='lines',
-                    line=dict(color='#f44336', width=2),
-                    showlegend=False
-                ), row=1, col=1)
-        
-        # =================== STRONG AXIS BUCKLING ===================
-        z_buck = np.linspace(0, L, 50)
-        x_buck_strong = 100 * np.sin(np.pi * z_buck / L)  # Buckling in X direction
-        
-        # Buckled centerline
-        fig.add_trace(go.Scatter3d(
-            x=x_buck_strong, y=[0]*len(z_buck), z=z_buck,
-            mode='lines',
-            line=dict(color='red', width=6),
-            name='Strong Axis Buckling'
-        ), row=2, col=1)
-        
-        # Original position
-        fig.add_trace(go.Scatter3d(
-            x=[0]*len(z_buck), y=[0]*len(z_buck), z=z_buck,
-            mode='lines',
-            line=dict(color='blue', width=3, dash='dash'),
-            name='Original Position'
-        ), row=2, col=1)
-        
-        # Add H-section at key points for strong axis
-        for z_pos in [0, L/4, L/2, 3*L/4, L]:
-            x_offset = 100 * np.sin(np.pi * z_pos / L)
-            h_section = create_h_section_3d(z_pos)
-            
-            # Offset the section for buckling
-            for part in ['top_flange', 'web', 'bottom_flange']:
-                x_coords = [x + x_offset for x in h_section[part]['x']]
-                fig.add_trace(go.Scatter3d(
-                    x=x_coords,
-                    y=h_section[part]['y'],
-                    z=h_section[part]['z'],
-                    mode='lines',
-                    line=dict(color='red', width=2),
-                    showlegend=False
-                ), row=2, col=1)
-        
-        # =================== WEAK AXIS BUCKLING ===================
-        y_buck_weak = 60 * np.sin(np.pi * z_buck / L)  # Buckling in Y direction
-        
-        # Buckled centerline
-        fig.add_trace(go.Scatter3d(
-            x=[0]*len(z_buck), y=y_buck_weak, z=z_buck,
-            mode='lines',
-            line=dict(color='darkred', width=6),
-            name='Weak Axis Buckling'
-        ), row=2, col=2)
-        
-        # Original position
-        fig.add_trace(go.Scatter3d(
-            x=[0]*len(z_buck), y=[0]*len(z_buck), z=z_buck,
-            mode='lines',
-            line=dict(color='blue', width=3, dash='dash'),
-            name='Original Position'
-        ), row=2, col=2)
-        
-        # Add H-section at key points for weak axis
-        for z_pos in [0, L/4, L/2, 3*L/4, L]:
-            y_offset = 60 * np.sin(np.pi * z_pos / L)
-            h_section = create_h_section_3d(z_pos)
-            
-            # Offset the section for buckling
-            for part in ['top_flange', 'web', 'bottom_flange']:
-                y_coords = [y + y_offset for y in h_section[part]['y']]
-                fig.add_trace(go.Scatter3d(
-                    x=h_section[part]['x'],
-                    y=y_coords,
-                    z=h_section[part]['z'],
-                    mode='lines',
-                    line=dict(color='darkred', width=2),
-                    showlegend=False
-                ), row=2, col=2)
-        
-        # Update layout
-        fig.update_layout(
-            title=f"3D H-Section Column Analysis: {section}<br>" +
-                  f"Dimensions: d={d:.0f}mm, bf={bf:.0f}mm, tf={tf:.1f}mm, tw={tw:.1f}mm",
-            height=800,
-            showlegend=True
-        )
-        
-        # Update 3D scene properties
-        for row, col in [(1, 1), (2, 1), (2, 2)]:
-            fig.update_scenes(
-                xaxis_title="X (mm)",
-                yaxis_title="Y (mm)", 
-                zaxis_title="Z (mm)",
-                aspectmode='cube',
-                row=row, col=col
-            )
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"Error in 3D visualization: {e}")
-        return None
-
-def visualize_column_cross_section_3d(df, section):
-    """3D cross-section visualization of H-shaped steel section"""
-    try:
-        import plotly.graph_objects as go
-        import numpy as np
-        
-        # Get dimensions
-        d = float(df.loc[section, 'd [mm]'])
-        bf = float(df.loc[section, 'bf [mm]'])
-        tw = float(df.loc[section, 'tw [mm]'])
-        tf = float(df.loc[section, 'tf [mm]'])
-        
-        fig = go.Figure()
-        
-        # Create 3D H-section with thickness
-        thickness = 20  # Thickness for 3D effect
-        
-        # Top flange - 3D box
-        fig.add_trace(go.Mesh3d(
-            x=[-bf/2, bf/2, bf/2, -bf/2, -bf/2, bf/2, bf/2, -bf/2],
-            y=[d/2-tf, d/2-tf, d/2, d/2, d/2-tf, d/2-tf, d/2, d/2],
-            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
-            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
-            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
-            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
-            opacity=0.8,
-            color='lightblue',
-            name='Top Flange'
-        ))
-        
-        # Web - 3D box
-        fig.add_trace(go.Mesh3d(
-            x=[-tw/2, tw/2, tw/2, -tw/2, -tw/2, tw/2, tw/2, -tw/2],
-            y=[-d/2+tf, -d/2+tf, d/2-tf, d/2-tf, -d/2+tf, -d/2+tf, d/2-tf, d/2-tf],
-            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
-            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
-            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
-            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
-            opacity=0.8,
-            color='lightgreen',
-            name='Web'
-        ))
-        
-        # Bottom flange - 3D box
-        fig.add_trace(go.Mesh3d(
-            x=[-bf/2, bf/2, bf/2, -bf/2, -bf/2, bf/2, bf/2, -bf/2],
-            y=[-d/2, -d/2, -d/2+tf, -d/2+tf, -d/2, -d/2, -d/2+tf, -d/2+tf],
-            z=[0, 0, 0, 0, thickness, thickness, thickness, thickness],
-            i=[0, 0, 0, 4, 4, 6, 6, 1, 1, 2, 2, 3],
-            j=[1, 2, 3, 5, 6, 7, 5, 2, 6, 3, 7, 0],
-            k=[2, 3, 0, 6, 7, 4, 1, 6, 5, 7, 6, 4],
-            opacity=0.8,
-            color='lightcoral',
-            name='Bottom Flange'
-        ))
-        
-        # Add dimension lines and labels
-        # Flange width
-        fig.add_trace(go.Scatter3d(
-            x=[-bf/2, bf/2], y=[d/2+20, d/2+20], z=[thickness/2, thickness/2],
-            mode='lines+text',
-            line=dict(color='blue', width=4),
-            text=['', f'bf = {bf:.0f}mm'],
-            textposition='middle center',
-            name='Dimensions',
-            showlegend=False
-        ))
-        
-        # Depth
-        fig.add_trace(go.Scatter3d(
-            x=[bf/2+20, bf/2+20], y=[-d/2, d/2], z=[thickness/2, thickness/2],
-            mode='lines+text',
-            line=dict(color='red', width=4),
-            text=['', f'd = {d:.0f}mm'],
-            textposition='middle center',
-            showlegend=False
-        ))
-        
-        # Principal axes
-        # X-axis (strong)
-        fig.add_trace(go.Scatter3d(
-            x=[-bf/2-50, bf/2+50], y=[0, 0], z=[thickness/2, thickness/2],
-            mode='lines',
-            line=dict(color='red', width=6, dash='dash'),
-            name='X-X (Strong Axis)'
-        ))
-        
-        # Y-axis (weak)
-        fig.add_trace(go.Scatter3d(
-            x=[0, 0], y=[-d/2-50, d/2+50], z=[thickness/2, thickness/2],
-            mode='lines',
-            line=dict(color='orange', width=6, dash='dash'),
-            name='Y-Y (Weak Axis)'
-        ))
-        
-        fig.update_layout(
-            title=f"3D Cross-Section: {section}<br>" +
-                  f"d={d:.0f}mm, bf={bf:.0f}mm, tf={tf:.1f}mm, tw={tw:.1f}mm<br>" +
-                  f"Ix={df.loc[section, 'Ix [cm4]']:.0f} cm⁴, Iy={df.loc[section, 'Iy [cm4]']:.0f} cm⁴",
-            scene=dict(
-                xaxis_title="Width (mm)",
-                yaxis_title="Depth (mm)",
-                zaxis_title="Thickness (mm)",
-                aspectmode='cube'
-            ),
-            height=600
-        )
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"Error in 3D cross-section visualization: {e}")
-        return None
-    """Enhanced 2D visualization showing column buckling with correct cross-sectional views"""
-    try:
-        fig, axes = plt.subplots(1, 2, figsize=(14, 8))
-        
-        # Get dimensions
-        d = float(df.loc[section, 'd [mm]'])
-        bf = float(df.loc[section, 'bf [mm]'])
-        tw = float(df.loc[section, 'tw [mm]'])
-        tf = float(df.loc[section, 'tf [mm]'])
-        
-        # Column length for visualization
-        L = 3000  # 3m column height in mm
-        
-        # ===================== STRONG AXIS BUCKLING =====================
-        # When buckling about strong axis (X-X), we see the EDGE view (flange + web)
-        ax1 = axes[0]
-        ax1.set_title('Strong Axis Buckling (X-X)\n[Edge View - Flange + Web]', 
-                     fontsize=12, fontweight='bold', color='#1a237e')
-        
-        # Draw H-section edge view (shows flange thickness and web)
-        # Top flange (edge view)
-        ax1.add_patch(Rectangle((-tf/2, L - tf), tf, tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
-        # Web (full height)
-        ax1.add_patch(Rectangle((-tw/2, tf), tw, L - 2*tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
-        # Bottom flange (edge view)
-        ax1.add_patch(Rectangle((-tf/2, 0), tf, tf,
-                                linewidth=2, edgecolor='#1a237e', facecolor='#ffcdd2'))
-        
-        # Add buckled shape for strong axis (larger amplitude)
-        y = np.linspace(0, L, 100)
-        x_buckled = 100 * np.sin(np.pi * y / L)  # Large amplitude for strong axis
-        ax1.plot(x_buckled, y, 'r-', lw=4, alpha=0.8, label='Buckled Shape')
-        
-        # Load arrow at top
-        ax1.arrow(0, L + 200, 0, -150, head_width=25, head_length=50, 
-                 fc='red', ec='red', lw=3)
-        ax1.text(0, L + 280, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
-        
-        # Support at base
-        support_width = max(tf, 40)
-        ax1.add_patch(Rectangle((-support_width/2, -30), support_width, 30,
-                                linewidth=2, edgecolor='black', facecolor='#616161'))
-        ax1.plot(0, -15, 'o', markersize=10, color='black', markerfacecolor='white', 
-                markeredgewidth=2)
-        
-        # Ground hatching
-        for i in range(-4, 5):
-            x_pos = i * 20
-            ax1.plot([x_pos, x_pos - 15], [-30, -60], 'k-', lw=2)
-        
-        # Dimension and labels
-        ax1.text(60, L/2, f'tf = {tf:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='blue', fontweight='bold')
-        ax1.text(-60, L/2, f'tw = {tw:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='green', fontweight='bold')
-        
-        ax1.set_xlim([-150, 150])
-        ax1.set_ylim([-80, L + 350])
-        ax1.set_xlabel('Buckling Direction (Strong Axis)', fontsize=11, fontweight='bold')
-        ax1.set_ylabel('Height (mm)', fontsize=11)
-        ax1.grid(True, alpha=0.3)
-        ax1.legend(loc='upper right', fontsize=10)
-        
-        # ===================== WEAK AXIS BUCKLING =====================
-        # When buckling about weak axis (Y-Y), we see the FRONT view (only flanges)
-        ax2 = axes[1]
-        ax2.set_title('Weak Axis Buckling (Y-Y)\n[Front View - Flanges Only]', 
-                     fontsize=12, fontweight='bold', color='#8B0000')
-        
-        # Draw H-section front view (shows only flanges, web is perpendicular to view)
-        # Top flange (full width)
-        ax2.add_patch(Rectangle((-bf/2, L - tf), bf, tf,
-                                linewidth=2, edgecolor='#8B0000', facecolor='#FFCCCB'))
-        # Web line (appears as thin line from front)
-        ax2.plot([0, 0], [tf, L - tf], 'k-', lw=1, alpha=0.5, label='Web (edge)')
-        
-        # Bottom flange (full width)
-        ax2.add_patch(Rectangle((-bf/2, 0), bf, tf,
-                                linewidth=2, edgecolor='#8B0000', facecolor='#FFCCCB'))
-        
-        # Add buckled shape for weak axis (smaller amplitude)
-        x_buckled_weak = 60 * np.sin(np.pi * y / L)  # Smaller amplitude for weak axis
-        ax2.plot(x_buckled_weak, y, color='#8B0000', linestyle='-', lw=4, alpha=0.8, 
-                label='Buckled Shape')
-        
-        # Load arrow at top
-        ax2.arrow(0, L + 200, 0, -150, head_width=bf/8, head_length=50, 
-                 fc='red', ec='red', lw=3)
-        ax2.text(0, L + 280, 'P', ha='center', fontsize=16, fontweight='bold', color='red')
-        
-        # Support at base
-        support_width = bf * 1.1
-        ax2.add_patch(Rectangle((-support_width/2, -30), support_width, 30,
-                                linewidth=2, edgecolor='black', facecolor='#616161'))
-        # I-beam pin representation
-        ax2.plot([-bf/4, bf/4], [-15, -15], 'k-', lw=4)  # Top flange line
-        ax2.plot([0, 0], [-10, -20], 'k-', lw=2)           # Web line
-        ax2.plot([-bf/4, bf/4], [-20, -20], 'k-', lw=4)  # Bottom flange line
-        
-        # Ground hatching
-        for i in range(-3, 4):
-            x_pos = i * bf/4
-            ax2.plot([x_pos, x_pos - 15], [-30, -60], 'k-', lw=2)
-        
-        # Dimension and labels
-        ax2.text(0, L + 100, f'bf = {bf:.0f}mm', ha='center', 
-                fontsize=10, color='blue', fontweight='bold')
-        ax2.text(bf/2 + 30, L/2, f'tf = {tf:.1f}mm', rotation=90, ha='center', 
-                fontsize=10, color='green', fontweight='bold')
-        
-        ax2.set_xlim([-bf*0.8, bf*0.8])
-        ax2.set_ylim([-80, L + 350])
-        ax2.set_xlabel('Buckling Direction (Weak Axis)', fontsize=11, fontweight='bold')
-        ax2.set_ylabel('Height (mm)', fontsize=11)
-        ax2.grid(True, alpha=0.3)
-        ax2.legend(loc='upper right', fontsize=10)
-        
-        # Add section info with buckling explanation
-        fig.suptitle(f'Column Buckling Analysis - Section: {section}\n' +
-                    f'Strong Axis: Ix = {df.loc[section, "Ix [cm4]"]:.0f} cm⁴ | ' +
-                    f'Weak Axis: Iy = {df.loc[section, "Iy [cm4]"]:.0f} cm⁴', 
-                    fontsize=14, fontweight='bold', y=0.95)
-        
+        fig.suptitle(f'Column Buckling Analysis - {section}', fontsize=14, fontweight='bold')
         plt.tight_layout()
         return fig
     except Exception as e:
@@ -1254,8 +334,8 @@ if not success:
     st.stop()
 
 # ==================== MAIN HEADER ====================
-st.markdown('<h1 class="main-header">🏗️ AISC Steel Design Analysis System v5.0</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #5e6c84;">Complete 6-Tab Analysis with AISC 360-16</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🏗️ AISC Steel Design Analysis System v5.1</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #5e6c84;">Corrected and Optimized Analysis with AISC 360-16</p>', unsafe_allow_html=True)
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
@@ -1301,7 +381,7 @@ with st.sidebar:
 # ==================== MAIN TABS ====================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 Section Properties",
-    "🔍 Section Selection",
+    "🔍 Section Selection", 
     "📈 Flexural Design",
     "🏢 Column Design",
     "🏗️ Beam-Column",
@@ -1357,634 +437,6 @@ with tab1:
             st.dataframe(properties_df, use_container_width=True, hide_index=True)
     else:
         st.warning("⚠️ Please select a section from the sidebar")
-
-# ==================== TAB 4: COLUMN DESIGN ====================
-with tab4:
-    st.markdown('<h2 class="section-header">Column Design with Enhanced Visualization</h2>', unsafe_allow_html=True)
-    
-    if st.session_state.selected_section and selected_material:
-        section = st.session_state.selected_section
-        
-        st.markdown("### Design Parameters")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("#### Effective Length Factors")
-            Kx = st.selectbox("Kx:", [0.5, 0.65, 0.7, 0.8, 1.0, 1.2, 2.0], index=4)
-            Ky = st.selectbox("Ky:", [0.5, 0.65, 0.7, 0.8, 1.0, 1.2, 2.0], index=4)
-            st.info("""
-            **K Factors:**
-            - 0.5: Fixed-Fixed
-            - 0.7: Fixed-Pinned
-            - 1.0: Pinned-Pinned
-            - 2.0: Fixed-Free
-            """)
-        
-        with col2:
-            st.markdown("#### Unbraced Lengths")
-            Lx = st.number_input("Lx (m):", min_value=0.1, value=3.0, step=0.1)
-            Ly = st.number_input("Ly (m):", min_value=0.1, value=3.0, step=0.1)
-            
-            # Calculate and display KL/r
-            rx = float(df.loc[section, 'rx [cm]'])
-            ry = float(df.loc[section, 'ry [cm]'])
-            KLr_x = (Kx * Lx * 100) / rx
-            KLr_y = (Ky * Ly * 100) / ry
-            
-            col_klr1, col_klr2 = st.columns(2)
-            with col_klr1:
-                if KLr_x <= 200:
-                    st.success(f"KL/rx = {KLr_x:.1f} ✓")
-                else:
-                    st.error(f"KL/rx = {KLr_x:.1f} > 200 ⚠️")
-            
-            with col_klr2:
-                if KLr_y <= 200:
-                    st.success(f"KL/ry = {KLr_y:.1f} ✓")
-                else:
-                    st.error(f"KL/ry = {KLr_y:.1f} > 200 ⚠️")
-        
-        with col3:
-            st.markdown("#### Applied Load")
-            Pu = st.number_input("Pu (tons):", min_value=0.0, value=100.0, step=10.0)
-            
-            # Plane selection for display
-            display_plane = st.selectbox("Display:", ["Both Planes", "Strong Axis", "Weak Axis"])
-        
-        # Calculate compression capacity
-        comp_results = compression_analysis_advanced(df, df_mat, section, selected_material, Kx*Lx, Ky*Ly)
-        
-        if comp_results:
-            st.markdown("### Analysis Results")
-            col_r1, col_r2, col_r3 = st.columns(3)
-            
-            with col_r1:
-                st.metric("φPn", f"{comp_results['phi_Pn']:.2f} tons",
-                         delta=f"Pn = {comp_results['Pn']:.2f} tons")
-            
-            with col_r2:
-                ratio = Pu / comp_results['phi_Pn'] if comp_results['phi_Pn'] > 0 else 999
-                st.metric("Utilization", f"{ratio:.3f}",
-                         delta="OK" if ratio <= 1.0 else "NG")
-            
-            with col_r3:
-                if comp_results['lambda_max'] <= comp_results['lambda_limit']:
-                    st.metric("Buckling", "🟡 Inelastic",
-                             delta=f"λ = {comp_results['lambda_max']:.1f}")
-                else:
-                    st.metric("Buckling", "🔵 Elastic",
-                             delta=f"λ = {comp_results['lambda_max']:.1f}")
-            
-            if ratio <= 1.0:
-                st.success(f"✅ Design PASSES - Factor of Safety: {1/ratio:.2f}")
-            else:
-                st.error(f"❌ Design FAILS - Overstressed by {(ratio-1)*100:.1f}%")
-        
-        # Column visualization options
-        st.markdown("### Column Visualization Options")
-        viz_type = st.radio("Select Visualization Type:", 
-                           ["2D Cross-Sectional Views", "3D Column with Buckling", "3D Cross-Section Detail"],
-                           index=0, horizontal=True)
-        
-        if viz_type == "2D Cross-Sectional Views":
-            st.info("📊 **Left:** Strong Axis Buckling (Edge View - Flange+Web) | **Right:** Weak Axis Buckling (Front View - Flanges Only)")
-            fig_vis = visualize_column_2d_enhanced(df, section)
-            if fig_vis:
-                st.pyplot(fig_vis)
-                
-        elif viz_type == "3D Column with Buckling":
-            st.info("🏗️ **3D Interactive View:** Complete column with buckling modes in both axes")
-            fig_3d = visualize_column_3d(df, section)
-            if fig_3d:
-                st.plotly_chart(fig_3d, use_container_width=True)
-                
-        elif viz_type == "3D Cross-Section Detail":
-            st.info("🔍 **3D Cross-Section:** Detailed view of H-section geometry with principal axes")
-            fig_cross = visualize_column_cross_section_3d(df, section)
-            if fig_cross:
-                st.plotly_chart(fig_cross, use_container_width=True)
-        
-        # Capacity curve
-        st.markdown("### Column Capacity Curve")
-        
-        col_curve1, col_curve2 = st.columns([1, 3])
-        
-        with col_curve1:
-            curve_axis = st.radio("Select Axis:", ["Strong (X-X)", "Weak (Y-Y)"])
-            show_regions = st.checkbox("Show regions", value=True)
-            show_demand = st.checkbox("Show demand", value=True)
-        
-        with col_curve2:
-            # Generate capacity curve
-            KLr_range = np.linspace(1, 250, 500)
-            Pn_values = []
-            
-            Fy = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
-            E = float(df_mat.loc[selected_material, "E"])
-            Ag = float(df.loc[section, 'A [cm2]'])
-            
-            lambda_limit = 4.71 * mt.sqrt(E / Fy)
-            
-            for klr in KLr_range:
-                Fe = (mt.pi**2 * E) / (klr**2)
-                
-                if klr <= lambda_limit:
-                    # Inelastic: Fcr = 0.658^(Fy/Fe) * Fy
-                    Fcr = Fy * (0.658**(Fy/Fe))
-                else:
-                    # Elastic: Fcr = 0.877 * Fe
-                    Fcr = 0.877 * Fe
-                
-                Pn = 0.9 * Fcr * Ag / 1000
-                Pn_values.append(Pn)
-            
-            fig_capacity = go.Figure()
-            
-            # Capacity curve
-            fig_capacity.add_trace(go.Scatter(
-                x=KLr_range, y=Pn_values,
-                mode='lines',
-                name='φPn',
-                line=dict(color='#1976d2', width=3)
-            ))
-            
-            # Current point
-            if comp_results:
-                current_klr = comp_results['lambda_x'] if "Strong" in curve_axis else comp_results['lambda_y']
-                fig_capacity.add_trace(go.Scatter(
-                    x=[current_klr], y=[comp_results['phi_Pn']],
-                    mode='markers',
-                    name='Current Design',
-                    marker=dict(color='#f44336', size=12, symbol='star')
-                ))
-            
-            # Transition line at 4.71√(E/Fy)
-            fig_capacity.add_vline(x=lambda_limit, line_dash="dash", line_color='#ff9800', line_width=2,
-                                  annotation_text=f"λ = {lambda_limit:.1f}", annotation_font_size=14)
-            
-            # Regions
-            if show_regions:
-                fig_capacity.add_vrect(x0=0, x1=lambda_limit, fillcolor='#ffc107', opacity=0.1,
-                                      annotation_text="<b>INELASTIC</b><br>Fcr = 0.658^(Fy/Fe)·Fy",
-                                      annotation_position="top left", annotation_font_size=14)
-                fig_capacity.add_vrect(x0=lambda_limit, x1=250, fillcolor='#2196f3', opacity=0.1,
-                                      annotation_text="<b>ELASTIC</b><br>Fcr = 0.877·Fe",
-                                      annotation_position="top right", annotation_font_size=14)
-            
-            # KL/r = 200 limit
-            fig_capacity.add_vline(x=200, line_dash="dot", line_color='#f44336', line_width=2,
-                                  annotation_text="KL/r = 200 (Limit)", annotation_font_size=12)
-            
-            # Demand line
-            if show_demand and Pu > 0:
-                fig_capacity.add_hline(y=Pu, line_dash="dash", line_color='#4caf50', line_width=2,
-                                      annotation_text=f"Pu = {Pu:.1f} tons", annotation_font_size=14)
-            
-            fig_capacity.update_layout(
-                title=f"Column Capacity - {curve_axis}",
-                xaxis_title="Slenderness Ratio (KL/r)",
-                yaxis_title="Design Capacity φPn (tons)",
-                height=500,
-                template='plotly_white'
-            )
-            
-            st.plotly_chart(fig_capacity, use_container_width=True)
-        
-        # Summary table
-        if comp_results:
-            st.markdown("### Design Summary")
-            summary_col = pd.DataFrame({
-                'Parameter': ['λx', 'λy', 'λ limit', 'Fe', 'Fcr', 'Pn', 'φPn', 'Pu', 'Utilization'],
-                'Value': [f"{comp_results['lambda_x']:.1f}", f"{comp_results['lambda_y']:.1f}",
-                         f"{comp_results['lambda_limit']:.1f}", f"{comp_results['Fe']:.1f} ksc",
-                         f"{comp_results['Fcr']:.1f} ksc", f"{comp_results['Pn']:.2f} tons",
-                         f"{comp_results['phi_Pn']:.2f} tons", f"{Pu:.2f} tons",
-                         f"{Pu/comp_results['phi_Pn']:.3f}" if comp_results['phi_Pn'] > 0 else "N/A"],
-                'Unit/Note': ['KLx/rx', 'KLy/ry', '4.71√(E/Fy)', 'Elastic buckling',
-                             'Critical stress', 'Nominal', 'Design', 'Applied', 'Pu/φPn']
-            })
-            st.dataframe(summary_col, use_container_width=True, hide_index=True)
-    else:
-        st.warning("⚠️ Please select a section from the sidebar")
-
-# ==================== TAB 5: BEAM-COLUMN ====================
-with tab5:
-    st.markdown('<h2 class="section-header">Beam-Column Interaction Design (Chapter H)</h2>', unsafe_allow_html=True)
-    
-    if st.session_state.selected_section and selected_material:
-        section = st.session_state.selected_section
-        
-        st.info(f"**Analyzing:** {section} | **Material:** {selected_material}")
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            st.markdown("### Combined Loading")
-            
-            # Interactive loads
-            Pu_bc = st.slider("Axial Load Pu (tons):", 
-                             min_value=0.0, max_value=200.0, value=50.0, step=1.0)
-            
-            st.markdown("#### Applied Moments")
-            Mux = st.slider("Moment Mux (t·m):", 
-                           min_value=0.0, max_value=100.0, value=30.0, step=1.0,
-                           help="Moment about strong axis")
-            Muy = st.slider("Moment Muy (t·m):", 
-                           min_value=0.0, max_value=50.0, value=5.0, step=0.5,
-                           help="Moment about weak axis")
-            
-            # Effective lengths
-            st.markdown("#### Effective Lengths")
-            KLx_bc = st.slider("KLx (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
-            KLy_bc = st.slider("KLy (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
-            Lb_bc = st.slider("Lb for LTB (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
-        
-        # Real-time analysis
-        comp_results = compression_analysis_advanced(df, df_mat, section, selected_material, KLx_bc, KLy_bc)
-        
-        # Get flexural capacity using F2
-        Mnx, _, _, _, Mpx, _, _, _ = F2(df, df_mat, section, selected_material, Lb_bc)
-        Mcx = 0.9 * Mnx  # φMn
-        
-        # Minor axis moment capacity (simplified)
-        Zy = float(df.loc[section, 'Zy [cm3]'])
-        Fy = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
-        Mny = Fy * Zy / 100000  # t·m
-        Mcy = 0.9 * Mny
-        
-        if comp_results:
-            # Calculate interaction ratios
-            Pc = comp_results['phi_Pn']
-            
-            # Interaction check (H1-1)
-            if Pc > 0 and Mcx > 0 and Mcy > 0:
-                if Pu_bc/Pc >= 0.2:
-                    # H1-1a
-                    interaction = Pu_bc/Pc + (8/9)*(Mux/Mcx + Muy/Mcy)
-                    equation = "H1-1a"
-                else:
-                    # H1-1b
-                    interaction = Pu_bc/(2*Pc) + (Mux/Mcx + Muy/Mcy)
-                    equation = "H1-1b"
-                
-                st.markdown("### 📊 Interaction Results")
-                
-                # Display results
-                col_r1, col_r2, col_r3 = st.columns(3)
-                
-                with col_r1:
-                    st.metric("P/φPn", f"{Pu_bc/Pc:.3f}",
-                            delta=f"{Pu_bc:.1f}/{Pc:.1f} tons")
-                
-                with col_r2:
-                    st.metric("Mx/φMnx", f"{Mux/Mcx:.3f}",
-                            delta=f"{Mux:.1f}/{Mcx:.1f} t·m")
-                
-                with col_r3:
-                    st.metric("My/φMny", f"{Muy/Mcy:.3f}",
-                            delta=f"{Muy:.1f}/{Mcy:.1f} t·m")
-                
-                # Unity check
-                st.markdown("### Unity Check")
-                st.metric("Interaction Ratio", f"{interaction:.3f}",
-                        delta=f"Equation {equation}")
-                
-                if interaction <= 1.0:
-                    st.markdown(f'<div class="success-box">✅ <b>DESIGN PASSES</b> - Unity Check: {interaction:.3f} ≤ 1.0<br>Safety Margin: {(1-interaction)*100:.1f}%</div>', 
-                              unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<div class="error-box">❌ <b>DESIGN FAILS</b> - Unity Check: {interaction:.3f} > 1.0<br>Overstressed by: {(interaction-1)*100:.1f}%</div>', 
-                              unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("### P-M Interaction Diagram")
-            
-            if comp_results and Mcx > 0:
-                # Generate interaction curve
-                P_ratios = np.linspace(0, 1, 50)
-                M_ratios = []
-                
-                for p_ratio in P_ratios:
-                    if p_ratio >= 0.2:
-                        m_ratio = (9/8) * (1 - p_ratio)
-                    else:
-                        m_ratio = 1 - p_ratio/2
-                    M_ratios.append(m_ratio)
-                
-                # Create plot
-                fig = go.Figure()
-                
-                # Interaction curve
-                fig.add_trace(go.Scatter(
-                    x=M_ratios, y=P_ratios,
-                    mode='lines',
-                    name='Interaction Curve',
-                    line=dict(color='#2196f3', width=3),
-                    fill='tozeroy',
-                    fillcolor='rgba(33, 150, 243, 0.2)',
-                    hovertemplate='M/Mc: %{x:.2f}<br>P/Pc: %{y:.2f}<extra></extra>'
-                ))
-                
-                # Add design point
-                if 'interaction' in locals():
-                    M_combined = Mux/Mcx + Muy/Mcy
-                    P_ratio = Pu_bc/Pc
-                    
-                    fig.add_trace(go.Scatter(
-                        x=[M_combined], y=[P_ratio],
-                        mode='markers',
-                        name='Design Point',
-                        marker=dict(color='#f44336', size=15, symbol='star'),
-                        hovertemplate=f'Design Point<br>P/Pc: {P_ratio:.3f}<br>ΣM/Mc: {M_combined:.3f}<br>Unity: {interaction:.3f}<extra></extra>'
-                    ))
-                    
-                    # Add safety indication
-                    if interaction <= 1.0:
-                        annotation_text = "✅ SAFE"
-                        annotation_color = "#4caf50"
-                    else:
-                        annotation_text = "❌ UNSAFE"
-                        annotation_color = "#f44336"
-                    
-                    fig.add_annotation(
-                        x=M_combined, y=P_ratio,
-                        text=annotation_text,
-                        showarrow=True,
-                        arrowhead=2,
-                        bgcolor="white",
-                        bordercolor=annotation_color,
-                        borderwidth=2
-                    )
-                
-                fig.update_layout(
-                    title="P-M Interaction Diagram (Real-time)",
-                    xaxis_title="Combined Moment Ratio (Mx/Mcx + My/Mcy)",
-                    yaxis_title="Axial Force Ratio (P/Pc)",
-                    height=500,
-                    template='plotly_white',
-                    hovermode='closest',
-                    xaxis=dict(range=[0, 1.2]),
-                    yaxis=dict(range=[0, 1.2])
-                )
-                
-                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                
-                st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("⚠️ Please select a section and material from the sidebar")
-
-# ==================== TAB 6: COMPARISON ====================
-with tab6:
-    st.markdown('<h2 class="section-header">Multi-Section Comparison Tool</h2>', unsafe_allow_html=True)
-    
-    if st.session_state.selected_sections:
-        st.info(f"Comparing {len(st.session_state.selected_sections)} sections")
-        
-        # Comparison parameters
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            comparison_type = st.selectbox("Comparison Type:",
-                ["Moment Capacity", "Compression Capacity", "Weight Efficiency", "Combined Performance"])
-        
-        with col2:
-            Lb_comp = st.slider("Unbraced Length for Flexure (m):", 
-                               min_value=0.1, max_value=20.0, value=3.0, step=0.1)
-        
-        with col3:
-            KL_comp = st.slider("Effective Length for Compression (m):", 
-                               min_value=0.1, max_value=20.0, value=3.0, step=0.1)
-        
-        # Real-time comparison
-        comparison_data = []
-        
-        for section_name in st.session_state.selected_sections:
-            if section_name not in df.index:
-                continue
-            
-            try:
-                # Get weight
-                weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
-                weight = df.loc[section_name, weight_col]
-                
-                # Flexural analysis using F2
-                Mn, _, _, _, Mp, _, _, _ = F2(df, df_mat, section_name, selected_material, Lb_comp)
-                
-                # Compression analysis
-                comp_results = compression_analysis_advanced(df, df_mat, section_name, selected_material, 
-                                                            KL_comp, KL_comp)
-                
-                if comp_results:
-                    comparison_data.append({
-                        'Section': section_name,
-                        'Weight (kg/m)': weight,
-                        'φMn (t·m)': 0.9 * Mn,
-                        'φPn (tons)': comp_results['phi_Pn'],
-                        'Moment Efficiency': (0.9 * Mn) / weight,
-                        'Compression Efficiency': comp_results['phi_Pn'] / weight,
-                        'Combined Score': ((0.9 * Mn) / weight) * (comp_results['phi_Pn'] / weight)
-                    })
-            except:
-                continue
-        
-        if comparison_data:
-            df_comparison = pd.DataFrame(comparison_data)
-            
-            # Display comparison chart based on type
-            if comparison_type == "Moment Capacity":
-                # Create multi-section Mn-Lb curves
-                fig = go.Figure()
-                colors = ['#2196f3', '#4caf50', '#ff9800', '#f44336', '#9c27b0', '#00bcd4']
-                
-                for i, section_name in enumerate(st.session_state.selected_sections[:6]):  # Limit to 6
-                    if section_name not in df.index:
-                        continue
-                    
-                    # Generate curve for each section
-                    Lb_range = np.linspace(0.1, 15, 100)
-                    Mn_values = []
-                    
-                    for lb in Lb_range:
-                        try:
-                            Mn_temp, _, _, _, _, _, _, _ = F2(df, df_mat, section_name, selected_material, lb)
-                            Mn_values.append(0.9 * Mn_temp)  # φMn
-                        except:
-                            Mn_values.append(0)
-                    
-                    color = colors[i % len(colors)]
-                    fig.add_trace(go.Scatter(
-                        x=Lb_range, y=Mn_values,
-                        mode='lines',
-                        name=section_name,
-                        line=dict(color=color, width=2),
-                        hovertemplate='%{y:.2f} t·m @ Lb=%{x:.1f}m<extra></extra>'
-                    ))
-                
-                fig.update_layout(
-                    title="Multi-Section Moment Capacity Comparison",
-                    xaxis_title="Unbraced Length, Lb (m)",
-                    yaxis_title="φMn (t·m)",
-                    height=500,
-                    template='plotly_white'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-            elif comparison_type == "Compression Capacity":
-                fig = go.Figure()
-                
-                fig.add_trace(go.Bar(
-                    x=df_comparison['Section'],
-                    y=df_comparison['φPn (tons)'],
-                    text=[f'{v:.1f}' for v in df_comparison['φPn (tons)']],
-                    textposition='auto',
-                    marker_color='#2196f3',
-                    name='φPn'
-                ))
-                
-                fig.update_layout(
-                    title=f"Compression Capacity at KL = {KL_comp:.1f} m",
-                    yaxis_title="φPn (tons)",
-                    template='plotly_white'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-            elif comparison_type == "Weight Efficiency":
-                fig = make_subplots(rows=1, cols=2,
-                                   subplot_titles=('Moment Efficiency', 'Compression Efficiency'))
-                
-                fig.add_trace(go.Bar(
-                    x=df_comparison['Section'],
-                    y=df_comparison['Moment Efficiency'],
-                    text=[f'{v:.3f}' for v in df_comparison['Moment Efficiency']],
-                    textposition='auto',
-                    marker_color='#4caf50',
-                    name='φMn/Weight'
-                ), row=1, col=1)
-                
-                fig.add_trace(go.Bar(
-                    x=df_comparison['Section'],
-                    y=df_comparison['Compression Efficiency'],
-                    text=[f'{v:.3f}' for v in df_comparison['Compression Efficiency']],
-                    textposition='auto',
-                    marker_color='#ff9800',
-                    name='φPn/Weight'
-                ), row=1, col=2)
-                
-                fig.update_layout(
-                    title="Weight Efficiency Comparison",
-                    height=400,
-                    template='plotly_white',
-                    showlegend=False
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            
-            elif comparison_type == "Combined Performance":
-                # Radar chart for multi-criteria comparison
-                fig = go.Figure()
-                
-                categories = ['Weight', 'φMn', 'φPn', 'Moment Eff.', 'Compression Eff.']
-                
-                for idx, row in df_comparison.iterrows():
-                    # Normalize values for radar chart
-                    values = [
-                        1 - (row['Weight (kg/m)'] / df_comparison['Weight (kg/m)'].max()),
-                        row['φMn (t·m)'] / df_comparison['φMn (t·m)'].max(),
-                        row['φPn (tons)'] / df_comparison['φPn (tons)'].max(),
-                        row['Moment Efficiency'] / df_comparison['Moment Efficiency'].max(),
-                        row['Compression Efficiency'] / df_comparison['Compression Efficiency'].max()
-                    ]
-                    values.append(values[0])  # Close the polygon
-                    
-                    fig.add_trace(go.Scatterpolar(
-                        r=values,
-                        theta=categories + [categories[0]],
-                        fill='toself',
-                        name=row['Section']
-                    ))
-                
-                fig.update_layout(
-                    polar=dict(
-                        radialaxis=dict(
-                            visible=True,
-                            range=[0, 1]
-                        )),
-                    showlegend=True,
-                    title="Combined Performance Comparison",
-                    height=500
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            
-            # Display comparison table
-            st.markdown("### 📊 Detailed Comparison Table")
-            
-            df_display = df_comparison.copy()
-            df_display = df_display.round(2)
-            
-            # Highlight best values
-            def highlight_max(s):
-                is_max = s == s.max()
-                return ['background-color: #e8f5e9' if v else '' for v in is_max]
-            
-            styled_df = df_display.style.apply(highlight_max, subset=['φMn (t·m)', 'φPn (tons)', 
-                                                                      'Moment Efficiency', 'Compression Efficiency'])
-            st.dataframe(styled_df, use_container_width=True)
-            
-            # Recommendations
-            st.markdown("### 🏆 Recommendations")
-            
-            col_rec1, col_rec2, col_rec3 = st.columns(3)
-            
-            with col_rec1:
-                best_moment = df_comparison.loc[df_comparison['φMn (t·m)'].idxmax()]
-                st.info(f"""
-                **Highest Moment Capacity:**
-                {best_moment["Section"]}
-                φMn: {best_moment["φMn (t·m)"]:.2f} t·m
-                """)
-            
-            with col_rec2:
-                best_compression = df_comparison.loc[df_comparison['φPn (tons)'].idxmax()]
-                st.info(f"""
-                **Highest Compression Capacity:**
-                {best_compression["Section"]}
-                φPn: {best_compression["φPn (tons)"]:.1f} tons
-                """)
-            
-            with col_rec3:
-                best_efficiency = df_comparison.loc[df_comparison['Combined Score'].idxmax()]
-                st.info(f"""
-                **Best Overall Performance:**
-                {best_efficiency["Section"]}
-                Score: {best_efficiency["Combined Score"]:.3f}
-                """)
-    else:
-        st.warning("⚠️ Please select sections from the 'Section Selection' tab first")
-        st.markdown("""
-        ### 📖 How to Use Comparison Tool:
-        1. Go to **Section Selection** tab
-        2. Input your design requirements  
-        3. Select multiple sections using checkboxes
-        4. Return here to compare selected sections
-        
-        This tool provides:
-        - Multi-section moment capacity curves
-        - Compression capacity comparison
-        - Weight efficiency analysis
-        - Combined performance radar chart
-        - Automatic best section recommendations
-        """)
-
-# ==================== FOOTER ====================
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666; padding: 1rem;'>
-    <p><b>AISC Steel Design Analysis v5.0</b></p>
-    <p>Complete 6-Tab Analysis System</p>
-    <p>✓ Correct F2 Function | ✓ Service Loads in kg/m | ✓ AISC 360-16</p>
-    <p>© 2024 - Educational Tool for Structural Engineers</p>
-</div>
-""", unsafe_allow_html=True)
 
 # ==================== TAB 2: SECTION SELECTION ====================
 with tab2:
@@ -2060,14 +512,14 @@ with tab2:
         filtered_df['efficiency'] = filtered_df['Zx [cm3]'] / filtered_df[weight_col]
         filtered_df = filtered_df.sort_values('efficiency', ascending=False)
     
-    # Display filtered sections with ALL properties
+    # Display filtered sections
     st.markdown(f"### Found {len(filtered_df)} Suitable Sections")
     
     if len(filtered_df) > 0:
         # Reset index to make Section a column
         filtered_df_display = filtered_df.reset_index()
         
-        # Select important columns to display (show ALL section properties)
+        # Select important columns to display
         display_cols = ['Section', 'd [mm]', 'bf [mm]', 'tw [mm]', 'tf [mm]', 
                        'A [cm2]', weight_col, 'Ix [cm4]', 'Iy [cm4]', 
                        'Sx [cm3]', 'Sy [cm3]', 'Zx [cm3]', 'Zy [cm3]', 
@@ -2084,7 +536,7 @@ with tab2:
         gb.configure_default_column(resizable=True, filterable=True, sortable=True)
         grid_options = gb.build()
         
-        # Display grid with ALL section properties
+        # Display grid
         st.markdown("#### 📋 Section Properties Database (Select sections using checkboxes)")
         grid_response = AgGrid(
             filtered_df_display[available_cols].round(2),
@@ -2098,73 +550,13 @@ with tab2:
         # Handle selected rows
         selected_rows = grid_response.get('selected_rows', None)
         if selected_rows is not None and not selected_rows.empty:
-            # selected_rows is a DataFrame when rows are selected
             selected_sections = selected_rows['Section'].tolist()
             st.session_state.selected_sections = selected_sections
-            
             st.success(f"✅ Selected {len(selected_sections)} sections for analysis")
-            
-            # Calculate capacity for selected sections
-            st.markdown("### 📊 Capacity Analysis for Selected Sections")
-            
-            # Unbraced length for capacity calculation
-            Lb_capacity = st.slider("Unbraced Length for Capacity Analysis (m):", 0.1, 20.0, 3.0, 0.5)
-            
-            capacity_results = []
-            for section_name in selected_sections:
-                try:
-                    # Calculate moment capacity
-                    Mn, _, Lp, Lr, Mp, _, _, Case = F2(df, df_mat, section_name, selected_material, Lb_capacity)
-                    
-                    # Get weight
-                    weight = filtered_df.loc[section_name, weight_col] if section_name in filtered_df.index else 0
-                    
-                    # Calculate service load capacity
-                    service_w = calculate_service_load_capacity(df, df_mat, section_name, selected_material, L_span, Lb_capacity)
-                    
-                    capacity_results.append({
-                        'Section': section_name,
-                        'Weight (kg/m)': weight,
-                        'Mp (t·m)': Mp,
-                        'Mn (t·m)': Mn,
-                        'φMn (t·m)': 0.9 * Mn,
-                        'Service w (kg/m)': service_w,
-                        'Lp (m)': Lp,
-                        'Lr (m)': Lr,
-                        'Case': Case,
-                        'Efficiency': (0.9 * Mn) / weight if weight > 0 else 0
-                    })
-                except:
-                    continue
-            
-            if capacity_results:
-                capacity_df = pd.DataFrame(capacity_results)
-                st.dataframe(capacity_df.round(2), use_container_width=True, hide_index=True)
-                
-                # Show configuration for individual Lb values
-                with st.expander("⚙️ Configure Individual Lb Values for Comparison", expanded=False):
-                    use_global_lb = st.checkbox("Use same Lb for all sections", value=False)
-                    
-                    if use_global_lb:
-                        global_lb = st.slider("Global Unbraced Length (m):", 0.0, 20.0, 3.0, 0.5)
-                        for section_name in st.session_state.selected_sections:
-                            st.session_state.section_lb_values[section_name] = global_lb
-                    else:
-                        col_sec1, col_sec2 = st.columns(2)
-                        for i, section_name in enumerate(st.session_state.selected_sections):
-                            with col_sec1 if i % 2 == 0 else col_sec2:
-                                lb_value = st.number_input(
-                                    f"Lb for {section_name} (m):", 
-                                    min_value=0.0, 
-                                    value=st.session_state.section_lb_values.get(section_name, 3.0),
-                                    step=0.5,
-                                    key=f"lb_{section_name}"
-                                )
-                                st.session_state.section_lb_values[section_name] = lb_value
 
-# ==================== TAB 3: FLEXURAL DESIGN ====================
+# ==================== TAB 3: FLEXURAL DESIGN (CORRECTED) ====================
 with tab3:
-    st.markdown('<h2 class="section-header">Flexural Design - Correct Mn vs Lb Curves</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">Flexural Design - Corrected Mn vs Lb Curves</h2>', unsafe_allow_html=True)
     
     if st.session_state.selected_section and selected_material:
         section = st.session_state.selected_section
@@ -2174,127 +566,516 @@ with tab3:
         with col1:
             st.markdown("### Parameters")
             Lb_current = st.slider("Unbraced Length Lb (m):", 0.1, 20.0, 3.0, 0.1)
-            Cb = st.number_input("Cb Factor:", 1.0, 2.3, 1.0, 0.1)
             
-            show_phi = st.checkbox("Show φMn curve", value=True)
-            show_mn = st.checkbox("Show Mn curve", value=True)
+            # Calculate using corrected F2 function
+            Mn, Lb_calc, Lp, Lr, Mp, Case = F2(df, df_mat, section, selected_material, Lb_current)
             
-            # Calculate using F2 function
-            Mn, Lb_calc, Lp, Lr, Mp, Mni, Lni, Case = F2(df, df_mat, section, selected_material, Lb_current)
-            
-            st.markdown("### Current Point")
+            st.markdown("### Current Analysis")
             st.metric("Mn", f"{Mn:.2f} t·m")
             st.metric("φMn", f"{0.9*Mn:.2f} t·m")
-            st.metric("Case", Case)
+            st.info(f"**Case:** {Case}")
             
             # Classification
-            if Mn >= Mp * 0.9:
-                st.success("✅ Close to plastic capacity")
-            elif Mn >= Mp * 0.7:
-                st.warning("⚠️ Moderate reduction")
+            if Mn >= Mp * 0.95:
+                st.success("✅ Plastic capacity achieved")
+            elif Mn >= Mp * 0.8:
+                st.warning("⚠️ Good capacity")
             else:
                 st.error("❌ Significant reduction")
             
             # Critical lengths
             st.markdown("### Critical Lengths")
             st.write(f"**Lp = {Lp:.2f} m**")
-            st.caption("Plastic limit")
+            st.caption("Compact limit")
             st.write(f"**Lr = {Lr:.2f} m**")
-            st.caption("Inelastic limit")
+            st.caption("Noncompact limit")
+            st.write(f"**Mp = {Mp:.2f} t·m**")
+            st.caption("Plastic moment")
         
         with col2:
-            # Create plot using F2 arrays
-            if Mni and Lni:
-                try:
-                    # Flatten arrays for plotting
-                    Mni_flat = []
-                    Lni_flat = []
-                    
-                    for i in range(len(Mni)):
-                        if isinstance(Mni[i], list):
-                            Mni_flat.extend(Mni[i])
-                            Lni_flat.extend(Lni[i])
-                        else:
-                            Mni_flat.append(Mni[i])
-                            Lni_flat.append(Lni[i])
-                    
+            st.markdown("### Moment Capacity Curve")
+            
+            # Generate corrected moment capacity curve
+            try:
+                Lb_range, Mn_values = generate_moment_capacity_curve(df, df_mat, section, selected_material, 20.0)
+                
+                if Lb_range and Mn_values:
                     fig = go.Figure()
                     
                     # Mn curve
-                    if show_mn:
-                        fig.add_trace(go.Scatter(
-                            x=Lni_flat, y=Mni_flat,
-                            mode='lines+markers',
-                            name='Mn',
-                            line=dict(color='#1976d2', width=3),
-                            marker=dict(size=6)
-                        ))
+                    fig.add_trace(go.Scatter(
+                        x=Lb_range, y=Mn_values,
+                        mode='lines',
+                        name='Mn',
+                        line=dict(color='#1976d2', width=3),
+                        hovertemplate='Lb: %{x:.2f}m<br>Mn: %{y:.2f} t·m<extra></extra>'
+                    ))
                     
                     # φMn curve
-                    if show_phi:
-                        phi_Mni = [0.9 * m for m in Mni_flat]
-                        fig.add_trace(go.Scatter(
-                            x=Lni_flat, y=phi_Mni,
-                            mode='lines',
-                            name='φMn (0.9×Mn)',
-                            line=dict(color='#4caf50', width=2, dash='dash')
-                        ))
+                    phi_Mn_values = [0.9 * m for m in Mn_values]
+                    fig.add_trace(go.Scatter(
+                        x=Lb_range, y=phi_Mn_values,
+                        mode='lines',
+                        name='φMn (0.9×Mn)',
+                        line=dict(color='#4caf50', width=2, dash='dash'),
+                        hovertemplate='Lb: %{x:.2f}m<br>φMn: %{y:.2f} t·m<extra></extra>'
+                    ))
                     
                     # Current point
                     fig.add_trace(go.Scatter(
                         x=[Lb_current], y=[Mn],
                         mode='markers',
-                        name=f'Current (Lb={Lb_current}m)',
-                        marker=dict(color='#f44336', size=12, symbol='diamond')
+                        name=f'Current Point (Lb={Lb_current:.1f}m)',
+                        marker=dict(color='#f44336', size=12, symbol='diamond'),
+                        hovertemplate=f'Current Point<br>Lb: {Lb_current:.2f}m<br>Mn: {Mn:.2f} t·m<extra></extra>'
                     ))
                     
-                    # Mp line
+                    # Mp line (plastic moment)
                     fig.add_hline(y=Mp, line_dash="dot", line_color='#ff9800', line_width=2,
-                                annotation_text=f"Mp = {Mp:.2f} t·m", annotation_font_size=14)
+                                annotation_text=f"Mp = {Mp:.2f} t·m", annotation_font_size=12)
                     
-                    # Lp and Lr lines
+                    # Critical length lines
                     fig.add_vline(x=Lp, line_dash="dash", line_color='#9c27b0', line_width=2,
-                                annotation_text=f"Lp = {Lp:.2f} m", annotation_font_size=14)
+                                annotation_text=f"Lp = {Lp:.2f}m", annotation_font_size=12)
                     fig.add_vline(x=Lr, line_dash="dash", line_color='#e91e63', line_width=2,
-                                annotation_text=f"Lr = {Lr:.2f} m", annotation_font_size=14)
+                                annotation_text=f"Lr = {Lr:.2f}m", annotation_font_size=12)
                     
-                    # Zones with large labels
-                    fig.add_vrect(x0=0, x1=Lp, fillcolor='#4caf50', opacity=0.15,
-                                annotation_text="<b>YIELDING</b>", annotation_position="top",
-                                annotation_font_size=16)
-                    fig.add_vrect(x0=Lp, x1=Lr, fillcolor='#ff9800', opacity=0.15,
-                                annotation_text="<b>INELASTIC LTB</b>", annotation_position="top",
-                                annotation_font_size=16)
-                    
-                    max_x = max(Lni_flat) if Lni_flat else Lr + 10
-                    fig.add_vrect(x0=Lr, x1=max_x, fillcolor='#f44336', opacity=0.15,
-                                annotation_text="<b>ELASTIC LTB</b>", annotation_position="top",
-                                annotation_font_size=16)
+                    # Behavior regions
+                    fig.add_vrect(x0=0, x1=Lp, fillcolor='#4caf50', opacity=0.1,
+                                annotation_text="<b>YIELDING</b><br>Mn = Mp", 
+                                annotation_position="top", annotation_font_size=14)
+                    fig.add_vrect(x0=Lp, x1=Lr, fillcolor='#ff9800', opacity=0.1,
+                                annotation_text="<b>INELASTIC LTB</b><br>Linear transition", 
+                                annotation_position="top", annotation_font_size=14)
+                    fig.add_vrect(x0=Lr, x1=20, fillcolor='#f44336', opacity=0.1,
+                                annotation_text="<b>ELASTIC LTB</b><br>Mn ∝ 1/Lb²", 
+                                annotation_position="top", annotation_font_size=14)
                     
                     fig.update_layout(
-                        title=f"Moment Capacity vs Unbraced Length - {section}",
+                        title=f"Flexural Capacity - {section} ({selected_material})",
                         xaxis_title="Unbraced Length, Lb (m)",
                         yaxis_title="Moment Capacity (t·m)",
-                        height=600,
+                        height=500,
                         hovermode='x unified',
-                        showlegend=True,
-                        template='plotly_white'
+                        template='plotly_white',
+                        showlegend=True
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.error("Error generating moment capacity curve")
                     
-                except Exception as e:
-                    st.error(f"Error in plotting: {str(e)}")
+            except Exception as e:
+                st.error(f"Error in curve generation: {str(e)}")
             
             # Summary table
-            st.markdown("### Summary")
-            summary_df = pd.DataFrame({
-                'Parameter': ['Mp', 'Mn at current Lb', 'φMn', 'Lp', 'Lr', 'Current Lb'],
+            st.markdown("### Design Summary")
+            summary_data = {
+                'Parameter': ['Mp (Plastic Moment)', 'Mn (Current)', 'φMn (Design)', 
+                             'Lp (Compact)', 'Lr (Noncompact)', 'Current Lb', 'Efficiency'],
                 'Value': [f"{Mp:.2f} t·m", f"{Mn:.2f} t·m", f"{0.9*Mn:.2f} t·m", 
-                         f"{Lp:.2f} m", f"{Lr:.2f} m", f"{Lb_current:.2f} m"],
-                'Status': ['Plastic Capacity', Case, 'Design Capacity', 
-                          'Yielding → Inelastic', 'Inelastic → Elastic', 'Design Point']
-            })
+                         f"{Lp:.2f} m", f"{Lr:.2f} m", f"{Lb_current:.2f} m", f"{(Mn/Mp)*100:.1f}%"],
+                'Note': ['Maximum possible', Case, 'With safety factor', 
+                        'Yielding limit', 'Inelastic limit', 'Design value', 'Mn/Mp ratio']
+            }
+            summary_df = pd.DataFrame(summary_data)
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
     else:
-        st.warning("⚠️ Please select a section from the sidebar")
+        st.warning("⚠️ Please select a section and material from the sidebar")
+
+# ==================== TAB 4: COLUMN DESIGN (SIMPLIFIED) ====================
+with tab4:
+    st.markdown('<h2 class="section-header">Column Design Analysis</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.selected_section and selected_material:
+        section = st.session_state.selected_section
+        
+        st.info(f"**Analyzing:** {section} | **Material:** {selected_material}")
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.markdown("### Design Parameters")
+            
+            # Effective length factors
+            Kx = st.selectbox("Kx:", [0.5, 0.65, 0.7, 0.8, 1.0, 1.2, 2.0], index=4)
+            Ky = st.selectbox("Ky:", [0.5, 0.65, 0.7, 0.8, 1.0, 1.2, 2.0], index=4)
+            
+            # Unbraced lengths
+            Lx = st.number_input("Lx (m):", min_value=0.1, value=3.0, step=0.1)
+            Ly = st.number_input("Ly (m):", min_value=0.1, value=3.0, step=0.1)
+            
+            # Applied load
+            Pu = st.number_input("Pu (tons):", min_value=0.0, value=100.0, step=10.0)
+            
+            # Calculate and display KL/r
+            rx = float(df.loc[section, 'rx [cm]'])
+            ry = float(df.loc[section, 'ry [cm]'])
+            KLr_x = (Kx * Lx * 100) / rx
+            KLr_y = (Ky * Ly * 100) / ry
+            
+            st.markdown("### Slenderness Ratios")
+            col_klr1, col_klr2 = st.columns(2)
+            with col_klr1:
+                if KLr_x <= 200:
+                    st.success(f"KL/rx = {KLr_x:.1f} ✓")
+                else:
+                    st.error(f"KL/rx = {KLr_x:.1f} > 200 ⚠️")
+            
+            with col_klr2:
+                if KLr_y <= 200:
+                    st.success(f"KL/ry = {KLr_y:.1f} ✓")
+                else:
+                    st.error(f"KL/ry = {KLr_y:.1f} > 200 ⚠️")
+        
+        # Calculate compression capacity
+        comp_results = compression_analysis_advanced(df, df_mat, section, selected_material, Kx*Lx, Ky*Ly)
+        
+        if comp_results:
+            with col1:
+                st.markdown("### Results")
+                st.metric("φPn", f"{comp_results['phi_Pn']:.2f} tons",
+                         delta=f"Pn = {comp_results['Pn']:.2f} tons")
+                
+                ratio = Pu / comp_results['phi_Pn'] if comp_results['phi_Pn'] > 0 else 999
+                st.metric("Utilization", f"{ratio:.3f}",
+                         delta="OK" if ratio <= 1.0 else "NG")
+                
+                if ratio <= 1.0:
+                    st.success(f"✅ Design PASSES")
+                else:
+                    st.error(f"❌ Design FAILS")
+            
+            with col2:
+                st.markdown("### Column Capacity Curve")
+                
+                # Generate capacity curve
+                KLr_range = np.linspace(1, 250, 200)
+                Pn_values = []
+                
+                Fy = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
+                E = float(df_mat.loc[selected_material, "E"])
+                Ag = float(df.loc[section, 'A [cm2]'])
+                
+                lambda_limit = 4.71 * mt.sqrt(E / Fy)
+                
+                for klr in KLr_range:
+                    Fe = (mt.pi**2 * E) / (klr**2)
+                    
+                    if klr <= lambda_limit:
+                        Fcr = Fy * (0.658**(Fy/Fe))
+                    else:
+                        Fcr = 0.877 * Fe
+                    
+                    Pn = 0.9 * Fcr * Ag / 1000
+                    Pn_values.append(Pn)
+                
+                fig = go.Figure()
+                
+                # Capacity curve
+                fig.add_trace(go.Scatter(
+                    x=KLr_range, y=Pn_values,
+                    mode='lines',
+                    name='φPn',
+                    line=dict(color='#1976d2', width=3)
+                ))
+                
+                # Current point
+                current_klr = max(comp_results['lambda_x'], comp_results['lambda_y'])
+                fig.add_trace(go.Scatter(
+                    x=[current_klr], y=[comp_results['phi_Pn']],
+                    mode='markers',
+                    name='Current Design',
+                    marker=dict(color='#f44336', size=12, symbol='star')
+                ))
+                
+                # Transition line
+                fig.add_vline(x=lambda_limit, line_dash="dash", line_color='#ff9800', line_width=2,
+                            annotation_text=f"λ = {lambda_limit:.1f}")
+                
+                # KL/r = 200 limit
+                fig.add_vline(x=200, line_dash="dot", line_color='#f44336', line_width=2,
+                            annotation_text="KL/r = 200")
+                
+                # Demand line
+                if Pu > 0:
+                    fig.add_hline(y=Pu, line_dash="dash", line_color='#4caf50', line_width=2,
+                                annotation_text=f"Pu = {Pu:.1f} tons")
+                
+                fig.update_layout(
+                    title="Column Capacity Curve",
+                    xaxis_title="Slenderness Ratio (KL/r)",
+                    yaxis_title="Design Capacity φPn (tons)",
+                    height=400,
+                    template='plotly_white'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Optional simplified visualization
+                if st.checkbox("Show column buckling visualization"):
+                    fig_vis = visualize_column_2d_simple(df, section)
+                    if fig_vis:
+                        st.pyplot(fig_vis)
+    else:
+        st.warning("⚠️ Please select a section and material from the sidebar")
+
+# ==================== TAB 5: BEAM-COLUMN ====================
+with tab5:
+    st.markdown('<h2 class="section-header">Beam-Column Interaction Design</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.selected_section and selected_material:
+        section = st.session_state.selected_section
+        
+        st.info(f"**Analyzing:** {section} | **Material:** {selected_material}")
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.markdown("### Combined Loading")
+            
+            # Loads
+            Pu_bc = st.slider("Axial Load Pu (tons):", 
+                             min_value=0.0, max_value=200.0, value=50.0, step=1.0)
+            Mux = st.slider("Moment Mux (t·m):", 
+                           min_value=0.0, max_value=100.0, value=30.0, step=1.0)
+            Muy = st.slider("Moment Muy (t·m):", 
+                           min_value=0.0, max_value=50.0, value=5.0, step=0.5)
+            
+            # Effective lengths
+            KLx_bc = st.slider("KLx (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+            KLy_bc = st.slider("KLy (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+            Lb_bc = st.slider("Lb for LTB (m):", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+        
+        # Analysis
+        comp_results = compression_analysis_advanced(df, df_mat, section, selected_material, KLx_bc, KLy_bc)
+        Mnx, _, _, _, _, _ = F2(df, df_mat, section, selected_material, Lb_bc)
+        
+        # Minor axis capacity (simplified)
+        Zy = float(df.loc[section, 'Zy [cm3]'])
+        Fy = float(df_mat.loc[selected_material, "Yield Point (ksc)"])
+        Mny = Fy * Zy / 100000  # t·m
+        
+        if comp_results:
+            Pc = comp_results['phi_Pn']
+            Mcx = 0.9 * Mnx
+            Mcy = 0.9 * Mny
+            
+            # Interaction check
+            if Pc > 0 and Mcx > 0 and Mcy > 0:
+                if Pu_bc/Pc >= 0.2:
+                    interaction = Pu_bc/Pc + (8/9)*(Mux/Mcx + Muy/Mcy)
+                    equation = "H1-1a"
+                else:
+                    interaction = Pu_bc/(2*Pc) + (Mux/Mcx + Muy/Mcy)
+                    equation = "H1-1b"
+                
+                with col1:
+                    st.markdown("### Results")
+                    st.metric("P/φPn", f"{Pu_bc/Pc:.3f}")
+                    st.metric("Mx/φMnx", f"{Mux/Mcx:.3f}")
+                    st.metric("My/φMny", f"{Muy/Mcy:.3f}")
+                    st.metric("Unity Check", f"{interaction:.3f}", 
+                             delta=f"Equation {equation}")
+                    
+                    if interaction <= 1.0:
+                        st.success(f"✅ DESIGN PASSES")
+                    else:
+                        st.error(f"❌ DESIGN FAILS")
+                
+                with col2:
+                    st.markdown("### P-M Interaction Diagram")
+                    
+                    # Generate interaction curve
+                    P_ratios = np.linspace(0, 1, 50)
+                    M_ratios = []
+                    
+                    for p_ratio in P_ratios:
+                        if p_ratio >= 0.2:
+                            m_ratio = (9/8) * (1 - p_ratio)
+                        else:
+                            m_ratio = 1 - p_ratio/2
+                        M_ratios.append(max(0, m_ratio))
+                    
+                    fig = go.Figure()
+                    
+                    # Interaction curve
+                    fig.add_trace(go.Scatter(
+                        x=M_ratios, y=P_ratios,
+                        mode='lines',
+                        name='Interaction Curve',
+                        line=dict(color='#2196f3', width=3),
+                        fill='tozeroy',
+                        fillcolor='rgba(33, 150, 243, 0.2)'
+                    ))
+                    
+                    # Design point
+                    M_combined = Mux/Mcx + Muy/Mcy
+                    P_ratio = Pu_bc/Pc
+                    
+                    fig.add_trace(go.Scatter(
+                        x=[M_combined], y=[P_ratio],
+                        mode='markers',
+                        name='Design Point',
+                        marker=dict(color='#f44336', size=15, symbol='star')
+                    ))
+                    
+                    fig.update_layout(
+                        title="P-M Interaction Diagram",
+                        xaxis_title="Combined Moment Ratio (ΣM/ΣMc)",
+                        yaxis_title="Axial Force Ratio (P/Pc)",
+                        height=400,
+                        template='plotly_white',
+                        xaxis=dict(range=[0, 1.2]),
+                        yaxis=dict(range=[0, 1.2])
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("⚠️ Please select a section and material from the sidebar")
+
+# ==================== TAB 6: COMPARISON ====================
+with tab6:
+    st.markdown('<h2 class="section-header">Multi-Section Comparison Tool</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.selected_sections:
+        st.info(f"Comparing {len(st.session_state.selected_sections)} sections")
+        
+        # Comparison parameters
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            comparison_type = st.selectbox("Comparison Type:",
+                ["Moment Capacity", "Compression Capacity", "Weight Efficiency"])
+        
+        with col2:
+            Lb_comp = st.slider("Unbraced Length (m):", 
+                               min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+        
+        with col3:
+            KL_comp = st.slider("Effective Length (m):", 
+                               min_value=0.1, max_value=20.0, value=3.0, step=0.1)
+        
+        # Generate comparison data
+        comparison_data = []
+        
+        for section_name in st.session_state.selected_sections:
+            if section_name not in df.index:
+                continue
+            
+            try:
+                weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
+                weight = df.loc[section_name, weight_col]
+                
+                # Flexural analysis
+                Mn, _, _, _, _, _ = F2(df, df_mat, section_name, selected_material, Lb_comp)
+                
+                # Compression analysis
+                comp_results = compression_analysis_advanced(df, df_mat, section_name, selected_material, 
+                                                            KL_comp, KL_comp)
+                
+                if comp_results:
+                    comparison_data.append({
+                        'Section': section_name,
+                        'Weight (kg/m)': weight,
+                        'φMn (t·m)': 0.9 * Mn,
+                        'φPn (tons)': comp_results['phi_Pn'],
+                        'Moment Efficiency': (0.9 * Mn) / weight,
+                        'Compression Efficiency': comp_results['phi_Pn'] / weight
+                    })
+            except:
+                continue
+        
+        if comparison_data:
+            df_comparison = pd.DataFrame(comparison_data)
+            
+            # Display comparison chart
+            if comparison_type == "Moment Capacity":
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['φMn (t·m)'],
+                    text=[f'{v:.1f}' for v in df_comparison['φMn (t·m)']],
+                    textposition='auto',
+                    marker_color='#2196f3'
+                ))
+                fig.update_layout(title=f"Moment Capacity at Lb = {Lb_comp:.1f} m",
+                                 yaxis_title="φMn (t·m)", template='plotly_white')
+                st.plotly_chart(fig, use_container_width=True)
+                
+            elif comparison_type == "Compression Capacity":
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['φPn (tons)'],
+                    text=[f'{v:.1f}' for v in df_comparison['φPn (tons)']],
+                    textposition='auto',
+                    marker_color='#4caf50'
+                ))
+                fig.update_layout(title=f"Compression Capacity at KL = {KL_comp:.1f} m",
+                                 yaxis_title="φPn (tons)", template='plotly_white')
+                st.plotly_chart(fig, use_container_width=True)
+                
+            else:  # Weight Efficiency
+                fig = make_subplots(rows=1, cols=2,
+                                   subplot_titles=('Moment Efficiency', 'Compression Efficiency'))
+                
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['Moment Efficiency'],
+                    marker_color='#ff9800'
+                ), row=1, col=1)
+                
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['Compression Efficiency'],
+                    marker_color='#9c27b0'
+                ), row=1, col=2)
+                
+                fig.update_layout(title="Efficiency Comparison (Capacity/Weight)",
+                                 height=400, template='plotly_white', showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Comparison table
+            st.markdown("### Detailed Comparison")
+            st.dataframe(df_comparison.round(2), use_container_width=True, hide_index=True)
+            
+            # Recommendations
+            st.markdown("### 🏆 Recommendations")
+            col_r1, col_r2, col_r3 = st.columns(3)
+            
+            with col_r1:
+                best_moment = df_comparison.loc[df_comparison['φMn (t·m)'].idxmax()]
+                st.info(f"""
+                **Highest Moment:**
+                {best_moment["Section"]}
+                φMn: {best_moment["φMn (t·m)"]:.2f} t·m
+                """)
+            
+            with col_r2:
+                best_compression = df_comparison.loc[df_comparison['φPn (tons)'].idxmax()]
+                st.info(f"""
+                **Highest Compression:**
+                {best_compression["Section"]}
+                φPn: {best_compression["φPn (tons)"]:.1f} tons
+                """)
+            
+            with col_r3:
+                lightest = df_comparison.loc[df_comparison['Weight (kg/m)'].idxmin()]
+                st.info(f"""
+                **Lightest Section:**
+                {lightest["Section"]}
+                Weight: {lightest["Weight (kg/m)"]:.1f} kg/m
+                """)
+    else:
+        st.warning("⚠️ Please select sections from the 'Section Selection' tab first")
+
+# ==================== FOOTER ====================
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666; padding: 1rem;'>
+    <p><b>AISC Steel Design Analysis v5.1 - Corrected Version</b></p>
+    <p>✅ Fixed F2 Function | ✅ Corrected Moment Curves | ✅ Simplified Visualizations</p>
+    <p>© 2024 - Educational Tool for Structural Engineers</p>
+</div>
+""", unsafe_allow_html=True)
