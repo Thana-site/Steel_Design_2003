@@ -1681,51 +1681,52 @@ with tab5:
                 
                 with col_r1:
                     st.metric("Pr/Pc", f"{interaction_result['Pr_Pc']:.3f}",
-                             help="Axial demand/capacity ratio")
+                             help="Required/Available axial strength ratio")
                 
                 with col_r2:
                     st.metric("Mrx/Mcx", f"{interaction_result['Mrx_Mcx']:.3f}",
-                             help="Major axis moment demand/capacity ratio")
+                             help="Major axis moment ratio")
                 
                 with col_r3:
                     st.metric("Mry/Mcy", f"{interaction_result['Mry_Mcy']:.3f}",
-                             help="Minor axis moment demand/capacity ratio")
+                             help="Minor axis moment ratio")
                 st.markdown('</div>', unsafe_allow_html=True)
                 
                 # Unity check with enhanced feedback
-                st.markdown('<div class="critical-lengths-box">', unsafe_allow_html=True)
+                st.markdown('<div class="design-summary">', unsafe_allow_html=True)
                 st.markdown("### AISC 360-16 H1 Unity Check")
                 st.metric("Interaction Ratio", f"{interaction_result['interaction_ratio']:.3f}",
                         delta=f"Equation {interaction_result['equation']}")
                 
                 if interaction_result['design_ok']:
                     safety_margin = interaction_result['safety_margin'] * 100
-                    st.success(f"AISC 360-16 H1 PASSES - Safety Margin: {safety_margin:.1f}%")
+                    st.markdown(f'<div class="success-box">✅ <b>AISC 360-16 H1 PASSES</b><br>Unity: {interaction_result["interaction_ratio"]:.3f} ≤ 1.0<br>Safety Margin: {safety_margin:.1f}%</div>', 
+                              unsafe_allow_html=True)
                 else:
                     overstress = (interaction_result['interaction_ratio'] - 1.0) * 100
-                    st.error(f"AISC 360-16 H1 FAILS - Overstressed by: {overstress:.1f}%")
+                    st.markdown(f'<div class="error-box">❌ <b>AISC 360-16 H1 FAILS</b><br>Unity: {interaction_result["interaction_ratio"]:.3f} > 1.0<br>Overstressed by: {overstress:.1f}%</div>', 
+                              unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                # AISC H1 equations display
+                # AISC equations display
                 st.markdown('<div class="aisc-equation">', unsafe_allow_html=True)
                 st.markdown("### AISC 360-16 H1 Equations Applied")
-                if interaction_result['equation'] == "H1-1a":
-                    st.markdown("**H1-1a:** Pr/Pc + (8/9)(Mrx/Mcx + Mry/Mcy) ≤ 1.0")
-                    st.markdown(f"Applied when Pr/Pc = {interaction_result['Pr_Pc']:.3f} ≥ 0.2")
+                if interaction_result['Pr_Pc'] >= 0.2:
+                    st.markdown("**H1-1a (Pr/Pc ≥ 0.2):** Pr/Pc + (8/9)(Mrx/Mcx + Mry/Mcy) ≤ 1.0")
                 else:
-                    st.markdown("**H1-1b:** Pr/(2Pc) + (Mrx/Mcx + Mry/Mcy) ≤ 1.0")
-                    st.markdown(f"Applied when Pr/Pc = {interaction_result['Pr_Pc']:.3f} < 0.2")
+                    st.markdown("**H1-1b (Pr/Pc < 0.2):** Pr/(2Pc) + (Mrx/Mcx + Mry/Mcy) ≤ 1.0")
+                st.markdown(f"Applied: {interaction_result['equation']}")
                 st.markdown('</div>', unsafe_allow_html=True)
         
         with col2:
-            st.markdown("### AISC 360-16 H1 Enhanced P-M Interaction")
+            st.markdown("### AISC 360-16 H1 Interactive P-M Diagram")
             
             if comp_results and phi_Mnx > 0:
-                # Generate H1 interaction curve
+                # Generate enhanced H1 interaction curve
                 P_ratios = []
                 M_ratios = []
                 
-                for i in range(101):  # 0 to 1 in 0.01 increments for smooth curve
+                for i in range(101):  # 0 to 1 in 0.01 increments for smoother curve
                     p_ratio = i * 0.01
                     P_ratios.append(p_ratio)
                     
@@ -1740,15 +1741,15 @@ with tab5:
                 
                 fig = go.Figure()
                 
-                # AISC H1 interaction curve
+                # Enhanced AISC H1 curve
                 fig.add_trace(go.Scatter(
                     x=M_ratios, y=P_ratios,
                     mode='lines',
                     name='AISC H1 Interaction',
                     line=dict(color='#2196f3', width=4),
                     fill='tozeroy',
-                    fillcolor='rgba(33, 150, 243, 0.2)',
-                    hovertemplate='M/Mc: %{x:.3f}<br>P/Pc: %{y:.3f}<extra></extra>'
+                    fillcolor='rgba(33, 150, 243, 0.15)',
+                    hovertemplate='M ratio: %{x:.3f}<br>P ratio: %{y:.3f}<br>Safe Zone<extra></extra>'
                 ))
                 
                 # Design point
@@ -1760,38 +1761,38 @@ with tab5:
                         x=[M_combined], y=[P_ratio],
                         mode='markers',
                         name='Design Point',
-                        marker=dict(color='#f44336', size=18, symbol='star'),
-                        hovertemplate=f'Design Point<br>P/Pc: {P_ratio:.3f}<br>ΣM/Mc: {M_combined:.3f}<br>Unity: {interaction_result["interaction_ratio"]:.3f}<extra></extra>'
+                        marker=dict(color='#f44336', size=20, symbol='star'),
+                        hovertemplate=f'Design Point<br>P/Pc: {P_ratio:.3f}<br>ΣM/Mc: {M_combined:.3f}<br>Unity: {interaction_result["interaction_ratio"]:.3f}<br>Equation: {interaction_result["equation"]}<extra></extra>'
                     ))
                     
-                    # Status annotation with enhanced styling
+                    # Enhanced status annotation with equation info
                     if interaction_result['design_ok']:
-                        annotation_text = "✅ SAFE DESIGN"
+                        annotation_text = f"✅ SAFE<br>{interaction_result['equation']}"
                         annotation_color = "#4caf50"
                     else:
-                        annotation_text = "❌ UNSAFE DESIGN"
+                        annotation_text = f"❌ UNSAFE<br>{interaction_result['equation']}"
                         annotation_color = "#f44336"
                     
                     fig.add_annotation(
-                        x=M_combined, y=P_ratio,
+                        x=M_combined + 0.05, y=P_ratio + 0.05,
                         text=annotation_text,
                         showarrow=True,
                         arrowhead=2,
                         bgcolor="white",
                         bordercolor=annotation_color,
-                        borderwidth=3,
-                        font=dict(size=12, color=annotation_color)
+                        borderwidth=2,
+                        font=dict(size=12)
                     )
                 
                 # Enhanced transition line
                 fig.add_hline(y=0.2, line_dash="dot", line_color='#ff9800', line_width=2,
                             annotation_text="Pr/Pc = 0.2 (H1-1a/H1-1b transition)")
                 
-                # Add equation regions
-                fig.add_vrect(x0=0, x1=1.2, y0=0.2, y1=1.2, fillcolor='#ffecb3', opacity=0.1,
-                            annotation_text="H1-1a Region", annotation_position="top left")
-                fig.add_vrect(x0=0, x1=1.2, y0=0, y1=0.2, fillcolor='#e1f5fe', opacity=0.1,
-                            annotation_text="H1-1b Region", annotation_position="bottom left")
+                # Region annotations
+                fig.add_annotation(x=0.5, y=0.6, text="H1-1a Region<br>Pr/Pc ≥ 0.2", 
+                                 bgcolor="rgba(255,152,0,0.1)", bordercolor="#ff9800", showarrow=False)
+                fig.add_annotation(x=0.7, y=0.1, text="H1-1b Region<br>Pr/Pc < 0.2", 
+                                 bgcolor="rgba(76,175,80,0.1)", bordercolor="#4caf50", showarrow=False)
                 
                 fig.update_layout(
                     title="AISC 360-16 H1 Enhanced P-M Interaction Diagram",
@@ -1799,66 +1800,62 @@ with tab5:
                     yaxis_title="Axial Force Ratio (Pr/Pc)",
                     height=600,
                     template='plotly_white',
-                    xaxis=dict(range=[0, 1.2], showgrid=True, gridwidth=1, gridcolor='lightgray'),
-                    yaxis=dict(range=[0, 1.2], showgrid=True, gridwidth=1, gridcolor='lightgray')
+                    hovermode='closest',
+                    xaxis=dict(range=[0, 1.3], showgrid=True, gridcolor='lightgray'),
+                    yaxis=dict(range=[0, 1.1], showgrid=True, gridcolor='lightgray')
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Enhanced H1 summary
+                # Enhanced H1 summary with capacities
                 if interaction_result:
                     st.markdown('<div class="design-summary">', unsafe_allow_html=True)
                     st.markdown("### AISC 360-16 H1 Design Summary")
                     h1_summary = pd.DataFrame({
-                        'Parameter': ['Pu', 'φPn', 'Pr/Pc', 'Mux', 'φMnx', 'Mrx/Mcx', 
-                                     'Muy', 'φMny', 'Mry/Mcy', 'Interaction Ratio', 'Equation', 'Design Status'],
-                        'Value': [f"{Pu_bc:.1f} tons", f"{phi_Pn:.2f} tons", f"{interaction_result['Pr_Pc']:.3f}",
-                                 f"{Mux:.1f} t·m", f"{phi_Mnx:.2f} t·m", f"{interaction_result['Mrx_Mcx']:.3f}",
-                                 f"{Muy:.1f} t·m", f"{phi_Mny:.2f} t·m", f"{interaction_result['Mry_Mcy']:.3f}",
-                                 f"{interaction_result['interaction_ratio']:.3f}", interaction_result['equation'], 
-                                 "PASS ✅" if interaction_result['design_ok'] else "FAIL ❌"],
-                        'AISC Ref': ['Applied', 'E3 φc=0.90', 'Pu/φPn', 'Applied', 'F2 φb=0.90', 'Mux/φMnx',
-                                    'Applied', 'Mp φb=0.90', 'Muy/φMny', 'H1-1a/b', 'H1.1', 'Unity ≤ 1.0']
+                        'Component': ['Axial (E3)', 'Major Moment (F2)', 'Minor Moment', 'H1 Interaction'],
+                        'Required': [f"{Pu_bc:.1f} tons", f"{Mux:.1f} t⋅m", f"{Muy:.1f} t⋅m", 
+                                   f"{interaction_result['interaction_ratio']:.3f}"],
+                        'Available': [f"{phi_Pn:.1f} tons", f"{phi_Mnx:.1f} t⋅m", f"{phi_Mny:.1f} t⋅m", "1.000"],
+                        'Ratio': [f"{interaction_result['Pr_Pc']:.3f}", f"{interaction_result['Mrx_Mcx']:.3f}",
+                                 f"{interaction_result['Mry_Mcy']:.3f}", f"{interaction_result['equation']}"],
+                        'Status': ["✓" if interaction_result['Pr_Pc'] <= 1.0 else "✗",
+                                  "✓" if interaction_result['Mrx_Mcx'] <= 1.0 else "✗",
+                                  "✓" if interaction_result['Mry_Mcy'] <= 1.0 else "✗",
+                                  "✓" if interaction_result['design_ok'] else "✗"]
                     })
                     st.dataframe(h1_summary, use_container_width=True, hide_index=True)
                     st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.warning("Please select section and material from the sidebar")
+        st.warning("Please select a section and material from the sidebar")
 
 # ==================== TAB 6: ENHANCED COMPARISON ====================
 with tab6:
-    st.markdown('<h2 class="section-header">Advanced AISC 360-16 Multi-Section Comparison</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">AISC 360-16 Advanced Multi-Section Comparison</h2>', unsafe_allow_html=True)
     
     if st.session_state.selected_sections:
         st.info(f"Comparing {len(st.session_state.selected_sections)} sections per AISC 360-16")
         
-        col1, col2, col3 = st.columns(3)
+        # Enhanced comparison parameters
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             comparison_type = st.selectbox("Analysis Type:",
-                ["Flexural Capacity (F2)", "Compression Capacity (E3)", "Weight Efficiency", 
-                 "Critical Lengths Comparison", "Combined Performance"])
+                ["Moment Capacity (F2)", "Compression Capacity (E3)", "Weight Efficiency", 
+                 "Combined Performance", "Critical Lengths Analysis"])
         
         with col2:
-            Lb_comp = st.slider("Lb for F2 Analysis (m):", 0.1, 20.0, 3.0, 0.1)
-            Cb_comp = st.number_input("Cb Factor:", 1.0, 2.3, 1.0, 0.1)
+            Lb_comp = st.slider("Lb for F2 (m):", 0.1, 20.0, 3.0, 0.1)
         
         with col3:
-            KL_comp = st.slider("KL for E3 Analysis (m):", 0.1, 20.0, 3.0, 0.1)
+            KL_comp = st.slider("KL for E3 (m):", 0.1, 20.0, 3.0, 0.1)
             
-            # Export comparison results
-            export_results = st.checkbox("Include in calculation report")
+        with col4:
+            export_results = st.button("Export Comparison")
         
-        # Enhanced AISC comparison
+        # Enhanced AISC comparison with critical lengths
         comparison_data = []
-        critical_lengths_data = []
         
-        progress_bar = st.progress(0)
-        total_sections = len(st.session_state.selected_sections)
-        
-        for i, section_name in enumerate(st.session_state.selected_sections):
-            progress_bar.progress((i + 1) / total_sections)
-            
+        for section_name in st.session_state.selected_sections:
             if section_name not in df.index:
                 continue
             
@@ -1866,10 +1863,10 @@ with tab6:
                 weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
                 weight = safe_scalar(df.loc[section_name, weight_col])
                 
-                # AISC F2 with specified Cb
-                flex_result = aisc_360_16_f2_flexural_design(df, df_mat, section_name, selected_material, Lb_comp, Cb_comp)
+                # AISC F2 analysis
+                flex_result = aisc_360_16_f2_flexural_design(df, df_mat, section_name, selected_material, Lb_comp)
                 
-                # AISC E3
+                # AISC E3 analysis
                 comp_results = aisc_360_16_e3_compression_design(df, df_mat, section_name, selected_material, KL_comp, KL_comp)
                 
                 if flex_result and comp_results:
@@ -1878,54 +1875,44 @@ with tab6:
                         'Weight (kg/m)': weight,
                         'φMn (t·m)': 0.9 * flex_result['Mn'],
                         'φPn (tons)': comp_results['phi_Pn'],
-                        'Moment Efficiency': (0.9 * flex_result['Mn']) / weight,
-                        'Compression Efficiency': comp_results['phi_Pn'] / weight,
-                        'Combined Score': ((0.9 * flex_result['Mn']) / weight) * (comp_results['phi_Pn'] / weight),
-                        'F2 Case': flex_result['Case'],
-                        'E3 Mode': comp_results['buckling_mode']
-                    })
-                    
-                    # Critical lengths data
-                    critical_lengths_data.append({
-                        'Section': section_name,
                         'Lp (m)': flex_result['Lp'],
                         'Lr (m)': flex_result['Lr'],
+                        'F2 Case': flex_result['Case'],
+                        'E3 Mode': comp_results['buckling_mode'],
+                        'Moment Efficiency': (0.9 * flex_result['Mn']) / weight,
+                        'Compression Efficiency': comp_results['phi_Pn'] / weight,
                         'Lp/Lr Ratio': flex_result['Lp'] / flex_result['Lr'] if flex_result['Lr'] > 0 else 0,
-                        'λc': comp_results['lambda_c'],
-                        'λ limit': comp_results['lambda_limit'],
-                        'Slenderness Ratio': comp_results['lambda_c'] / comp_results['lambda_limit']
+                        'Combined Score': ((0.9 * flex_result['Mn']) / weight) * (comp_results['phi_Pn'] / weight)
                     })
             except Exception as e:
-                st.error(f"Error analyzing {section_name}: {str(e)}")
+                st.warning(f"Error analyzing {section_name}: {str(e)}")
                 continue
-        
-        progress_bar.empty()
         
         if comparison_data:
             df_comparison = pd.DataFrame(comparison_data)
-            df_critical = pd.DataFrame(critical_lengths_data)
             
-            # Display comparison charts based on type
-            if comparison_type == "Flexural Capacity (F2)":
+            # Enhanced comparison charts
+            if comparison_type == "Moment Capacity (F2)":
                 st.markdown("### AISC F2 Multi-Section Moment Capacity Curves")
                 
                 fig = go.Figure()
-                colors = ['#2196f3', '#4caf50', '#ff9800', '#f44336', '#9c27b0', '#00bcd4', '#795548', '#607d8b']
+                colors = ['#2196f3', '#4caf50', '#ff9800', '#f44336', '#9c27b0', '#00bcd4', 
+                         '#795548', '#607d8b', '#e91e63', '#3f51b5']
                 
-                for i, section_name in enumerate(st.session_state.selected_sections[:8]):  # Limit to 8 for clarity
+                for i, section_name in enumerate(st.session_state.selected_sections[:10]):  # Limit for performance
                     if section_name not in df.index:
                         continue
                     
-                    # F2 curve for each section
+                    # Generate F2 curve for each section
                     Lb_points = []
                     Mn_points = []
                     
-                    for j in range(50):  # Reduced points for performance
-                        lb = 0.1 + j * 0.3  # 0.1 to 15m
+                    for j in range(150):  # 150 points from 0.1 to 15m
+                        lb = 0.1 + j * 0.1
                         Lb_points.append(lb)
                         
                         try:
-                            flex_result = aisc_360_16_f2_flexural_design(df, df_mat, section_name, selected_material, lb, Cb_comp)
+                            flex_result = aisc_360_16_f2_flexural_design(df, df_mat, section_name, selected_material, lb)
                             if flex_result:
                                 Mn_points.append(0.9 * flex_result['Mn'])
                             else:
@@ -1936,161 +1923,217 @@ with tab6:
                     color = colors[i % len(colors)]
                     fig.add_trace(go.Scatter(
                         x=Lb_points, y=Mn_points,
-                        mode='lines+markers',
+                        mode='lines',
                         name=section_name,
                         line=dict(color=color, width=3),
-                        marker=dict(size=4),
-                        hovertemplate=f'{section_name}<br>Lb: %{{x:.1f}}m<br>φMn: %{{y:.2f}} t·m<extra></extra>'
+                        hovertemplate='%{fullData.name}<br>Lb: %{x:.1f}m<br>φMn: %{y:.2f} t·m<extra></extra>'
                     ))
+                    
+                    # Add critical length markers for this section
+                    section_data = df_comparison[df_comparison['Section'] == section_name]
+                    if not section_data.empty:
+                        Lp = section_data['Lp (m)'].iloc[0]
+                        Lr = section_data['Lr (m)'].iloc[0]
+                        
+                        # Find Mn at Lp and Lr for markers
+                        Lp_index = min(range(len(Lb_points)), key=lambda i: abs(Lb_points[i] - Lp))
+                        Lr_index = min(range(len(Lb_points)), key=lambda i: abs(Lb_points[i] - Lr))
+                        
+                        # Add Lp marker
+                        fig.add_trace(go.Scatter(
+                            x=[Lp], y=[Mn_points[Lp_index]],
+                            mode='markers',
+                            name=f'{section_name} Lp',
+                            marker=dict(color=color, size=8, symbol='circle'),
+                            showlegend=False,
+                            hovertemplate=f'{section_name}<br>Lp: {Lp:.3f}m<br>φMn: {Mn_points[Lp_index]:.2f} t·m<extra></extra>'
+                        ))
+                        
+                        # Add Lr marker
+                        fig.add_trace(go.Scatter(
+                            x=[Lr], y=[Mn_points[Lr_index]],
+                            mode='markers',
+                            name=f'{section_name} Lr',
+                            marker=dict(color=color, size=8, symbol='square'),
+                            showlegend=False,
+                            hovertemplate=f'{section_name}<br>Lr: {Lr:.3f}m<br>φMn: {Mn_points[Lr_index]:.2f} t·m<extra></extra>'
+                        ))
                 
+                # Add design point line
                 fig.add_vline(x=Lb_comp, line_dash="dash", line_color='red', line_width=2,
-                            annotation_text=f"Analysis Point: Lb = {Lb_comp:.1f}m")
+                            annotation_text=f"Design Lb = {Lb_comp:.1f} m")
                 
                 fig.update_layout(
-                    title=f"AISC 360-16 F2: Multi-Section Comparison (Cb = {Cb_comp:.1f})",
+                    title="AISC 360-16 F2: Multi-Section Comparison with Critical Lengths",
                     xaxis_title="Unbraced Length, Lb (m)",
                     yaxis_title="φMn (t·m)",
                     height=600,
                     template='plotly_white',
-                    legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
+                    hovermode='x unified'
                 )
+                
                 st.plotly_chart(fig, use_container_width=True)
                 
-            elif comparison_type == "Critical Lengths Comparison":
-                st.markdown("### AISC 360-16 Critical Lengths Analysis")
+                # Critical lengths summary table
+                st.markdown("### Critical Lengths Summary")
+                critical_summary = df_comparison[['Section', 'Lp (m)', 'Lr (m)', 'Lp/Lr Ratio', 'F2 Case']].copy()
                 
-                fig = make_subplots(rows=1, cols=2,
-                                   subplot_titles=('Flexural Critical Lengths (F2)', 'Column Slenderness (E3)'))
+                def highlight_best_lp_lr(s):
+                    if s.name == 'Lp (m)':
+                        is_max = s == s.max()
+                        return ['background-color: #e8f5e9' if v else '' for v in is_max]
+                    elif s.name == 'Lr (m)':
+                        is_max = s == s.max()
+                        return ['background-color: #fff3e0' if v else '' for v in is_max]
+                    else:
+                        return ['' for _ in s]
                 
-                # Lp vs Lr
-                fig.add_trace(go.Scatter(
-                    x=df_critical['Section'],
-                    y=df_critical['Lp (m)'],
-                    mode='markers+lines',
-                    name='Lp (Yielding limit)',
-                    marker=dict(color='#4caf50', size=10),
-                    line=dict(color='#4caf50', width=2)
-                ), row=1, col=1)
+                styled_critical = critical_summary.style.apply(highlight_best_lp_lr).format({
+                    'Lp (m)': '{:.3f}',
+                    'Lr (m)': '{:.3f}',
+                    'Lp/Lr Ratio': '{:.3f}'
+                })
                 
-                fig.add_trace(go.Scatter(
-                    x=df_critical['Section'],
-                    y=df_critical['Lr (m)'],
-                    mode='markers+lines',
-                    name='Lr (Inelastic LTB limit)',
-                    marker=dict(color='#ff9800', size=10),
-                    line=dict(color='#ff9800', width=2)
-                ), row=1, col=1)
+                st.dataframe(styled_critical, use_container_width=True, hide_index=True)
                 
-                # λc vs λ limit
-                fig.add_trace(go.Scatter(
-                    x=df_critical['Section'],
-                    y=df_critical['λc'],
-                    mode='markers+lines',
-                    name='λc (Controlling)',
-                    marker=dict(color='#2196f3', size=10),
-                    line=dict(color='#2196f3', width=2)
-                ), row=1, col=2)
+            elif comparison_type == "Critical Lengths Analysis":
+                st.markdown("### AISC F2 Critical Lengths Detailed Analysis")
                 
-                fig.add_trace(go.Scatter(
-                    x=df_critical['Section'],
-                    y=df_critical['λ limit'],
-                    mode='markers+lines',
-                    name='4.71√(E/Fy)',
-                    marker=dict(color='#f44336', size=10),
-                    line=dict(color='#f44336', width=2, dash='dash')
-                ), row=1, col=2)
+                # Critical lengths visualization
+                fig_critical = go.Figure()
                 
-                fig.update_layout(
-                    title="Critical Lengths & Slenderness Comparison",
+                sections = df_comparison['Section'].tolist()
+                lp_values = df_comparison['Lp (m)'].tolist()
+                lr_values = df_comparison['Lr (m)'].tolist()
+                
+                fig_critical.add_trace(go.Bar(
+                    name='Lp (Yielding Limit)',
+                    x=sections,
+                    y=lp_values,
+                    marker_color='#4caf50',
+                    hovertemplate='%{x}<br>Lp: %{y:.3f} m<extra></extra>'
+                ))
+                
+                fig_critical.add_trace(go.Bar(
+                    name='Lr (Inelastic LTB Limit)',
+                    x=sections,
+                    y=lr_values,
+                    marker_color='#ff9800',
+                    hovertemplate='%{x}<br>Lr: %{y:.3f} m<extra></extra>'
+                ))
+                
+                # Add design point line
+                fig_critical.add_hline(y=Lb_comp, line_dash="dash", line_color='red', line_width=3,
+                                     annotation_text=f"Design Lb = {Lb_comp:.1f} m")
+                
+                fig_critical.update_layout(
+                    title="Critical Lengths Comparison (Lp & Lr per AISC F2.5 & F2.6)",
+                    xaxis_title="Steel Sections",
+                    yaxis_title="Length (m)",
                     height=500,
-                    template='plotly_white'
+                    template='plotly_white',
+                    barmode='group'
                 )
-                st.plotly_chart(fig, use_container_width=True)
                 
-                # Critical lengths table
-                st.markdown("#### Critical Lengths Data Table")
-                st.dataframe(df_critical.round(3), use_container_width=True, hide_index=True)
+                st.plotly_chart(fig_critical, use_container_width=True)
+                
+                # Zone classification for current Lb
+                st.markdown("### Zone Classification for Current Design")
+                zone_data = []
+                for _, row in df_comparison.iterrows():
+                    if Lb_comp <= row['Lp (m)']:
+                        zone = "✅ Yielding (F2.1)"
+                        status = "Optimal"
+                    elif Lb_comp <= row['Lr (m)']:
+                        zone = "⚠️ Inelastic LTB (F2.2)"
+                        status = "Good"
+                    else:
+                        zone = "❌ Elastic LTB (F2.3)"
+                        status = "Check Required"
+                    
+                    zone_data.append({
+                        'Section': row['Section'],
+                        'Zone at Lb=' + f"{Lb_comp:.1f}m": zone,
+                        'Status': status,
+                        'Lp (m)': f"{row['Lp (m)']:.3f}",
+                        'Lr (m)': f"{row['Lr (m)']:.3f}"
+                    })
+                
+                zone_df = pd.DataFrame(zone_data)
+                st.dataframe(zone_df, use_container_width=True, hide_index=True)
                 
             elif comparison_type == "Compression Capacity (E3)":
                 fig = go.Figure()
-                
-                # Bar chart with buckling mode color coding
-                colors = ['#4caf50' if mode == 'Inelastic' else '#2196f3' for mode in df_comparison['E3 Mode']]
                 
                 fig.add_trace(go.Bar(
                     x=df_comparison['Section'],
                     y=df_comparison['φPn (tons)'],
                     text=[f'{v:.1f}' for v in df_comparison['φPn (tons)']],
                     textposition='auto',
-                    marker_color=colors,
-                    name='φPn',
-                    hovertemplate='Section: %{x}<br>φPn: %{y:.2f} tons<br>Mode: %{customdata}<extra></extra>',
+                    marker_color='#2196f3',
+                    name='φPn (AISC E3)',
+                    hovertemplate='%{x}<br>φPn: %{y:.1f} tons<br>Mode: %{customdata}<extra></extra>',
                     customdata=df_comparison['E3 Mode']
                 ))
                 
                 fig.update_layout(
                     title=f"AISC 360-16 E3: Compression Capacity at KL = {KL_comp:.1f} m",
+                    xaxis_title="Steel Sections",
                     yaxis_title="φPn (tons)",
-                    template='plotly_white',
-                    height=500
+                    height=500,
+                    template='plotly_white'
                 )
-                
-                # Add legend for colors
-                fig.add_annotation(
-                    text="🟢 Inelastic Buckling  🔵 Elastic Buckling",
-                    xref="paper", yref="paper",
-                    x=0.5, y=1.15, showarrow=False,
-                    font=dict(size=12)
-                )
-                
                 st.plotly_chart(fig, use_container_width=True)
                 
             elif comparison_type == "Weight Efficiency":
-                fig = make_subplots(rows=2, cols=2,
-                                   subplot_titles=('Moment Efficiency', 'Compression Efficiency',
-                                                  'Weight Comparison', 'Combined Performance'))
+                fig = make_subplots(
+                    rows=2, cols=2,
+                    subplot_titles=('Moment Efficiency', 'Compression Efficiency', 
+                                   'Combined Efficiency Score', 'Weight Comparison'),
+                    specs=[[{"type": "bar"}, {"type": "bar"}],
+                           [{"type": "bar"}, {"type": "bar"}]]
+                )
                 
+                # Moment efficiency
                 fig.add_trace(go.Bar(
                     x=df_comparison['Section'],
                     y=df_comparison['Moment Efficiency'],
-                    text=[f'{v:.3f}' for v in df_comparison['Moment Efficiency']],
-                    textposition='auto',
                     marker_color='#4caf50',
-                    name='φMn/Weight'
+                    name='φMn/Weight',
+                    showlegend=False
                 ), row=1, col=1)
                 
+                # Compression efficiency
                 fig.add_trace(go.Bar(
                     x=df_comparison['Section'],
                     y=df_comparison['Compression Efficiency'],
-                    text=[f'{v:.3f}' for v in df_comparison['Compression Efficiency']],
-                    textposition='auto',
                     marker_color='#ff9800',
-                    name='φPn/Weight'
+                    name='φPn/Weight',
+                    showlegend=False
                 ), row=1, col=2)
                 
-                fig.add_trace(go.Bar(
-                    x=df_comparison['Section'],
-                    y=df_comparison['Weight (kg/m)'],
-                    text=[f'{v:.1f}' for v in df_comparison['Weight (kg/m)']],
-                    textposition='auto',
-                    marker_color='#9c27b0',
-                    name='Weight'
-                ), row=2, col=1)
-                
+                # Combined score
                 fig.add_trace(go.Bar(
                     x=df_comparison['Section'],
                     y=df_comparison['Combined Score'],
-                    text=[f'{v:.4f}' for v in df_comparison['Combined Score']],
-                    textposition='auto',
-                    marker_color='#f44336',
-                    name='Combined Score'
+                    marker_color='#9c27b0',
+                    name='Combined Score',
+                    showlegend=False
+                ), row=2, col=1)
+                
+                # Weight comparison
+                fig.add_trace(go.Bar(
+                    x=df_comparison['Section'],
+                    y=df_comparison['Weight (kg/m)'],
+                    marker_color='#607d8b',
+                    name='Weight',
+                    showlegend=False
                 ), row=2, col=2)
                 
                 fig.update_layout(
                     title="AISC 360-16 Comprehensive Efficiency Analysis",
                     height=700,
-                    template='plotly_white',
-                    showlegend=False
+                    template='plotly_white'
                 )
                 st.plotly_chart(fig, use_container_width=True)
             
@@ -2098,16 +2141,18 @@ with tab6:
                 # Enhanced radar chart
                 fig = go.Figure()
                 
-                categories = ['Weight (inv)', 'φMn (F2)', 'φPn (E3)', 'Moment Eff.', 'Compression Eff.']
+                categories = ['Weight Efficiency', 'φMn Capacity', 'φPn Capacity', 
+                             'Lp Length', 'Lr Length', 'Overall Score']
                 
                 for idx, row in df_comparison.iterrows():
-                    # Normalize values for radar chart
+                    # Normalize values for radar chart (higher is better)
                     values = [
-                        1 - (row['Weight (kg/m)'] / df_comparison['Weight (kg/m)'].max()),  # Inverted weight (lower is better)
+                        1 - (row['Weight (kg/m)'] / df_comparison['Weight (kg/m)'].max()),  # Lower weight is better
                         row['φMn (t·m)'] / df_comparison['φMn (t·m)'].max(),
                         row['φPn (tons)'] / df_comparison['φPn (tons)'].max(),
-                        row['Moment Efficiency'] / df_comparison['Moment Efficiency'].max(),
-                        row['Compression Efficiency'] / df_comparison['Compression Efficiency'].max()
+                        row['Lp (m)'] / df_comparison['Lp (m)'].max(),
+                        row['Lr (m)'] / df_comparison['Lr (m)'].max(),
+                        row['Combined Score'] / df_comparison['Combined Score'].max()
                     ]
                     values.append(values[0])  # Close the polygon
                     
@@ -2116,17 +2161,14 @@ with tab6:
                         theta=categories + [categories[0]],
                         fill='toself',
                         name=row['Section'],
-                        line=dict(width=2),
-                        fillcolor=f'rgba({50 + idx*30}, {100 + idx*20}, {200 - idx*15}, 0.3)'
+                        opacity=0.7
                     ))
                 
                 fig.update_layout(
                     polar=dict(
                         radialaxis=dict(
                             visible=True,
-                            range=[0, 1],
-                            tickvals=[0.2, 0.4, 0.6, 0.8, 1.0],
-                            ticktext=['20%', '40%', '60%', '80%', '100%']
+                            range=[0, 1]
                         )),
                     showlegend=True,
                     title="AISC 360-16 Combined Performance Radar Chart",
@@ -2137,345 +2179,344 @@ with tab6:
             # Enhanced comparison table
             st.markdown("### 📊 AISC 360-16 Detailed Comparison Table")
             
-            # Create enhanced display dataframe
             df_display = df_comparison.copy()
-            if not df_critical.empty:
-                # Merge critical lengths data
-                df_display = df_display.merge(df_critical[['Section', 'Lp (m)', 'Lr (m)', 'λc']], 
-                                             on='Section', how='left')
-            
-            df_display = df_display.round(3)
+            df_display = df_display.round(4)
             
             # Highlight best values
-            def highlight_performance(s):
-                if s.name in ['φMn (t·m)', 'φPn (tons)', 'Moment Efficiency', 'Compression Efficiency', 'Combined Score']:
+            def highlight_optimal(s):
+                if s.name in ['φMn (t·m)', 'φPn (tons)', 'Lp (m)', 'Lr (m)', 
+                             'Moment Efficiency', 'Compression Efficiency', 'Combined Score']:
                     is_max = s == s.max()
-                    return ['background-color: #c8e6c9' if v else '' for v in is_max]
+                    return ['background-color: #e8f5e9; font-weight: bold' if v else '' for v in is_max]
                 elif s.name == 'Weight (kg/m)':
                     is_min = s == s.min()
-                    return ['background-color: #c8e6c9' if v else '' for v in is_min]
+                    return ['background-color: #e8f5e9; font-weight: bold' if v else '' for v in is_min]
                 else:
                     return ['' for _ in s]
             
-            styled_df = df_display.style.apply(highlight_performance)
-            st.dataframe(styled_df, use_container_width=True)
+            styled_df = df_display.style.apply(highlight_optimal)
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
             
             # Enhanced recommendations with AISC context
-            st.markdown('<div class="evaluation-card">', unsafe_allow_html=True)
             st.markdown("### 🏆 AISC 360-16 Design Recommendations")
             
-            col_rec1, col_rec2, col_rec3 = st.columns(3)
+            col_rec1, col_rec2, col_rec3, col_rec4 = st.columns(4)
             
             with col_rec1:
                 best_moment = df_comparison.loc[df_comparison['φMn (t·m)'].idxmax()]
-                st.markdown(f"""
-                **Best F2 Flexural Capacity:**
-                **{best_moment["Section"]}**
-                - φMn: {best_moment["φMn (t·m)"]:.2f} t·m
-                - Case: {best_moment["F2 Case"]}
-                - Weight: {best_moment["Weight (kg/m)"]:.1f} kg/m
+                st.info(f"""
+                **Best F2 Moment Capacity:**
+                {best_moment["Section"]}
+                φMn: {best_moment["φMn (t·m)"]:.2f} t·m
+                Case: {best_moment["F2 Case"]}
                 """)
             
             with col_rec2:
                 best_compression = df_comparison.loc[df_comparison['φPn (tons)'].idxmax()]
-                st.markdown(f"""
-                **Best E3 Compression Capacity:**
-                **{best_compression["Section"]}**
-                - φPn: {best_compression["φPn (tons)"]:.1f} tons
-                - Mode: {best_compression["E3 Mode"]}
-                - Weight: {best_compression["Weight (kg/m)"]:.1f} kg/m
+                st.info(f"""
+                **Best E3 Compression:**
+                {best_compression["Section"]}
+                φPn: {best_compression["φPn (tons)"]:.1f} tons
+                Mode: {best_compression["E3 Mode"]}
                 """)
             
             with col_rec3:
-                best_overall = df_comparison.loc[df_comparison['Combined Score'].idxmax()]
-                st.markdown(f"""
-                **Best Overall Performance:**
-                **{best_overall["Section"]}**
-                - Combined Score: {best_overall["Combined Score"]:.4f}
-                - φMn: {best_overall["φMn (t·m)"]:.2f} t·m
-                - φPn: {best_overall["φPn (tons)"]:.1f} tons
+                best_lp = df_comparison.loc[df_comparison['Lp (m)'].idxmax()]
+                st.info(f"""
+                **Best Critical Length Lp:**
+                {best_lp["Section"]}
+                Lp: {best_lp["Lp (m)"]:.3f} m
+                (F2.5 Yielding Limit)
                 """)
-            st.markdown('</div>', unsafe_allow_html=True)
             
-            # Export comparison results to report
+            with col_rec4:
+                lightest = df_comparison.loc[df_comparison['Weight (kg/m)'].idxmin()]
+                st.info(f"""
+                **Lightest Section:**
+                {lightest["Section"]}
+                Weight: {lightest["Weight (kg/m)"]:.1f} kg/m
+                Efficiency Leader
+                """)
+            
+            # Export functionality
             if export_results:
-                comparison_summary = f"""
-COMPARISON ANALYSIS SUMMARY
-{'='*50}
-Analysis Type: {comparison_type}
-Parameters: Lb = {Lb_comp:.1f}m, KL = {KL_comp:.1f}m, Cb = {Cb_comp:.1f}
-Material: {selected_material}
-
-BEST PERFORMERS:
-- Flexural (F2): {best_moment["Section"]} - {best_moment["φMn (t·m)"]:.2f} t·m
-- Compression (E3): {best_compression["Section"]} - {best_compression["φPn (tons)"]:.1f} tons
-- Overall: {best_overall["Section"]} - Score {best_overall["Combined Score"]:.4f}
-
-DETAILED RESULTS:
-{df_display.to_string(index=False)}
-                """
-                st.session_state.calculation_report += f"\n\n{comparison_summary}"
-                st.success("Comparison results added to calculation report!")
+                csv = df_comparison.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Comparison Results (CSV)",
+                    data=csv,
+                    file_name=f"aisc_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime='text/csv'
+                )
+                
     else:
-        st.warning("Please select sections from the 'Section Selection' tab first")
-        
+        st.warning("⚠️ Please select sections from the 'Section Selection' tab first")
         st.markdown("""
-        ### 📖 How to Use Advanced Comparison Tool:
+        ### 📖 How to Use Enhanced Comparison Tool:
+        1. Go to **Section Selection** tab
+        2. Input your design requirements (Mu, deflection, etc.)
+        3. Select multiple sections using checkboxes
+        4. Return here for advanced AISC 360-16 comparison
         
-        1. **Navigate to 'Section Selection' tab**
-        2. **Set your design criteria** (moment, deflection limits)
-        3. **Select multiple sections** using checkboxes in the table
-        4. **Return here** to perform comprehensive AISC 360-16 comparisons
-        
-        **Available Analysis Types:**
-        - **Flexural Capacity (F2)**: Complete Mn vs Lb curves for all sections
-        - **Compression Capacity (E3)**: Column strength comparison with buckling modes
-        - **Critical Lengths**: Lp, Lr analysis for optimal unbraced length selection
-        - **Weight Efficiency**: Strength-to-weight ratios for economical design
-        - **Combined Performance**: Multi-criteria radar chart analysis
+        **Enhanced Features:**
+        - Real-time critical lengths (Lp, Lr) calculation
+        - Zone classification for any unbraced length
+        - Multi-section moment capacity curves with critical points
+        - Weight efficiency analysis with AISC context
+        - Export capabilities for further analysis
         """)
 
-# ==================== TAB 7: DESIGN EVALUATION ====================
+# ==================== TAB 7: DESIGN EVALUATION & CALCULATION REPORTS ====================
 with tab7:
-    st.markdown('<h2 class="section-header">Advanced Design Evaluation & Calculation Reports</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">AISC 360-16 Design Evaluation & Calculation Reports</h2>', unsafe_allow_html=True)
     
     if st.session_state.selected_section and selected_material:
         section = st.session_state.selected_section
         
         st.markdown('<div class="evaluation-card">', unsafe_allow_html=True)
-        st.markdown(f"### Comprehensive Design Evaluation - {section}")
+        st.markdown(f"### Comprehensive Design Evaluation: {section}")
         st.markdown(f"**Material:** {selected_material}")
         st.markdown('</div>', unsafe_allow_html=True)
         
-        col1, col2 = st.columns([1, 2])
+        # Design input parameters
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.markdown("### Design Requirements")
-            
-            # Load requirements
-            req_Mu = st.number_input("Required Moment Mu (t·m):", 0.0, 500.0, 50.0, 5.0)
-            req_Pu = st.number_input("Required Axial Load Pu (tons):", 0.0, 1000.0, 100.0, 10.0)
-            
-            # Length parameters
-            st.markdown("#### Member Lengths")
-            eval_Lb = st.slider("Unbraced Length Lb (m):", 0.1, 20.0, 3.0, 0.1)
-            eval_KLx = st.slider("KLx (m):", 0.1, 20.0, 3.0, 0.1)
-            eval_KLy = st.slider("KLy (m):", 0.1, 20.0, 3.0, 0.1)
-            
-            # Generate comprehensive evaluation
-            if st.button("🔍 Evaluate Design", type="primary"):
-                design_loads = {'Mu': req_Mu, 'Pu': req_Pu}
-                design_lengths = {'Lb': eval_Lb, 'KLx': eval_KLx, 'KLy': eval_KLy}
-                
-                evaluation = evaluate_section_design(df, df_mat, section, selected_material, 
-                                                   design_loads, design_lengths)
-                st.session_state.design_evaluation = evaluation
+            st.markdown("#### Design Loads")
+            Mu_eval = st.number_input("Design Moment Mu (t·m):", min_value=0.0, value=50.0, step=1.0, key="eval_mu")
+            Pu_eval = st.number_input("Axial Load Pu (tons):", min_value=0.0, value=25.0, step=1.0, key="eval_pu")
         
         with col2:
-            # Display evaluation results if available
-            if hasattr(st.session_state, 'design_evaluation') and st.session_state.design_evaluation:
-                eval_data = st.session_state.design_evaluation
+            st.markdown("#### Design Lengths")
+            Lb_eval = st.number_input("Unbraced Length Lb (m):", min_value=0.1, value=3.0, step=0.1, key="eval_lb")
+            KL_eval = st.number_input("Effective Length KL (m):", min_value=0.1, value=3.0, step=0.1, key="eval_kl")
+        
+        with col3:
+            st.markdown("#### Analysis Options")
+            analysis_detail = st.selectbox("Detail Level:", ["Summary", "Detailed", "Full Report"])
+            include_calcs = st.checkbox("Include Step-by-Step Calculations", value=True)
+        
+        # Perform comprehensive evaluation
+        if st.button("🔍 Perform AISC 360-16 Evaluation", type="primary"):
+            
+            # Prepare evaluation parameters
+            design_loads = {'Mu': Mu_eval, 'Pu': Pu_eval}
+            design_lengths = {'Lb': Lb_eval, 'KLx': KL_eval, 'KLy': KL_eval}
+            
+            # Perform evaluation
+            evaluation = evaluate_section_design(df, df_mat, section, selected_material, design_loads, design_lengths)
+            
+            if evaluation:
+                # Display comprehensive results
+                st.markdown("## 📊 AISC 360-16 Design Evaluation Results")
                 
-                st.markdown('<div class="design-summary">', unsafe_allow_html=True)
-                st.markdown("### 📊 Design Evaluation Results")
-                
-                # Overall assessment
-                if eval_data['design_check']['overall_adequate']:
-                    st.success("✅ **DESIGN ADEQUATE** - All checks pass")
+                # Overall assessment banner
+                if evaluation['design_check']['overall_adequate']:
+                    st.markdown('<div class="success-box">', unsafe_allow_html=True)
+                    st.markdown("### ✅ OVERALL DESIGN STATUS: ADEQUATE")
+                    st.markdown(f"**Safety Factors:** Moment = {evaluation['design_check']['safety_factor_moment']:.2f}, Axial = {evaluation['design_check']['safety_factor_axial']:.2f}")
+                    st.markdown('</div>', unsafe_allow_html=True)
                 else:
-                    st.error("❌ **DESIGN INADEQUATE** - Review required")
+                    st.markdown('<div class="error-box">', unsafe_allow_html=True)
+                    st.markdown("### ❌ OVERALL DESIGN STATUS: INADEQUATE")
+                    st.markdown("**Action Required:** Section or design parameters need revision")
+                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                # Key metrics
-                col_e1, col_e2, col_e3 = st.columns(3)
+                # Detailed component analysis
+                col_eval1, col_eval2, col_eval3 = st.columns(3)
                 
-                with col_e1:
-                    ratio = eval_data['design_check']['moment_utilization']
-                    st.metric("Moment Utilization", f"{ratio:.3f}",
-                             delta="OK" if ratio <= 1.0 else "NG",
-                             help="Mu/φMn ratio")
+                with col_eval1:
+                    st.markdown('<div class="design-summary">', unsafe_allow_html=True)
+                    st.markdown("#### Flexural Analysis (F2)")
+                    st.metric("φMn", f"{evaluation['flexural']['phi_Mn']:.2f} t·m")
+                    st.metric("Utilization", f"{evaluation['flexural']['ratio']:.3f}")
+                    st.metric("Zone", evaluation['flexural']['zone'])
+                    st.write(f"**Status:** {evaluation['flexural']['status']}")
+                    st.write(f"**Case:** {evaluation['flexural']['case']}")
+                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                with col_e2:
-                    ratio = eval_data['design_check']['axial_utilization']
-                    st.metric("Axial Utilization", f"{ratio:.3f}",
-                             delta="OK" if ratio <= 1.0 else "NG",
-                             help="Pu/φPn ratio")
+                with col_eval2:
+                    st.markdown('<div class="design-summary">', unsafe_allow_html=True)
+                    st.markdown("#### Compression Analysis (E3)")
+                    st.metric("φPn", f"{evaluation['compression']['phi_Pn']:.2f} tons")
+                    st.metric("Utilization", f"{evaluation['compression']['ratio']:.3f}")
+                    st.metric("Mode", evaluation['compression']['mode'])
+                    st.write(f"**λc:** {evaluation['compression']['lambda_c']:.1f}")
+                    st.write(f"**Fcr:** {evaluation['compression']['Fcr']:.1f} kgf/cm²")
+                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                with col_e3:
-                    st.metric("Weight", f"{eval_data['weight']:.1f} kg/m",
-                             help="Section unit weight")
+                with col_eval3:
+                    st.markdown('<div class="design-summary">', unsafe_allow_html=True)
+                    st.markdown("#### Efficiency Metrics")
+                    st.metric("Weight", f"{evaluation['weight']:.1f} kg/m")
+                    st.metric("Moment Eff.", f"{evaluation['flexural']['efficiency']:.3f}")
+                    st.metric("Compression Eff.", f"{evaluation['compression']['efficiency']:.3f}")
+                    st.write(f"**Lp:** {evaluation['flexural']['Lp']:.3f} m")
+                    st.write(f"**Lr:** {evaluation['flexural']['Lr']:.3f} m")
+                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                st.markdown('</div>', unsafe_allow_html=True)
+                # Critical lengths visualization for evaluated section
+                st.markdown("### Critical Lengths Analysis for Evaluated Design")
                 
-                # Detailed breakdown
-                st.markdown("### Detailed Analysis Breakdown")
+                fig_eval = go.Figure()
                 
-                # Flexural analysis
-                st.markdown('<div class="critical-lengths-box">', unsafe_allow_html=True)
-                st.markdown("#### AISC F2 Flexural Analysis")
-                flex_data = eval_data['flexural']
+                # Get the flexural result for full curve
+                flex_eval = aisc_360_16_f2_flexural_design(df, df_mat, section, selected_material, Lb_eval)
                 
-                col_f1, col_f2, col_f3 = st.columns(3)
-                with col_f1:
-                    st.write(f"**Mp:** {flex_data['Mp']:.2f} t·m")
-                    st.write(f"**Mn:** {flex_data['Mn']:.2f} t·m")
-                    st.write(f"**φMn:** {flex_data['phi_Mn']:.2f} t·m")
-                
-                with col_f2:
-                    st.write(f"**Lp:** {flex_data['Lp']:.3f} m")
-                    st.write(f"**Lr:** {flex_data['Lr']:.3f} m")
-                    st.write(f"**Current Lb:** {eval_Lb:.2f} m")
-                
-                with col_f3:
-                    st.write(f"**Case:** {flex_data['case']}")
-                    st.write(f"**Zone:** {flex_data['zone']}")
-                    st.write(f"**Status:** {flex_data['status']}")
-                
-                if flex_data['adequate']:
-                    st.success(f"Flexural: ADEQUATE (Ratio: {flex_data['ratio']:.3f})")
-                else:
-                    st.error(f"Flexural: INADEQUATE (Ratio: {flex_data['ratio']:.3f})")
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Compression analysis
-                st.markdown('<div class="aisc-equation">', unsafe_allow_html=True)
-                st.markdown("#### AISC E3 Compression Analysis")
-                comp_data = eval_data['compression']
-                
-                col_c1, col_c2, col_c3 = st.columns(3)
-                with col_c1:
-                    st.write(f"**Pn:** {comp_data['Pn']:.2f} tons")
-                    st.write(f"**φPn:** {comp_data['phi_Pn']:.2f} tons")
-                    st.write(f"**Fcr:** {comp_data['Fcr']:.1f} ksc")
-                
-                with col_c2:
-                    st.write(f"**λc:** {comp_data['lambda_c']:.1f}")
-                    st.write(f"**Mode:** {comp_data['mode']}")
-                
-                with col_c3:
-                    if comp_data['adequate']:
-                        st.success(f"Compression: ADEQUATE")
+                if flex_eval:
+                    # Moment capacity curve
+                    fig_eval.add_trace(go.Scatter(
+                        x=flex_eval['Lb_range'],
+                        y=flex_eval['Mn_curve'],
+                        mode='lines',
+                        name='Mn',
+                        line=dict(color='#1976d2', width=3)
+                    ))
+                    
+                    # Design point
+                    fig_eval.add_trace(go.Scatter(
+                        x=[Lb_eval],
+                        y=[evaluation['flexural']['Mn']],
+                        mode='markers',
+                        name='Design Point',
+                        marker=dict(color='#f44336', size=15, symbol='star'),
+                        hovertemplate=f'Design Point<br>Lb: {Lb_eval:.2f}m<br>Mn: {evaluation["flexural"]["Mn"]:.2f} t·m<br>Zone: {evaluation["flexural"]["zone"]}<extra></extra>'
+                    ))
+                    
+                    # Critical lengths
+                    fig_eval.add_vline(x=evaluation['flexural']['Lp'], line_dash="dash", line_color='#4caf50', line_width=3,
+                                     annotation_text=f"Lp = {evaluation['flexural']['Lp']:.3f} m")
+                    fig_eval.add_vline(x=evaluation['flexural']['Lr'], line_dash="dash", line_color='#ff9800', line_width=3,
+                                     annotation_text=f"Lr = {evaluation['flexural']['Lr']:.3f} m")
+                    
+                    # Zone coloring based on design point
+                    if Lb_eval <= evaluation['flexural']['Lp']:
+                        fig_eval.add_vrect(x0=0, x1=evaluation['flexural']['Lp'], fillcolor='#4caf50', opacity=0.2,
+                                         annotation_text="CURRENT ZONE<br>F2.1 YIELDING", annotation_position="top left")
+                    elif Lb_eval <= evaluation['flexural']['Lr']:
+                        fig_eval.add_vrect(x0=evaluation['flexural']['Lp'], x1=evaluation['flexural']['Lr'], fillcolor='#ff9800', opacity=0.2,
+                                         annotation_text="CURRENT ZONE<br>F2.2 INELASTIC LTB", annotation_position="top")
                     else:
-                        st.error(f"Compression: INADEQUATE")
-                    st.write(f"**Ratio:** {comp_data['ratio']:.3f}")
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Efficiency metrics
-                st.markdown("### Efficiency Metrics")
-                efficiency_df = pd.DataFrame({
-                    'Metric': ['Moment Efficiency', 'Compression Efficiency', 'Safety Factor (Moment)', 'Safety Factor (Axial)'],
-                    'Value': [f"{flex_data['efficiency']:.4f} (t·m)/(kg/m)", 
-                             f"{comp_data['efficiency']:.4f} (tons)/(kg/m)",
-                             f"{eval_data['design_check']['safety_factor_moment']:.2f}",
-                             f"{eval_data['design_check']['safety_factor_axial']:.2f}"],
-                    'Assessment': [
-                        'Higher is better',
-                        'Higher is better', 
-                        'Should be > 1.0',
-                        'Should be > 1.0'
-                    ]
-                })
-                st.dataframe(efficiency_df, use_container_width=True, hide_index=True)
-    
-    # Calculation Report Display and Download
-    st.markdown("---")
-    st.markdown("### 📋 Calculation Reports")
-    
-    col_r1, col_r2 = st.columns(2)
-    
-    with col_r1:
+                        max_x = max(flex_eval['Lb_range'])
+                        fig_eval.add_vrect(x0=evaluation['flexural']['Lr'], x1=max_x, fillcolor='#f44336', opacity=0.2,
+                                         annotation_text="CURRENT ZONE<br>F2.3 ELASTIC LTB", annotation_position="top right")
+                    
+                    fig_eval.update_layout(
+                        title=f"Design Evaluation: {section} at Lb = {Lb_eval:.2f}m",
+                        xaxis_title="Unbraced Length, Lb (m)",
+                        yaxis_title="Moment Capacity (t·m)",
+                        height=500,
+                        template='plotly_white'
+                    )
+                    
+                    st.plotly_chart(fig_eval, use_container_width=True)
+        
+        # Calculation report display
         if st.session_state.calculation_report:
-            st.success("Calculation report is ready!")
+            st.markdown("### 📄 Generated Calculation Report")
             
-            # Display preview
-            with st.expander("📄 Preview Report"):
-                st.text(st.session_state.calculation_report[:1000] + "..." if len(st.session_state.calculation_report) > 1000 else st.session_state.calculation_report)
+            col_report1, col_report2 = st.columns([3, 1])
             
-            # Download report
-            st.download_button(
-                label="📥 Download Complete Report",
-                data=st.session_state.calculation_report,
-                file_name=f"AISC_360_16_Calculation_Report_{section}_{selected_material}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain"
-            )
-        else:
-            st.info("Generate calculation reports from the analysis tabs (F2, E3, H1)")
-    
-    with col_r2:
-        st.markdown("#### Report Generation Options")
+            with col_report1:
+                st.markdown('<div class="calculation-note">', unsafe_allow_html=True)
+                st.text(st.session_state.calculation_report)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col_report2:
+                # Download report
+                report_filename = f"AISC_Calc_Report_{section}_{selected_material}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                
+                st.download_button(
+                    label="📥 Download Report",
+                    data=st.session_state.calculation_report,
+                    file_name=report_filename,
+                    mime='text/plain',
+                    help="Download the calculation report as a text file"
+                )
+                
+                if st.button("🗑️ Clear Report"):
+                    st.session_state.calculation_report = ""
+                    st.experimental_rerun()
         
-        if st.button("🔄 Clear All Reports"):
-            st.session_state.calculation_report = ""
-            st.success("Reports cleared!")
-        
-        if st.button("📊 Generate Summary Report") and st.session_state.selected_section:
-            # Generate a comprehensive summary report
-            summary_report = f"""
-AISC 360-16 STEEL DESIGN SUMMARY REPORT
-{'='*60}
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-PROJECT INFORMATION:
-Section: {st.session_state.selected_section}
-Material: {selected_material}
-
-SECTION PROPERTIES SUMMARY:
-{df.loc[st.session_state.selected_section].to_string()}
-
-MATERIAL PROPERTIES:
-{df_mat.loc[selected_material].to_string()}
-
-DESIGN RECOMMENDATIONS:
-- Perform detailed analysis using F2, E3, and H1 tabs
-- Consider critical lengths Lp and Lr for unbraced length selection
-- Verify slenderness ratios per AISC E2
-- Check interaction equations for combined loading
-
-END OF SUMMARY REPORT
-{'='*60}
-            """
+        # Quick evaluation for all selected sections
+        if st.session_state.selected_sections and len(st.session_state.selected_sections) > 1:
+            st.markdown("### 🔄 Quick Evaluation of All Selected Sections")
             
-            st.session_state.calculation_report += summary_report
-            st.success("Summary report generated!")
+            if st.button("Evaluate All Selected Sections"):
+                design_loads = {'Mu': Mu_eval, 'Pu': Pu_eval}
+                design_lengths = {'Lb': Lb_eval, 'KLx': KL_eval, 'KLy': KL_eval}
+                
+                quick_eval_results = []
+                
+                for section_name in st.session_state.selected_sections:
+                    if section_name in df.index:
+                        eval_result = evaluate_section_design(df, df_mat, section_name, selected_material, design_loads, design_lengths)
+                        
+                        if eval_result:
+                            quick_eval_results.append({
+                                'Section': section_name,
+                                'Overall Status': "✅ PASS" if eval_result['design_check']['overall_adequate'] else "❌ FAIL",
+                                'Moment Ratio': f"{eval_result['flexural']['ratio']:.3f}",
+                                'Axial Ratio': f"{eval_result['compression']['ratio']:.3f}",
+                                'F2 Zone': eval_result['flexural']['zone'],
+                                'E3 Mode': eval_result['compression']['mode'],
+                                'Weight (kg/m)': f"{eval_result['weight']:.1f}",
+                                'Safety Factor (Min)': f"{min(eval_result['design_check']['safety_factor_moment'], eval_result['design_check']['safety_factor_axial']):.2f}"
+                            })
+                
+                if quick_eval_results:
+                    quick_df = pd.DataFrame(quick_eval_results)
+                    
+                    # Style the dataframe
+                    def color_status(val):
+                        color = '#d4edda' if '✅' in val else '#f8d7da'
+                        return f'background-color: {color}'
+                    
+                    styled_quick = quick_df.style.applymap(color_status, subset=['Overall Status'])
+                    st.dataframe(styled_quick, use_container_width=True, hide_index=True)
+                    
+                    # Summary statistics
+                    passing_sections = len([r for r in quick_eval_results if "✅" in r['Overall Status']])
+                    st.success(f"✅ {passing_sections} of {len(quick_eval_results)} sections PASS the design criteria")
     
-    # Help and Documentation
-    with st.expander("📚 AISC 360-16 Quick Reference"):
+    else:
+        st.warning("⚠️ Please select a section and material from the sidebar")
+        
         st.markdown("""
-        ### AISC 360-16 Key Equations & References
+        ### 📖 Design Evaluation Features:
         
-        #### Chapter F2 - Flexural Members
-        - **F2.1:** Mn = Mp (Yielding)
-        - **F2.2:** Mn = Cb[Mp - (Mp - 0.7FySx)(Lb-Lp)/(Lr-Lp)] (Inelastic LTB)
-        - **F2.3:** Mn = FcrSx (Elastic LTB)
-        - **F2.5:** Lp = 1.76ry√(E/Fy)
-        - **F2.6:** Lr = 1.95rts(E/0.7Fy)√(Jc/Sxho)√[1+√(1+6.76(0.7Fy/E)²(Sxho/Jc)²)]
+        **Comprehensive Analysis:**
+        - Complete AISC 360-16 F2 flexural analysis
+        - Complete AISC 360-16 E3 compression analysis  
+        - Critical lengths calculation and zone classification
+        - Efficiency metrics and recommendations
         
-        #### Chapter E3 - Compression Members
-        - **E3.2(a):** Fcr = [0.658^(Fy/Fe)]Fy (when λc ≤ 4.71√(E/Fy))
-        - **E3.2(b):** Fcr = 0.877Fe (when λc > 4.71√(E/Fy))
-        - **E3.4:** Fe = π²E/λc²
-        - **E2:** KL/r ≤ 200
+        **Calculation Reports:**
+        - Step-by-step AISC equation application
+        - Material and section properties documentation
+        - Detailed intermediate calculations
+        - Professional format for submission
         
-        #### Chapter H1 - Combined Forces
-        - **H1-1a:** Pr/Pc + (8/9)(Mrx/Mcx + Mry/Mcy) ≤ 1.0 (when Pr/Pc ≥ 0.2)
-        - **H1-1b:** Pr/(2Pc) + (Mrx/Mcx + Mry/Mcy) ≤ 1.0 (when Pr/Pc < 0.2)
+        **Multi-Section Evaluation:**
+        - Batch processing of selected sections
+        - Comparative adequacy assessment
+        - Quick pass/fail summary
+        - Export capabilities for project documentation
         
-        #### Resistance Factors
-        - φb = 0.90 (Flexure)
-        - φc = 0.90 (Compression)
+        **Enhanced Features:**
+        - Real-time design zone visualization
+        - Interactive critical length analysis
+        - Safety factor calculations
+        - Professional report generation
         """)
 
-else:
-    st.warning("Please select a section and material from the sidebar to begin design evaluation")
-
-# ==================== FOOTER ====================
+# ==================== ENHANCED FOOTER ====================
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666; padding: 1rem; background: linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%); border-radius: 10px; margin-top: 2rem;'>
-    <p><b>AISC 360-16 Steel Design Professional v6.0</b></p>
-    <p>✅ Advanced Design Evaluation | ✅ Critical Lengths Analysis | ✅ Comprehensive Calculation Reports</p>
-    <p>✅ Multi-Section Comparison | ✅ Enhanced Visualizations | ✅ AISC 360-16 Full Compliance</p>
-    <p><i>Professional Educational Tool for Structural Engineers</i></p>
-    <p>© 2024 - Enhanced with Advanced Features & Design Intelligence</p>
+<div style='text-align: center; color: #666; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin: 1rem 0;'>
+    <h3><b>AISC 360-16 Steel Design Professional v6.0</b></h3>
+    <p><b>🎯 Enhanced Features:</b> Advanced Design Evaluation | Critical Lengths Display | Calculation Reports</p>
+    <p><b>📐 AISC Compliance:</b> F2 Flexural | E3 Compression | H1 Combined Forces | Complete Equations</p>
+    <p><b>🔧 Professional Tools:</b> Multi-Section Comparison | Zone Analysis | Export Capabilities</p>
+    <p><i>© 2024 - Professional Tool for Structural Engineers</i></p>
 </div>
 """, unsafe_allow_html=True)
