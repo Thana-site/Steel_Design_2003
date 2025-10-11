@@ -33,7 +33,7 @@ try:
 except ImportError:
     AGGRID_AVAILABLE = False
 
-# PDF Export Libraries
+# PDF Export Libraries (silent import, warnings shown later)
 try:
     from reportlab.lib.pagesizes import letter, A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -45,7 +45,7 @@ try:
 except ImportError:
     PDF_AVAILABLE = False
 
-# Excel Export Libraries
+# Excel Export Libraries (silent import, warnings shown later)
 try:
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
