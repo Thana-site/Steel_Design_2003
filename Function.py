@@ -3,6 +3,16 @@
 # New Features: PDF/Excel Export, Modern UI, Enhanced Visualizations
 
 import streamlit as st
+
+# ==================== PAGE CONFIGURATION - MUST BE FIRST ====================
+st.set_page_config(
+    page_title="AISC 360-16 Steel Design Professional",
+    page_icon="🏗️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ==================== IMPORTS ====================
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -11,11 +21,17 @@ import math
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from datetime import datetime
 import io
 import base64
 from io import BytesIO
+
+# Optional: AgGrid (only if installed)
+try:
+    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+    AGGRID_AVAILABLE = True
+except ImportError:
+    AGGRID_AVAILABLE = False
 
 # PDF Export Libraries
 try:
@@ -28,7 +44,6 @@ try:
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
-    st.warning("⚠️ PDF export requires reportlab. Install with: pip install reportlab")
 
 # Excel Export Libraries
 try:
@@ -39,15 +54,6 @@ try:
     EXCEL_AVAILABLE = True
 except ImportError:
     EXCEL_AVAILABLE = False
-    st.warning("⚠️ Excel export requires openpyxl. Install with: pip install openpyxl")
-
-# ==================== PAGE CONFIGURATION ====================
-st.set_page_config(
-    page_title="AISC 360-16 Steel Design Professional",
-    page_icon="🏗️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # ==================== PROFESSIONAL ENHANCED CSS ====================
 st.markdown("""
@@ -1146,6 +1152,12 @@ if not success:
     st.error("❌ Failed to load data. Please check your internet connection.")
     st.stop()
 
+# ==================== LIBRARY STATUS WARNINGS ====================
+if not PDF_AVAILABLE:
+    st.sidebar.warning("⚠️ PDF export unavailable. Install: `pip install reportlab`")
+if not EXCEL_AVAILABLE:
+    st.sidebar.warning("⚠️ Excel export unavailable. Install: `pip install openpyxl`")
+
 # ==================== MAIN HEADER ====================
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design Professional v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">Professional UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
@@ -1561,6 +1573,8 @@ with tab2:
             }).background_gradient(cmap='Blues', subset=['φMn (t·m)', 'φPn (tons)'])
             
             st.dataframe(styled_df, use_container_width=True, height=400)
+    else:
+        st.warning("⚠️ Please select sections to compare")
 
 # ==================== TAB 3: DESIGN EVALUATION & EXPORT ====================
 with tab3:
