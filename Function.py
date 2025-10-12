@@ -3546,11 +3546,11 @@ with tab3:
                             st.success("✅ Enhanced Excel report with detailed calculations generated successfully!")
                 else:
                     st.warning("⚠️ Excel export requires openpyxl library")
-        else:
-            st.info("ℹ️ Perform a design evaluation first to enable export functionality")
+                else:
+                    st.info("ℹ️ Perform a design evaluation first to enable export functionality")
     
-        else:
-            st.warning("⚠️ Please select a section and material from the sidebar")
+    else:
+        st.warning("⚠️ Please select a section and material from the sidebar")
 
 # ==================== TAB 4: DOCUMENTATION ====================
 with tab4:
