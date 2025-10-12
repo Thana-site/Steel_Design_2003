@@ -51,6 +51,7 @@ try:
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from openpyxl.chart import BarChart, Reference, LineChart
     from openpyxl.utils.dataframe import dataframe_to_rows
+    from openpyxl.utils import get_column_letter  # ADD THIS LINE
     EXCEL_AVAILABLE = True
 except ImportError:
     EXCEL_AVAILABLE = False
@@ -971,15 +972,26 @@ def generate_excel_report(df, df_mat, section, material, analysis_results, desig
                 cell.border = border
                 cell.alignment = center_align if col > 1 else left_align
     
-    # Auto-size columns
-    for column in ws_summary.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            if cell.value:
-                max_length = max(max_length, len(str(cell.value)))
-        adjusted_width = min(max_length + 2, 50)
-        ws_summary.column_dimensions[column_letter].width = adjusted_width
+    # Auto-size columns for Summary sheet - FIXED VERSION
+    try:
+        for col_idx in range(1, ws_summary.max_column + 1):
+            column_letter = get_column_letter(col_idx)
+            max_length = 0
+            for row_idx in range(1, ws_summary.max_row + 1):
+                cell = ws_summary.cell(row=row_idx, column=col_idx)
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws_summary.column_dimensions[column_letter].width = adjusted_width
+    except:
+        # Fallback to fixed widths if auto-sizing fails
+        ws_summary.column_dimensions['A'].width = 30
+        ws_summary.column_dimensions['B'].width = 20
+        ws_summary.column_dimensions['C'].width = 15
+        ws_summary.column_dimensions['D'].width = 15
     
     # Sheet 2: Analysis Results
     if analysis_results:
@@ -1063,15 +1075,103 @@ def generate_excel_report(df, df_mat, section, material, analysis_results, desig
                     cell.border = border
                     cell.alignment = left_align if col == 1 else center_align
         
-        # Auto-size columns
-        for column in ws_results.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                if cell.value:
-                    max_length = max(max_length, len(str(cell.value)))
-            adjusted_width = min(max_length + 2, 50)
-            ws_results.column_dimensions[column_letter].width = adjusted_width
+        # Interaction Analysis (if available)
+        if 'interaction' in analysis_results:
+            row += 3
+            ws_results[f'A{row}'] = "INTERACTION ANALYSIS (AISC H1)"
+            ws_results[f'A{row}'].font = Font(bold=True, size=14)
+            ws_results.merge_cells(f'A{row}:B{row}')
+            
+            row += 1
+            ws_results[f'A{row}'] = "Parameter"
+            ws_results[f'B{row}'] = "Value"
+            for col in range(1, 3):
+                cell = ws_results.cell(row=row, column=col)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center_align
+                cell.border = border
+            
+            int_data = [
+                ['Interaction Ratio', f"{analysis_results['interaction']['interaction_ratio']:.3f}"],
+                ['Equation Used', analysis_results['interaction']['equation']],
+                ['Pr/Pc Ratio', f"{analysis_results['interaction']['Pr_Pc']:.3f}"],
+                ['Mrx/Mcx Ratio', f"{analysis_results['interaction']['Mrx_Mcx']:.3f}"],
+                ['Status', '✓ ADEQUATE' if analysis_results['interaction']['design_ok'] else '✗ INADEQUATE']
+            ]
+            
+            for data_row in int_data:
+                row += 1
+                ws_results[f'A{row}'] = data_row[0]
+                ws_results[f'B{row}'] = data_row[1]
+                for col in range(1, 3):
+                    cell = ws_results.cell(row=row, column=col)
+                    cell.border = border
+                    cell.alignment = left_align if col == 1 else center_align
+        
+        # Design Parameters Sheet
+        ws_params = wb.create_sheet("Design Parameters")
+        
+        row = 1
+        ws_params['A1'] = "DESIGN INPUT PARAMETERS"
+        ws_params['A1'].font = title_font
+        ws_params.merge_cells('A1:B1')
+        
+        row = 3
+        ws_params[f'A{row}'] = "Parameter"
+        ws_params[f'B{row}'] = "Value"
+        for col in range(1, 3):
+            cell = ws_params.cell(row=row, column=col)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = border
+        
+        if design_params:
+            param_data = []
+            if 'Mu' in design_params:
+                param_data.append(['Applied Moment (Mu)', f"{design_params['Mu']:.2f} t·m"])
+            if 'Pu' in design_params:
+                param_data.append(['Applied Axial Load (Pu)', f"{design_params['Pu']:.2f} tons"])
+            if 'Lb' in design_params:
+                param_data.append(['Unbraced Length (Lb)', f"{design_params['Lb']:.2f} m"])
+            if 'KL' in design_params:
+                param_data.append(['Effective Length (KL)', f"{design_params['KL']:.2f} m"])
+            if 'KLx' in design_params:
+                param_data.append(['Effective Length X (KLx)', f"{design_params['KLx']:.2f} m"])
+            if 'KLy' in design_params:
+                param_data.append(['Effective Length Y (KLy)', f"{design_params['KLy']:.2f} m"])
+            if 'Cb' in design_params:
+                param_data.append(['Moment Gradient Factor (Cb)', f"{design_params['Cb']:.2f}"])
+            
+            for data_row in param_data:
+                row += 1
+                ws_params[f'A{row}'] = data_row[0]
+                ws_params[f'B{row}'] = data_row[1]
+                for col in range(1, 3):
+                    cell = ws_params.cell(row=row, column=col)
+                    cell.border = border
+                    cell.alignment = left_align if col == 1 else center_align
+        
+        # Auto-size columns for all sheets - FIXED VERSION
+        for ws in [ws_results, ws_params]:
+            try:
+                for col_idx in range(1, ws.max_column + 1):
+                    column_letter = get_column_letter(col_idx)
+                    max_length = 0
+                    for row_idx in range(1, ws.max_row + 1):
+                        cell = ws.cell(row=row_idx, column=col_idx)
+                        try:
+                            if cell.value:
+                                max_length = max(max_length, len(str(cell.value)))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    ws.column_dimensions[column_letter].width = adjusted_width
+            except:
+                # Fallback to fixed widths if auto-sizing fails
+                ws.column_dimensions['A'].width = 35
+                ws.column_dimensions['B'].width = 25
     
     # Save to buffer
     wb.save(buffer)
