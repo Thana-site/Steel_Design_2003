@@ -650,7 +650,6 @@ def generate_excel_report(df, df_mat, section, material, analysis_results, desig
     return buffer
 
 
-
 # ==================== PROFESSIONAL ENHANCED CSS ====================
 st.markdown("""
 <style>
