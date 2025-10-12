@@ -1578,7 +1578,7 @@ def generate_professional_pdf_report(df, df_mat, section, material, analysis_res
             props_data.append([description, symbol, formatted_value, unit])
     
     # Create table with word wrap
-    props_table = Table(props_data, colWidths=[2.2*inch, 0.9*inch, 1.4*inch, 1inch])
+    props_table = Table(props_data, colWidths=[2.2*inch, 0.9*inch, 1.4*inch, 1*inch])
     props_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#667eea')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.whitesmoke),
