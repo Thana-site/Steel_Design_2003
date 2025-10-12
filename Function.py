@@ -1821,322 +1821,1058 @@ def generate_enhanced_pdf_report(df, df_mat, section, material, analysis_results
     buffer.seek(0)
     return buffer
 
-# ==================== EXCEL EXPORT FUNCTION ====================
-def generate_excel_report(df, df_mat, section, material, analysis_results, design_params):
-    """Generate comprehensive Excel calculation report with formatting"""
+# ==================== ENHANCED EXCEL EXPORT WITH DETAILED CALCULATIONS ====================
+def generate_enhanced_excel_report(df, df_mat, section, material, analysis_results, design_params):
+    """Generate comprehensive Excel calculation report with detailed AISC equations and charts"""
     if not EXCEL_AVAILABLE:
         return None
     
     buffer = BytesIO()
     wb = Workbook()
     
-    # Define styles
+    # ==================== DEFINE ENHANCED STYLES ====================
+    # Title styles
+    title_font = Font(bold=True, size=20, color="667EEA")
+    title_fill = PatternFill(start_color="F0F3FF", end_color="F0F3FF", fill_type="solid")
+    
+    # Header styles
     header_fill = PatternFill(start_color="667EEA", end_color="667EEA", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=12)
-    title_font = Font(bold=True, size=16, color="667EEA")
-    center_align = Alignment(horizontal="center", vertical="center")
-    left_align = Alignment(horizontal="left", vertical="center")
-    border = Border(
+    
+    # Subheader styles
+    subheader_fill = PatternFill(start_color="2196F3", end_color="2196F3", fill_type="solid")
+    subheader_font = Font(bold=True, color="FFFFFF", size=11)
+    
+    # Section header styles
+    section_fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
+    section_font = Font(bold=True, size=14, color="2c3e50")
+    
+    # Equation styles
+    equation_fill = PatternFill(start_color="E7F3FF", end_color="E7F3FF", fill_type="solid")
+    equation_font = Font(italic=True, size=10, color="1565C0")
+    
+    # Calculation styles
+    calc_fill = PatternFill(start_color="F5F5F5", end_color="F5F5F5", fill_type="solid")
+    
+    # Result styles
+    result_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+    result_font = Font(bold=True, color="2E7D32", size=11)
+    
+    # Status styles
+    adequate_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+    adequate_font = Font(bold=True, color="2E7D32")
+    inadequate_fill = PatternFill(start_color="FFCDD2", end_color="FFCDD2", fill_type="solid")
+    inadequate_font = Font(bold=True, color="C62828")
+    
+    # Classification styles
+    compact_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+    compact_font = Font(bold=True, color="2E7D32")
+    noncompact_fill = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")
+    noncompact_font = Font(bold=True, color="F57C00")
+    slender_fill = PatternFill(start_color="FFCDD2", end_color="FFCDD2", fill_type="solid")
+    slender_font = Font(bold=True, color="C62828")
+    
+    # Alignment
+    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    right_align = Alignment(horizontal="right", vertical="center")
+    
+    # Borders
+    thin_border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
     
-    # Sheet 1: Summary
-    ws_summary = wb.active
-    ws_summary.title = "Design Summary"
+    thick_border = Border(
+        left=Side(style='medium'),
+        right=Side(style='medium'),
+        top=Side(style='medium'),
+        bottom=Side(style='medium')
+    )
+    
+    # ==================== SHEET 1: COVER & SUMMARY ====================
+    ws_cover = wb.active
+    ws_cover.title = "Cover & Summary"
     
     # Title
-    ws_summary['A1'] = "AISC 360-16 STEEL DESIGN CALCULATION REPORT"
-    ws_summary['A1'].font = title_font
-    ws_summary['A1'].alignment = center_align
-    ws_summary.merge_cells('A1:D1')
+    ws_cover['A1'] = "AISC 360-16 STEEL DESIGN"
+    ws_cover['A1'].font = title_font
+    ws_cover['A1'].fill = title_fill
+    ws_cover['A1'].alignment = center_align
+    ws_cover.merge_cells('A1:F1')
+    ws_cover.row_dimensions[1].height = 30
     
-    # Header Info
-    row = 3
-    ws_summary[f'A{row}'] = "Report Generated:"
-    ws_summary[f'B{row}'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ws_cover['A2'] = "COMPREHENSIVE CALCULATION REPORT"
+    ws_cover['A2'].font = Font(bold=True, size=16, color="764ba2")
+    ws_cover['A2'].fill = title_fill
+    ws_cover['A2'].alignment = center_align
+    ws_cover.merge_cells('A2:F2')
+    ws_cover.row_dimensions[2].height = 25
+    
+    # Report information
+    row = 4
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    info_data = [
+        ['Report Generated:', timestamp],
+        ['Section:', section],
+        ['Material Grade:', material],
+        ['Analysis Type:', 'Comprehensive Design Evaluation'],
+    ]
+    
+    for label, value in info_data:
+        ws_cover[f'A{row}'] = label
+        ws_cover[f'A{row}'].font = Font(bold=True, size=11)
+        ws_cover[f'A{row}'].fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
+        ws_cover[f'A{row}'].border = thin_border
+        ws_cover[f'B{row}'] = value
+        ws_cover[f'B{row}'].border = thin_border
+        ws_cover.merge_cells(f'B{row}:D{row}')
+        row += 1
+    
+    # Material Properties Summary
+    row += 2
+    ws_cover[f'A{row}'] = "MATERIAL PROPERTIES"
+    ws_cover[f'A{row}'].font = section_font
+    ws_cover[f'A{row}'].fill = section_fill
+    ws_cover[f'A{row}'].alignment = center_align
+    ws_cover.merge_cells(f'A{row}:D{row}')
+    
     row += 1
-    ws_summary[f'A{row}'] = "Section:"
-    ws_summary[f'B{row}'] = section
-    row += 1
-    ws_summary[f'A{row}'] = "Material Grade:"
-    ws_summary[f'B{row}'] = material
-    
-    # Format header
-    for r in range(3, 6):
-        ws_summary[f'A{r}'].font = Font(bold=True)
-        ws_summary[f'A{r}'].fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
-    
-    # Material Properties
-    row = 8
-    ws_summary[f'A{row}'] = "MATERIAL PROPERTIES"
-    ws_summary[f'A{row}'].font = Font(bold=True, size=14)
-    ws_summary.merge_cells(f'A{row}:C{row}')
-    
-    row += 1
-    headers = ['Property', 'Value', 'Unit']
-    for col, header in enumerate(headers, start=1):
-        cell = ws_summary.cell(row=row, column=col)
+    mat_headers = ['Property', 'Value', 'Unit', 'Description']
+    for col, header in enumerate(mat_headers, start=1):
+        cell = ws_cover.cell(row=row, column=col)
         cell.value = header
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = center_align
-        cell.border = border
+        cell.border = thin_border
     
     Fy = safe_scalar(df_mat.loc[material, "Yield Point (ksc)"])
     Fu = safe_scalar(df_mat.loc[material, "Tensile Strength (ksc)"])
     E = safe_scalar(df_mat.loc[material, "E"])
     
-    mat_props = [
-        ['Yield Strength (Fy)', f'{Fy:.1f}', 'kgf/cm²'],
-        ['Tensile Strength (Fu)', f'{Fu:.1f}', 'kgf/cm²'],
-        ['Modulus of Elasticity (E)', f'{E:.0f}', 'kgf/cm²']
+    mat_data = [
+        ['Fy', f'{Fy:.1f}', 'kgf/cm²', 'Yield Strength'],
+        ['Fu', f'{Fu:.1f}', 'kgf/cm²', 'Tensile Strength'],
+        ['E', f'{E:.0f}', 'kgf/cm²', 'Modulus of Elasticity']
     ]
     
-    for prop_row in mat_props:
+    for mat_row in mat_data:
         row += 1
-        for col, value in enumerate(prop_row, start=1):
-            cell = ws_summary.cell(row=row, column=col)
+        for col, value in enumerate(mat_row, start=1):
+            cell = ws_cover.cell(row=row, column=col)
             cell.value = value
-            cell.border = border
+            cell.border = thin_border
             cell.alignment = center_align if col > 1 else left_align
     
-    # Section Properties
-    row += 3
-    ws_summary[f'A{row}'] = "SECTION PROPERTIES"
-    ws_summary[f'A{row}'].font = Font(bold=True, size=14)
-    ws_summary.merge_cells(f'A{row}:C{row}')
+    # Design Parameters
+    if design_params:
+        row += 2
+        ws_cover[f'A{row}'] = "DESIGN PARAMETERS"
+        ws_cover[f'A{row}'].font = section_font
+        ws_cover[f'A{row}'].fill = section_fill
+        ws_cover[f'A{row}'].alignment = center_align
+        ws_cover.merge_cells(f'A{row}:C{row}')
+        
+        row += 1
+        param_headers = ['Parameter', 'Value', 'Unit']
+        for col, header in enumerate(param_headers, start=1):
+            cell = ws_cover.cell(row=row, column=col)
+            cell.value = header
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = thin_border
+        
+        param_data = []
+        if 'Mu' in design_params:
+            param_data.append(['Applied Moment (Mu)', f"{design_params['Mu']:.2f}", 't·m'])
+        if 'Pu' in design_params:
+            param_data.append(['Applied Axial Load (Pu)', f"{design_params['Pu']:.2f}", 'tons'])
+        if 'Lb' in design_params:
+            param_data.append(['Unbraced Length (Lb)', f"{design_params['Lb']:.2f}", 'm'])
+        if 'KL' in design_params:
+            param_data.append(['Effective Length (KL)', f"{design_params['KL']:.2f}", 'm'])
+        if 'Cb' in design_params:
+            param_data.append(['Moment Gradient Factor (Cb)', f"{design_params['Cb']:.2f}", ''])
+        
+        for data_row in param_data:
+            row += 1
+            for col, value in enumerate(data_row, start=1):
+                cell = ws_cover.cell(row=row, column=col)
+                cell.value = value
+                cell.border = thin_border
+                cell.alignment = center_align if col > 1 else left_align
+    
+    # Overall Status
+    if analysis_results:
+        row += 2
+        ws_cover[f'A{row}'] = "DESIGN STATUS"
+        ws_cover[f'A{row}'].font = section_font
+        ws_cover[f'A{row}'].fill = section_fill
+        ws_cover[f'A{row}'].alignment = center_align
+        ws_cover.merge_cells(f'A{row}:D{row}')
+        
+        row += 1
+        overall_adequate = True
+        status_data = []
+        
+        if 'flexural' in analysis_results:
+            flex = analysis_results['flexural']
+            status_data.append(['Flexural Check', f"{flex['ratio']:.3f}", 
+                              '✓ PASS' if flex['adequate'] else '✗ FAIL'])
+            overall_adequate = overall_adequate and flex['adequate']
+        
+        if 'compression' in analysis_results:
+            comp = analysis_results['compression']
+            status_data.append(['Compression Check', f"{comp['ratio']:.3f}",
+                              '✓ PASS' if comp['adequate'] else '✗ FAIL'])
+            overall_adequate = overall_adequate and comp['adequate']
+        
+        if 'interaction' in analysis_results:
+            inter = analysis_results['interaction']
+            status_data.append(['Interaction Check', f"{inter['interaction_ratio']:.3f}",
+                              '✓ PASS' if inter['design_ok'] else '✗ FAIL'])
+            overall_adequate = overall_adequate and inter['design_ok']
+        
+        for check_name, ratio, status in status_data:
+            row += 1
+            ws_cover[f'A{row}'] = check_name
+            ws_cover[f'A{row}'].border = thin_border
+            ws_cover[f'A{row}'].alignment = left_align
+            
+            ws_cover[f'B{row}'] = ratio
+            ws_cover[f'B{row}'].border = thin_border
+            ws_cover[f'B{row}'].alignment = center_align
+            
+            ws_cover[f'C{row}'] = status
+            ws_cover[f'C{row}'].border = thin_border
+            ws_cover[f'C{row}'].alignment = center_align
+            if '✓' in status:
+                ws_cover[f'C{row}'].fill = adequate_fill
+                ws_cover[f'C{row}'].font = adequate_font
+            else:
+                ws_cover[f'C{row}'].fill = inadequate_fill
+                ws_cover[f'C{row}'].font = inadequate_font
+        
+        row += 1
+        ws_cover[f'A{row}'] = "OVERALL STATUS"
+        ws_cover[f'A{row}'].font = Font(bold=True, size=12)
+        ws_cover[f'A{row}'].border = thick_border
+        ws_cover[f'A{row}'].alignment = center_align
+        ws_cover.merge_cells(f'A{row}:B{row}')
+        
+        ws_cover[f'C{row}'] = '✓ ADEQUATE' if overall_adequate else '✗ INADEQUATE'
+        ws_cover[f'C{row}'].border = thick_border
+        ws_cover[f'C{row}'].alignment = center_align
+        ws_cover[f'C{row}'].font = Font(bold=True, size=12, color="FFFFFF")
+        if overall_adequate:
+            ws_cover[f'C{row}'].fill = PatternFill(start_color="4CAF50", end_color="4CAF50", fill_type="solid")
+        else:
+            ws_cover[f'C{row}'].fill = PatternFill(start_color="F44336", end_color="F44336", fill_type="solid")
+    
+    # Auto-size columns
+    for col in ['A', 'B', 'C', 'D']:
+        ws_cover.column_dimensions[col].width = 25
+    
+    # ==================== SHEET 2: COMPLETE SECTION PROPERTIES ====================
+    ws_props = wb.create_sheet("Section Properties")
+    
+    row = 1
+    ws_props['A1'] = "COMPLETE SECTION PROPERTIES"
+    ws_props['A1'].font = title_font
+    ws_props['A1'].fill = title_fill
+    ws_props['A1'].alignment = center_align
+    ws_props.merge_cells('A1:E1')
+    ws_props.row_dimensions[1].height = 25
+    
+    row = 3
+    ws_props[f'A{row}'] = "Geometric Properties"
+    ws_props[f'A{row}'].font = section_font
+    ws_props[f'A{row}'].fill = section_fill
+    ws_props.merge_cells(f'A{row}:E{row}')
     
     row += 1
-    for col, header in enumerate(headers, start=1):
-        cell = ws_summary.cell(row=row, column=col)
+    prop_headers = ['Property Description', 'Symbol', 'Value', 'Unit', 'AISC Reference']
+    for col, header in enumerate(prop_headers, start=1):
+        cell = ws_props.cell(row=row, column=col)
         cell.value = header
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = center_align
-        cell.border = border
+        cell.border = thin_border
     
-    property_list = ['d [mm]', 'bf [mm]', 'tw [mm]', 'tf [mm]', 'A [cm2]',
-                     'Ix [cm4]', 'Iy [cm4]', 'Sx [cm3]', 'Zx [cm3]', 'rx [cm]', 'ry [cm]']
+    # Comprehensive property list with AISC references
+    property_definitions = [
+        ('Unit Weight [kg/m]', 'w', 'Weight per unit length', 'Table 1-1'),
+        ('d [mm]', 'd', 'Overall depth', 'Table 1-1'),
+        ('bf [mm]', 'bf', 'Flange width', 'Table 1-1'),
+        ('tw [mm]', 'tw', 'Web thickness', 'Table 1-1'),
+        ('tf [mm]', 'tf', 'Flange thickness', 'Table 1-1'),
+        ('r [mm]', 'r', 'Fillet radius', 'Table 1-1'),
+        ('A [cm2]', 'A', 'Cross-sectional area', 'Table 1-1'),
+        ('Ix [cm4]', 'Ix', 'Moment of inertia, X-axis', 'Table 1-1'),
+        ('Iy [cm4]', 'Iy', 'Moment of inertia, Y-axis', 'Table 1-1'),
+        ('rx [cm]', 'rx', 'Radius of gyration, X-axis', 'Table 1-1'),
+        ('ry [cm]', 'ry', 'Radius of gyration, Y-axis', 'Table 1-1'),
+        ('Sx [cm3]', 'Sx', 'Elastic section modulus, X-axis', 'Table 1-1'),
+        ('Sy [cm3]', 'Sy', 'Elastic section modulus, Y-axis', 'Table 1-1'),
+        ('Zx [cm3]', 'Zx', 'Plastic section modulus, X-axis', 'Table 1-1'),
+        ('Zy [cm3]', 'Zy', 'Plastic section modulus, Y-axis', 'Table 1-1'),
+        ('ho [mm]', 'ho', 'Distance between flange centroids', 'Table 1-1'),
+        ('j [cm4]', 'J', 'Torsional constant', 'Table 1-1'),
+        ('cw [10^6 cm6]', 'Cw', 'Warping constant', 'Table 1-1'),
+        ('rts [cm6]', 'rts', 'Effective radius for LTB', 'Eq. F2-7'),
+    ]
     
-    for prop in property_list:
-        if prop in df.columns:
+    weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
+    
+    for prop_key, symbol, description, reference in property_definitions:
+        # Handle weight column name variation
+        check_key = weight_col if prop_key == 'Unit Weight [kg/m]' else prop_key
+        
+        if check_key in df.columns:
             row += 1
-            value = safe_scalar(df.loc[section, prop])
-            prop_name = prop.split('[')[0].strip()
-            unit = prop.split('[')[1].replace(']', '') if '[' in prop else ''
+            value = safe_scalar(df.loc[section, check_key])
+            unit = check_key.split('[')[1].replace(']', '') if '[' in check_key else ''
             
-            ws_summary[f'A{row}'] = prop_name
-            ws_summary[f'B{row}'] = f'{value:.2f}'
-            ws_summary[f'C{row}'] = unit
+            ws_props[f'A{row}'] = description
+            ws_props[f'B{row}'] = symbol
+            ws_props[f'C{row}'] = f'{value:.3f}' if value < 100 else f'{value:.2f}'
+            ws_props[f'D{row}'] = unit
+            ws_props[f'E{row}'] = reference
             
-            for col in range(1, 4):
-                cell = ws_summary.cell(row=row, column=col)
-                cell.border = border
+            for col in range(1, 6):
+                cell = ws_props.cell(row=row, column=col)
+                cell.border = thin_border
                 cell.alignment = center_align if col > 1 else left_align
     
-    # Auto-size columns for Summary sheet - FIXED VERSION
-    try:
-        for col_idx in range(1, ws_summary.max_column + 1):
-            column_letter = get_column_letter(col_idx)
-            max_length = 0
-            for row_idx in range(1, ws_summary.max_row + 1):
-                cell = ws_summary.cell(row=row_idx, column=col_idx)
-                try:
-                    if cell.value:
-                        max_length = max(max_length, len(str(cell.value)))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            ws_summary.column_dimensions[column_letter].width = adjusted_width
-    except:
-        # Fallback to fixed widths if auto-sizing fails
-        ws_summary.column_dimensions['A'].width = 30
-        ws_summary.column_dimensions['B'].width = 20
-        ws_summary.column_dimensions['C'].width = 15
-        ws_summary.column_dimensions['D'].width = 15
+    # Add calculated slenderness ratios
+    row += 2
+    ws_props[f'A{row}'] = "Calculated Slenderness Ratios"
+    ws_props[f'A{row}'].font = section_font
+    ws_props[f'A{row}'].fill = section_fill
+    ws_props.merge_cells(f'A{row}:E{row}')
     
-    # Sheet 2: Analysis Results
-    if analysis_results:
-        ws_results = wb.create_sheet("Analysis Results")
-        
-        row = 1
-        ws_results['A1'] = "DESIGN ANALYSIS RESULTS"
-        ws_results['A1'].font = title_font
-        ws_results.merge_cells('A1:D1')
-        
-        # Flexural Analysis
-        if 'flexural' in analysis_results:
-            row = 3
-            ws_results[f'A{row}'] = "FLEXURAL ANALYSIS (AISC F2)"
-            ws_results[f'A{row}'].font = Font(bold=True, size=14)
-            ws_results.merge_cells(f'A{row}:B{row}')
-            
-            row += 1
-            ws_results[f'A{row}'] = "Parameter"
-            ws_results[f'B{row}'] = "Value"
-            for col in range(1, 3):
-                cell = ws_results.cell(row=row, column=col)
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = center_align
-                cell.border = border
-            
-            flex_data = [
-                ['Design Moment (φMn)', f"{analysis_results['flexural']['phi_Mn']:.2f} t·m"],
-                ['Nominal Moment (Mn)', f"{analysis_results['flexural']['Mn']:.2f} t·m"],
-                ['Plastic Moment (Mp)', f"{analysis_results['flexural']['Mp']:.2f} t·m"],
-                ['Critical Length (Lp)', f"{analysis_results['flexural']['Lp']:.3f} m"],
-                ['Critical Length (Lr)', f"{analysis_results['flexural']['Lr']:.3f} m"],
-                ['Design Case', analysis_results['flexural']['case']],
-                ['Utilization Ratio', f"{analysis_results['flexural']['ratio']:.3f}"],
-                ['Status', '✓ ADEQUATE' if analysis_results['flexural']['adequate'] else '✗ INADEQUATE']
-            ]
-            
-            for data_row in flex_data:
-                row += 1
-                ws_results[f'A{row}'] = data_row[0]
-                ws_results[f'B{row}'] = data_row[1]
-                for col in range(1, 3):
-                    cell = ws_results.cell(row=row, column=col)
-                    cell.border = border
-                    cell.alignment = left_align if col == 1 else center_align
-        
-        # Compression Analysis
-        if 'compression' in analysis_results:
-            row += 3
-            ws_results[f'A{row}'] = "COMPRESSION ANALYSIS (AISC E3)"
-            ws_results[f'A{row}'].font = Font(bold=True, size=14)
-            ws_results.merge_cells(f'A{row}:B{row}')
-            
-            row += 1
-            ws_results[f'A{row}'] = "Parameter"
-            ws_results[f'B{row}'] = "Value"
-            for col in range(1, 3):
-                cell = ws_results.cell(row=row, column=col)
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = center_align
-                cell.border = border
-            
-            comp_data = [
-                ['Design Strength (φPn)', f"{analysis_results['compression']['phi_Pn']:.2f} tons"],
-                ['Nominal Strength (Pn)', f"{analysis_results['compression']['Pn']:.2f} tons"],
-                ['Critical Stress (Fcr)', f"{analysis_results['compression']['Fcr']:.1f} kgf/cm²"],
-                ['Slenderness Ratio (λc)', f"{analysis_results['compression']['lambda_c']:.1f}"],
-                ['Buckling Mode', analysis_results['compression']['mode']],
-                ['Utilization Ratio', f"{analysis_results['compression']['ratio']:.3f}"],
-                ['Status', '✓ ADEQUATE' if analysis_results['compression']['adequate'] else '✗ INADEQUATE']
-            ]
-            
-            for data_row in comp_data:
-                row += 1
-                ws_results[f'A{row}'] = data_row[0]
-                ws_results[f'B{row}'] = data_row[1]
-                for col in range(1, 3):
-                    cell = ws_results.cell(row=row, column=col)
-                    cell.border = border
-                    cell.alignment = left_align if col == 1 else center_align
-        
-        # Interaction Analysis (if available)
-        if 'interaction' in analysis_results:
-            row += 3
-            ws_results[f'A{row}'] = "INTERACTION ANALYSIS (AISC H1)"
-            ws_results[f'A{row}'].font = Font(bold=True, size=14)
-            ws_results.merge_cells(f'A{row}:B{row}')
-            
-            row += 1
-            ws_results[f'A{row}'] = "Parameter"
-            ws_results[f'B{row}'] = "Value"
-            for col in range(1, 3):
-                cell = ws_results.cell(row=row, column=col)
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = center_align
-                cell.border = border
-            
-            int_data = [
-                ['Interaction Ratio', f"{analysis_results['interaction']['interaction_ratio']:.3f}"],
-                ['Equation Used', analysis_results['interaction']['equation']],
-                ['Pr/Pc Ratio', f"{analysis_results['interaction']['Pr_Pc']:.3f}"],
-                ['Mrx/Mcx Ratio', f"{analysis_results['interaction']['Mrx_Mcx']:.3f}"],
-                ['Status', '✓ ADEQUATE' if analysis_results['interaction']['design_ok'] else '✗ INADEQUATE']
-            ]
-            
-            for data_row in int_data:
-                row += 1
-                ws_results[f'A{row}'] = data_row[0]
-                ws_results[f'B{row}'] = data_row[1]
-                for col in range(1, 3):
-                    cell = ws_results.cell(row=row, column=col)
-                    cell.border = border
-                    cell.alignment = left_align if col == 1 else center_align
-        
-        # Design Parameters Sheet
-        ws_params = wb.create_sheet("Design Parameters")
-        
-        row = 1
-        ws_params['A1'] = "DESIGN INPUT PARAMETERS"
-        ws_params['A1'].font = title_font
-        ws_params.merge_cells('A1:B1')
-        
+    row += 1
+    for col, header in enumerate(prop_headers, start=1):
+        cell = ws_props.cell(row=row, column=col)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+        cell.border = thin_border
+    
+    bf = safe_scalar(df.loc[section, 'bf [mm]'])
+    tf = safe_scalar(df.loc[section, 'tf [mm]'])
+    d = safe_scalar(df.loc[section, 'd [mm]'])
+    tw = safe_scalar(df.loc[section, 'tw [mm]'])
+    
+    if 'ho [mm]' in df.columns:
+        h = safe_scalar(df.loc[section, 'ho [mm]'])
+    else:
+        h = d - 2 * tf
+    
+    flange_slenderness = (bf / 2.0) / tf
+    web_slenderness = h / tw
+    
+    slenderness_data = [
+        ['Flange slenderness', 'bf/2tf', f'{flange_slenderness:.2f}', '', 'Table B4.1'],
+        ['Web slenderness', 'h/tw', f'{web_slenderness:.2f}', '', 'Table B4.1']
+    ]
+    
+    for data_row in slenderness_data:
+        row += 1
+        for col, value in enumerate(data_row, start=1):
+            cell = ws_props.cell(row=row, column=col)
+            cell.value = value
+            cell.border = thin_border
+            cell.alignment = center_align if col > 1 else left_align
+    
+    # Auto-size columns
+    for col in ['A', 'B', 'C', 'D', 'E']:
+        ws_props.column_dimensions[col].width = 25
+    
+    # ==================== SHEET 3: SECTION CLASSIFICATION ====================
+    ws_class = wb.create_sheet("Section Classification")
+    
+    row = 1
+    ws_class['A1'] = "SECTION CLASSIFICATION PER AISC 360-16"
+    ws_class['A1'].font = title_font
+    ws_class['A1'].fill = title_fill
+    ws_class['A1'].alignment = center_align
+    ws_class.merge_cells('A1:F1')
+    ws_class.row_dimensions[1].height = 25
+    
+    # Get classifications
+    flex_class = classify_section_flexure(df, df_mat, section, material)
+    comp_class = classify_section_compression(df, df_mat, section, material)
+    
+    if flex_class:
         row = 3
-        ws_params[f'A{row}'] = "Parameter"
-        ws_params[f'B{row}'] = "Value"
-        for col in range(1, 3):
-            cell = ws_params.cell(row=row, column=col)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = center_align
-            cell.border = border
+        ws_class[f'A{row}'] = "FLEXURAL MEMBER CLASSIFICATION (Table B4.1b)"
+        ws_class[f'A{row}'].font = section_font
+        ws_class[f'A{row}'].fill = section_fill
+        ws_class.merge_cells(f'A{row}:F{row}')
         
-        if design_params:
-            param_data = []
-            if 'Mu' in design_params:
-                param_data.append(['Applied Moment (Mu)', f"{design_params['Mu']:.2f} t·m"])
-            if 'Pu' in design_params:
-                param_data.append(['Applied Axial Load (Pu)', f"{design_params['Pu']:.2f} tons"])
-            if 'Lb' in design_params:
-                param_data.append(['Unbraced Length (Lb)', f"{design_params['Lb']:.2f} m"])
-            if 'KL' in design_params:
-                param_data.append(['Effective Length (KL)', f"{design_params['KL']:.2f} m"])
-            if 'KLx' in design_params:
-                param_data.append(['Effective Length X (KLx)', f"{design_params['KLx']:.2f} m"])
-            if 'KLy' in design_params:
-                param_data.append(['Effective Length Y (KLy)', f"{design_params['KLy']:.2f} m"])
-            if 'Cb' in design_params:
-                param_data.append(['Moment Gradient Factor (Cb)', f"{design_params['Cb']:.2f}"])
+        # Flange Classification
+        row += 2
+        ws_class[f'A{row}'] = "FLANGE CLASSIFICATION"
+        ws_class[f'A{row}'].font = Font(bold=True, size=11, color="2c3e50")
+        ws_class.merge_cells(f'A{row}:F{row}')
+        
+        row += 1
+        ws_class[f'A{row}'] = "Case 10: Flanges of I-shaped sections in flexure"
+        ws_class[f'A{row}'].font = Font(italic=True, size=10)
+        ws_class.merge_cells(f'A{row}:F{row}')
+        
+        row += 2
+        flange_data = [
+            ['Parameter', 'Equation', 'Value', ''],
+            ['λ (Actual)', f'(bf/2)/tf = ({bf:.1f}/2)/{tf:.1f}', f'{flex_class["flange_lambda"]:.2f}', ''],
+            ['λp (Compact limit)', f'0.38√(E/Fy) = 0.38√({E:.0f}/{Fy:.1f})', f'{flex_class["flange_lambda_p"]:.2f}', 'Eq. B4-1a'],
+            ['λr (Non-compact limit)', f'1.0√(E/Fy) = 1.0√({E:.0f}/{Fy:.1f})', f'{flex_class["flange_lambda_r"]:.2f}', 'Eq. B4-1b'],
+        ]
+        
+        for data_row in flange_data:
+            row += 1
+            ws_class[f'A{row}'] = data_row[0]
+            ws_class[f'A{row}'].font = Font(bold=True) if 'Parameter' in data_row[0] else Font()
+            ws_class[f'A{row}'].border = thin_border
+            ws_class[f'A{row}'].alignment = left_align
             
-            for data_row in param_data:
-                row += 1
-                ws_params[f'A{row}'] = data_row[0]
-                ws_params[f'B{row}'] = data_row[1]
-                for col in range(1, 3):
-                    cell = ws_params.cell(row=row, column=col)
-                    cell.border = border
-                    cell.alignment = left_align if col == 1 else center_align
+            ws_class.merge_cells(f'B{row}:C{row}')
+            ws_class[f'B{row}'] = data_row[1]
+            ws_class[f'B{row}'].border = thin_border
+            ws_class[f'B{row}'].alignment = left_align
+            if 'Eq.' in data_row[0] or 'λp' in data_row[0] or 'λr' in data_row[0]:
+                ws_class[f'B{row}'].fill = equation_fill
+            
+            ws_class[f'D{row}'] = data_row[2]
+            ws_class[f'D{row}'].border = thin_border
+            ws_class[f'D{row}'].alignment = center_align
+            
+            ws_class[f'E{row}'] = data_row[3]
+            ws_class[f'E{row}'].border = thin_border
+            ws_class[f'E{row}'].alignment = center_align
+            ws_class[f'E{row}'].font = Font(italic=True, size=9)
         
-        # Auto-size columns for all sheets - FIXED VERSION
-        for ws in [ws_results, ws_params]:
-            try:
-                for col_idx in range(1, ws.max_column + 1):
-                    column_letter = get_column_letter(col_idx)
-                    max_length = 0
-                    for row_idx in range(1, ws.max_row + 1):
-                        cell = ws.cell(row=row_idx, column=col_idx)
-                        try:
-                            if cell.value:
-                                max_length = max(max_length, len(str(cell.value)))
-                        except:
-                            pass
-                    adjusted_width = min(max_length + 2, 50)
-                    ws.column_dimensions[column_letter].width = adjusted_width
-            except:
-                # Fallback to fixed widths if auto-sizing fails
-                ws.column_dimensions['A'].width = 35
-                ws.column_dimensions['B'].width = 25
+        row += 1
+        ws_class[f'A{row}'] = "CLASSIFICATION:"
+        ws_class[f'A{row}'].font = Font(bold=True, size=11)
+        ws_class[f'A{row}'].border = thin_border
+        
+        ws_class.merge_cells(f'B{row}:D{row}')
+        ws_class[f'B{row}'] = flex_class['flange_class'].upper()
+        ws_class[f'B{row}'].border = thin_border
+        ws_class[f'B{row}'].alignment = center_align
+        
+        if flex_class['flange_class'] == 'Compact':
+            ws_class[f'B{row}'].fill = compact_fill
+            ws_class[f'B{row}'].font = compact_font
+        elif flex_class['flange_class'] == 'Non-compact':
+            ws_class[f'B{row}'].fill = noncompact_fill
+            ws_class[f'B{row}'].font = noncompact_font
+        else:
+            ws_class[f'B{row}'].fill = slender_fill
+            ws_class[f'B{row}'].font = slender_font
+        
+        # Web Classification
+        row += 3
+        ws_class[f'A{row}'] = "WEB CLASSIFICATION"
+        ws_class[f'A{row}'].font = Font(bold=True, size=11, color="2c3e50")
+        ws_class.merge_cells(f'A{row}:F{row}')
+        
+        row += 1
+        ws_class[f'A{row}'] = "Case 15: Webs of doubly symmetric I-shaped members in flexure"
+        ws_class[f'A{row}'].font = Font(italic=True, size=10)
+        ws_class.merge_cells(f'A{row}:F{row}')
+        
+        row += 2
+        web_data = [
+            ['Parameter', 'Equation', 'Value', ''],
+            ['λ (Actual)', f'h/tw = {h:.1f}/{tw:.1f}', f'{flex_class["web_lambda"]:.2f}', ''],
+            ['λpw (Compact limit)', f'3.76√(E/Fy) = 3.76√({E:.0f}/{Fy:.1f})', f'{flex_class["web_lambda_p"]:.2f}', 'Eq. B4-1a'],
+            ['λrw (Non-compact limit)', f'5.70√(E/Fy) = 5.70√({E:.0f}/{Fy:.1f})', f'{flex_class["web_lambda_r"]:.2f}', 'Eq. B4-1b'],
+        ]
+        
+        for data_row in web_data:
+            row += 1
+            ws_class[f'A{row}'] = data_row[0]
+            ws_class[f'A{row}'].font = Font(bold=True) if 'Parameter' in data_row[0] else Font()
+            ws_class[f'A{row}'].border = thin_border
+            ws_class[f'A{row}'].alignment = left_align
+            
+            ws_class.merge_cells(f'B{row}:C{row}')
+            ws_class[f'B{row}'] = data_row[1]
+            ws_class[f'B{row}'].border = thin_border
+            ws_class[f'B{row}'].alignment = left_align
+            if 'Eq.' in data_row[0] or 'λp' in data_row[0] or 'λr' in data_row[0]:
+                ws_class[f'B{row}'].fill = equation_fill
+            
+            ws_class[f'D{row}'] = data_row[2]
+            ws_class[f'D{row}'].border = thin_border
+            ws_class[f'D{row}'].alignment = center_align
+            
+            ws_class[f'E{row}'] = data_row[3]
+            ws_class[f'E{row}'].border = thin_border
+            ws_class[f'E{row}'].alignment = center_align
+            ws_class[f'E{row}'].font = Font(italic=True, size=9)
+        
+        row += 1
+        ws_class[f'A{row}'] = "CLASSIFICATION:"
+        ws_class[f'A{row}'].font = Font(bold=True, size=11)
+        ws_class[f'A{row}'].border = thin_border
+        
+        ws_class.merge_cells(f'B{row}:D{row}')
+        ws_class[f'B{row}'] = flex_class['web_class'].upper()
+        ws_class[f'B{row}'].border = thin_border
+        ws_class[f'B{row}'].alignment = center_align
+        
+        if flex_class['web_class'] == 'Compact':
+            ws_class[f'B{row}'].fill = compact_fill
+            ws_class[f'B{row}'].font = compact_font
+        elif flex_class['web_class'] == 'Non-compact':
+            ws_class[f'B{row}'].fill = noncompact_fill
+            ws_class[f'B{row}'].font = noncompact_font
+        else:
+            ws_class[f'B{row}'].fill = slender_fill
+            ws_class[f'B{row}'].font = slender_font
+    
+    if comp_class:
+        row += 4
+        ws_class[f'A{row}'] = "COMPRESSION MEMBER CLASSIFICATION (Table B4.1a)"
+        ws_class[f'A{row}'].font = section_font
+        ws_class[f'A{row}'].fill = section_fill
+        ws_class.merge_cells(f'A{row}:F{row}')
+        
+        row += 2
+        comp_data = [
+            ['Element', 'Case', 'λ (Actual)', 'λr (Limit)', 'Status'],
+            ['Flange', 'Case 1: Flanges of I-shaped sections', f'{comp_class["flange_lambda"]:.2f}', 
+             f'{comp_class["flange_lambda_r"]:.2f}', 'Slender' if comp_class['flange_slender'] else 'Non-slender'],
+            ['Web', 'Case 5: Webs of doubly symmetric I-sections', f'{comp_class["web_lambda"]:.2f}',
+             f'{comp_class["web_lambda_r"]:.2f}', 'Slender' if comp_class['web_slender'] else 'Non-slender'],
+        ]
+        
+        for data_row in comp_data:
+            row += 1
+            for col, value in enumerate(data_row, start=1):
+                cell = ws_class.cell(row=row, column=col)
+                cell.value = value
+                cell.border = thin_border
+                cell.alignment = center_align if col > 2 else left_align
+                
+                if row > (len(comp_data) + row - len(comp_data)) and col == 1:
+                    cell.font = Font(bold=True)
+                elif 'Parameter' in str(value) or 'Element' in str(value):
+                    cell.font = header_font
+                    cell.fill = header_fill
+                elif col == 5 and 'Slender' in str(value):
+                    cell.fill = slender_fill
+                    cell.font = slender_font
+                elif col == 5 and 'Non-slender' in str(value):
+                    cell.fill = compact_fill
+                    cell.font = compact_font
+        
+        row += 1
+        ws_class[f'A{row}'] = "OVERALL CLASSIFICATION:"
+        ws_class[f'A{row}'].font = Font(bold=True, size=11)
+        ws_class[f'A{row}'].border = thick_border
+        ws_class.merge_cells(f'A{row}:C{row}')
+        
+        ws_class.merge_cells(f'D{row}:E{row}')
+        ws_class[f'D{row}'] = comp_class['overall_class'].upper()
+        ws_class[f'D{row}'].border = thick_border
+        ws_class[f'D{row}'].alignment = center_align
+        
+        if comp_class['overall_class'] == 'Non-slender':
+            ws_class[f'D{row}'].fill = compact_fill
+            ws_class[f'D{row}'].font = compact_font
+        else:
+            ws_class[f'D{row}'].fill = slender_fill
+            ws_class[f'D{row}'].font = slender_font
+        
+        if comp_class['overall_class'] == 'Slender':
+            row += 1
+            ws_class[f'A{row}'] = f"Limiting Element: {comp_class['limiting_element']}"
+            ws_class[f'A{row}'].font = Font(italic=True, color="C62828")
+            ws_class.merge_cells(f'A{row}:E{row}')
+    
+    # Auto-size columns
+    for col in ['A', 'B', 'C', 'D', 'E', 'F']:
+        ws_class.column_dimensions[col].width = 20
+    ws_class.column_dimensions['B'].width = 35
+    
+    # ==================== SHEET 4: FLEXURAL ANALYSIS ====================
+    if analysis_results and 'flexural' in analysis_results:
+        ws_flex = wb.create_sheet("Flexural Analysis")
+        
+        row = 1
+        ws_flex['A1'] = "AISC 360-16 CHAPTER F2: FLEXURAL DESIGN"
+        ws_flex['A1'].font = title_font
+        ws_flex['A1'].fill = title_fill
+        ws_flex['A1'].alignment = center_align
+        ws_flex.merge_cells('A1:E1')
+        ws_flex.row_dimensions[1].height = 25
+        
+        flex = analysis_results['flexural']
+        Lb = design_params.get('Lb', 0)
+        Cb = design_params.get('Cb', 1.0)
+        
+        Sx = safe_scalar(df.loc[section, "Sx [cm3]"])
+        Zx = safe_scalar(df.loc[section, 'Zx [cm3]'])
+        ry = safe_scalar(df.loc[section, 'ry [cm]'])
+        rts = safe_scalar(df.loc[section, 'rts [cm]']) if 'rts [cm]' in df.columns else ry * 1.2
+        J = safe_scalar(df.loc[section, 'j [cm4]']) if 'j [cm4]' in df.columns else 1.0
+        ho = safe_scalar(df.loc[section, 'ho [mm]']) / 10.0 if 'ho [mm]' in df.columns else d / 10.0
+        
+        # Step 1: Calculate Plastic Moment
+        row = 3
+        ws_flex[f'A{row}'] = "STEP 1: CALCULATE PLASTIC MOMENT Mp"
+        ws_flex[f'A{row}'].font = section_font
+        ws_flex[f'A{row}'].fill = section_fill
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 2
+        ws_flex[f'A{row}'] = "AISC Equation F2-1:"
+        ws_flex[f'A{row}'].font = Font(bold=True, italic=True)
+        ws_flex[f'A{row}'].fill = equation_fill
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        ws_flex[f'A{row}'] = "Mp = Fy × Zx"
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        ws_flex[f'A{row}'] = f"Mp = {Fy:.1f} × {Zx:.2f}"
+        ws_flex.merge_cells(f'A{row}:B{row}')
+        ws_flex[f'C{row}'] = f"{flex['Mp']*100000:.0f} kgf·cm"
+        ws_flex[f'D{row}'] = "="
+        ws_flex[f'D{row}'].alignment = center_align
+        ws_flex[f'E{row}'] = f"{flex['Mp']:.2f} t·m"
+        ws_flex[f'E{row}'].fill = result_fill
+        ws_flex[f'E{row}'].font = result_font
+        
+        # Step 2: Limiting Lengths
+        row += 3
+        ws_flex[f'A{row}'] = "STEP 2: CALCULATE LIMITING LATERALLY UNBRACED LENGTHS"
+        ws_flex[f'A{row}'].font = section_font
+        ws_flex[f'A{row}'].fill = section_fill
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 2
+        ws_flex[f'A{row}'] = "Compact Limit Lp (AISC Equation F2-5):"
+        ws_flex[f'A{row}'].font = Font(bold=True, italic=True)
+        ws_flex[f'A{row}'].fill = equation_fill
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        ws_flex[f'A{row}'] = "Lp = 1.76 × ry × √(E/Fy)"
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        ws_flex[f'A{row}'] = f"Lp = 1.76 × {ry:.2f} × √({E:.0f}/{Fy:.1f})"
+        ws_flex.merge_cells(f'A{row}:B{row}')
+        ws_flex[f'C{row}'] = f"{flex['Lp']*100:.2f} cm"
+        ws_flex[f'D{row}'] = "="
+        ws_flex[f'D{row}'].alignment = center_align
+        ws_flex[f'E{row}'] = f"{flex['Lp']:.3f} m"
+        ws_flex[f'E{row}'].fill = result_fill
+        ws_flex[f'E{row}'].font = result_font
+        
+        row += 2
+        ws_flex[f'A{row}'] = "Inelastic Limit Lr (AISC Equation F2-6):"
+        ws_flex[f'A{row}'].font = Font(bold=True, italic=True)
+        ws_flex[f'A{row}'].fill = equation_fill
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        ws_flex[f'A{row}'] = "Lr = 1.95 × rts × (E/(0.7Fy)) × √(Jc/(Sx×ho)) × √(1 + √(1 + 6.76×((0.7Fy)/E)²×((Sx×ho)/(Jc))²))"
+        ws_flex[f'A{row}'].alignment = Alignment(wrap_text=True)
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        ws_flex.row_dimensions[row].height = 30
+        
+        row += 1
+        ws_flex[f'A{row}'] = "Where:"
+        row += 1
+        ws_flex[f'A{row}'] = f"  rts = {rts:.2f} cm"
+        row += 1
+        ws_flex[f'A{row}'] = f"  J = {J:.2f} cm⁴"
+        row += 1
+        ws_flex[f'A{row}'] = f"  ho = {ho:.2f} cm"
+        row += 1
+        ws_flex[f'A{row}'] = f"  c = 1.0 (for doubly symmetric I-shapes)"
+        
+        row += 1
+        ws_flex[f'A{row}'] = "Result:"
+        ws_flex.merge_cells(f'A{row}:D{row}')
+        ws_flex[f'E{row}'] = f"{flex['Lr']:.3f} m"
+        ws_flex[f'E{row}'].fill = result_fill
+        ws_flex[f'E{row}'].font = result_font
+        
+        # Step 3: Determine Nominal Moment
+        row += 3
+        ws_flex[f'A{row}'] = f"STEP 3: DETERMINE NOMINAL MOMENT Mn (Lb = {Lb:.2f} m)"
+        ws_flex[f'A{row}'].font = section_font
+        ws_flex[f'A{row}'].fill = section_fill
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 2
+        if Lb <= flex['Lp']:
+            ws_flex[f'A{row}'] = f"Lb ({Lb:.2f}m) ≤ Lp ({flex['Lp']:.3f}m)"
+            ws_flex[f'A{row}'].font = Font(bold=True, size=11)
+            ws_flex.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_flex[f'A{row}'] = "AISC Equation F2-1 applies (Yielding - Limit State of Lateral-Torsional Buckling does not apply)"
+            ws_flex[f'A{row}'].fill = equation_fill
+            ws_flex.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_flex[f'A{row}'] = "Mn = Mp"
+            ws_flex.merge_cells(f'A{row}:D{row}')
+            ws_flex[f'E{row}'] = f"{flex['Mn']:.2f} t·m"
+            ws_flex[f'E{row}'].fill = result_fill
+            ws_flex[f'E{row}'].font = result_font
+            
+        elif Lb <= flex['Lr']:
+            ws_flex[f'A{row}'] = f"Lp ({flex['Lp']:.3f}m) < Lb ({Lb:.2f}m) ≤ Lr ({flex['Lr']:.3f}m)"
+            ws_flex[f'A{row}'].font = Font(bold=True, size=11)
+            ws_flex.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_flex[f'A{row}'] = "AISC Equation F2-2 applies (Inelastic Lateral-Torsional Buckling)"
+            ws_flex[f'A{row}'].fill = equation_fill
+            ws_flex.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_flex[f'A{row}'] = "Mn = Cb[Mp - (Mp - 0.7FySx)((Lb-Lp)/(Lr-Lp))] ≤ Mp"
+            ws_flex[f'A{row}'].alignment = Alignment(wrap_text=True)
+            ws_flex.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            Mr = 0.7 * Fy * Sx / 100000
+            ws_flex[f'A{row}'] = f"Mn = {Cb:.2f}[{flex['Mp']:.2f} - ({flex['Mp']:.2f} - {Mr:.2f}) × (({Lb:.2f}-{flex['Lp']:.3f})/({flex['Lr']:.3f}-{flex['Lp']:.3f}))]"
+            ws_flex.merge_cells(f'A{row}:D{row}')
+            ws_flex[f'E{row}'] = f"{flex['Mn']:.2f} t·m"
+            ws_flex[f'E{row}'].fill = result_fill
+            ws_flex[f'E{row}'].font = result_font
+            
+        else:
+            ws_flex[f'A{row}'] = f"Lb ({Lb:.2f}m) > Lr ({flex['Lr']:.3f}m)"
+            ws_flex[f'A{row}'].font = Font(bold=True, size=11)
+            ws_flex.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_flex[f'A{row}'] = "AISC Equation F2-3 applies (Elastic Lateral-Torsional Buckling)"
+            ws_flex[f'A{row}'].fill = equation_fill
+            ws_flex.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_flex[f'A{row}'] = "Fcr = (Cbπ²E)/((Lb/rts)²) × √(1 + 0.078(Jc/(Sxho))×(Lb/rts)²)"
+            ws_flex[f'A{row}'].alignment = Alignment(wrap_text=True)
+            ws_flex.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_flex[f'A{row}'] = "Mn = Fcr × Sx ≤ Mp"
+            ws_flex.merge_cells(f'A{row}:D{row}')
+            ws_flex[f'E{row}'] = f"{flex['Mn']:.2f} t·m"
+            ws_flex[f'E{row}'].fill = result_fill
+            ws_flex[f'E{row}'].font = result_font
+        
+        # Step 4: Design Strength
+        row += 3
+        ws_flex[f'A{row}'] = "STEP 4: CALCULATE DESIGN STRENGTH"
+        ws_flex[f'A{row}'].font = section_font
+        ws_flex[f'A{row}'].fill = section_fill
+        ws_flex.merge_cells(f'A{row}:E{row}')
+        
+        row += 2
+        ws_flex[f'A{row}'] = "Resistance Factor (AISC Section F1):"
+        ws_flex[f'A{row}'].font = Font(bold=True)
+        
+        row += 1
+        ws_flex[f'A{row}'] = "φb = 0.90"
+        ws_flex[f'A{row}'].fill = equation_fill
+        
+        row += 2
+        ws_flex[f'A{row}'] = "φMn = φb × Mn"
+        ws_flex.merge_cells(f'A{row}:B{row}')
+        ws_flex[f'C{row}'] = f"= 0.90 × {flex['Mn']:.2f}"
+        ws_flex[f'D{row}'] = "="
+        ws_flex[f'D{row}'].alignment = center_align
+        ws_flex[f'E{row}'] = f"{flex['phi_Mn']:.2f} t·m"
+        ws_flex[f'E{row}'].fill = result_fill
+        ws_flex[f'E{row}'].font = result_font
+        ws_flex[f'E{row}'].border = thick_border
+        
+        # Summary Table
+        row += 3
+        ws_flex[f'A{row}'] = "FLEXURAL DESIGN SUMMARY"
+        ws_flex[f'A{row}'].font = section_font
+        ws_flex[f'A{row}'].fill = section_fill
+        ws_flex.merge_cells(f'A{row}:C{row}')
+        
+        row += 1
+        summary_data = [
+            ['Parameter', 'Value', 'Status'],
+            ['Design Moment Capacity (φMn)', f"{flex['phi_Mn']:.2f} t·m", ''],
+            ['Nominal Moment (Mn)', f"{flex['Mn']:.2f} t·m", ''],
+            ['Plastic Moment (Mp)', f"{flex['Mp']:.2f} t·m", ''],
+            ['Limiting Length Lp', f"{flex['Lp']:.3f} m", ''],
+            ['Limiting Length Lr', f"{flex['Lr']:.3f} m", ''],
+            ['Design Case', flex['case'], ''],
+            ['Design Zone', flex['zone'], ''],
+            ['Utilization Ratio', f"{flex['ratio']:.3f}", '✓ PASS' if flex['adequate'] else '✗ FAIL'],
+        ]
+        
+        for data_row in summary_data:
+            row += 1
+            for col, value in enumerate(data_row, start=1):
+                cell = ws_flex.cell(row=row, column=col)
+                cell.value = value
+                cell.border = thin_border
+                cell.alignment = center_align if col > 1 else left_align
+                
+                if 'Parameter' in str(value):
+                    cell.font = header_font
+                    cell.fill = header_fill
+                elif col == 3 and '✓' in str(value):
+                    cell.fill = adequate_fill
+                    cell.font = adequate_font
+                elif col == 3 and '✗' in str(value):
+                    cell.fill = inadequate_fill
+                    cell.font = inadequate_font
+        
+        # Auto-size columns
+        for col in ['A', 'B', 'C', 'D', 'E']:
+            ws_flex.column_dimensions[col].width = 25
+    
+    # ==================== SHEET 5: COMPRESSION ANALYSIS ====================
+    if analysis_results and 'compression' in analysis_results:
+        ws_comp = wb.create_sheet("Compression Analysis")
+        
+        row = 1
+        ws_comp['A1'] = "AISC 360-16 CHAPTER E3: COMPRESSION DESIGN"
+        ws_comp['A1'].font = title_font
+        ws_comp['A1'].fill = title_fill
+        ws_comp['A1'].alignment = center_align
+        ws_comp.merge_cells('A1:E1')
+        ws_comp.row_dimensions[1].height = 25
+        
+        comp = analysis_results['compression']
+        KL = design_params.get('KL', 0)
+        
+        Ag = safe_scalar(df.loc[section, 'A [cm2]'])
+        rx = safe_scalar(df.loc[section, 'rx [cm]'])
+        ry = safe_scalar(df.loc[section, 'ry [cm]'])
+        
+        # Step 1: Slenderness Ratio
+        row = 3
+        ws_comp[f'A{row}'] = "STEP 1: CALCULATE SLENDERNESS RATIO"
+        ws_comp[f'A{row}'].font = section_font
+        ws_comp[f'A{row}'].fill = section_fill
+        ws_comp.merge_cells(f'A{row}:E{row}')
+        
+        row += 2
+        KL_cm = KL * 100
+        lambda_x = KL_cm / rx
+        lambda_y = KL_cm / ry
+        lambda_c = max(lambda_x, lambda_y)
+        
+        ws_comp[f'A{row}'] = f"KL/rx = {KL_cm:.1f} / {rx:.2f}"
+        ws_comp.merge_cells(f'A{row}:D{row}')
+        ws_comp[f'E{row}'] = f"{lambda_x:.1f}"
+        ws_comp[f'E{row}'].fill = calc_fill
+        
+        row += 1
+        ws_comp[f'A{row}'] = f"KL/ry = {KL_cm:.1f} / {ry:.2f}"
+        ws_comp.merge_cells(f'A{row}:D{row}')
+        ws_comp[f'E{row}'] = f"{lambda_y:.1f}"
+        ws_comp[f'E{row}'].fill = calc_fill
+        
+        row += 1
+        ws_comp[f'A{row}'] = "λc = max(KL/rx, KL/ry)"
+        ws_comp.merge_cells(f'A{row}:D{row}')
+        ws_comp[f'E{row}'] = f"{lambda_c:.1f}"
+        ws_comp[f'E{row}'].fill = result_fill
+        ws_comp[f'E{row}'].font = result_font
+        
+        # Step 2: Elastic Buckling Stress
+        row += 3
+        ws_comp[f'A{row}'] = "STEP 2: CALCULATE ELASTIC BUCKLING STRESS Fe"
+        ws_comp[f'A{row}'].font = section_font
+        ws_comp[f'A{row}'].fill = section_fill
+        ws_comp.merge_cells(f'A{row}:E{row}')
+        
+        row += 2
+        ws_comp[f'A{row}'] = "AISC Equation E3-4:"
+        ws_comp[f'A{row}'].font = Font(bold=True, italic=True)
+        ws_comp[f'A{row}'].fill = equation_fill
+        ws_comp.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        ws_comp[f'A{row}'] = "Fe = π²E / (KL/r)²"
+        ws_comp.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        Fe = (math.pi**2 * E) / (lambda_c**2)
+        ws_comp[f'A{row}'] = f"Fe = π² × {E:.0f} / {lambda_c:.1f}²"
+        ws_comp.merge_cells(f'A{row}:D{row}')
+        ws_comp[f'E{row}'] = f"{Fe:.1f} kgf/cm²"
+        ws_comp[f'E{row}'].fill = result_fill
+        ws_comp[f'E{row}'].font = result_font
+        
+        # Step 3: Determine Critical Stress
+        row += 3
+        ws_comp[f'A{row}'] = "STEP 3: DETERMINE CRITICAL STRESS Fcr"
+        ws_comp[f'A{row}'].font = section_font
+        ws_comp[f'A{row}'].fill = section_fill
+        ws_comp.merge_cells(f'A{row}:E{row}')
+        
+        row += 2
+        lambda_limit = 4.71 * safe_sqrt(E / Fy)
+        ws_comp[f'A{row}'] = "Limiting Slenderness:"
+        ws_comp[f'A{row}'].font = Font(bold=True)
+        
+        row += 1
+        ws_comp[f'A{row}'] = f"4.71√(E/Fy) = 4.71√({E:.0f}/{Fy:.1f})"
+        ws_comp.merge_cells(f'A{row}:D{row}')
+        ws_comp[f'E{row}'] = f"{lambda_limit:.1f}"
+        ws_comp[f'E{row}'].fill = calc_fill
+        
+        row += 2
+        if lambda_c <= lambda_limit:
+            ws_comp[f'A{row}'] = f"λc ({lambda_c:.1f}) ≤ {lambda_limit:.1f}"
+            ws_comp[f'A{row}'].font = Font(bold=True, size=11)
+            ws_comp.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_comp[f'A{row}'] = "INELASTIC BUCKLING - AISC Equation E3-2:"
+            ws_comp[f'A{row}'].fill = equation_fill
+            ws_comp.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_comp[f'A{row}'] = "Fcr = [0.658^(Fy/Fe)] × Fy"
+            ws_comp.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            exponent = Fy / Fe
+            Fcr = (0.658 ** exponent) * Fy
+            ws_comp[f'A{row}'] = f"Fcr = [0.658^({Fy:.1f}/{Fe:.1f})] × {Fy:.1f}"
+            ws_comp.merge_cells(f'A{row}:D{row}')
+            ws_comp[f'E{row}'] = f"{Fcr:.1f} kgf/cm²"
+            ws_comp[f'E{row}'].fill = result_fill
+            ws_comp[f'E{row}'].font = result_font
+        else:
+            ws_comp[f'A{row}'] = f"λc ({lambda_c:.1f}) > {lambda_limit:.1f}"
+            ws_comp[f'A{row}'].font = Font(bold=True, size=11)
+            ws_comp.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_comp[f'A{row}'] = "ELASTIC BUCKLING - AISC Equation E3-3:"
+            ws_comp[f'A{row}'].fill = equation_fill
+            ws_comp.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            ws_comp[f'A{row}'] = "Fcr = 0.877 × Fe"
+            ws_comp.merge_cells(f'A{row}:E{row}')
+            
+            row += 1
+            Fcr = 0.877 * Fe
+            ws_comp[f'A{row}'] = f"Fcr = 0.877 × {Fe:.1f}"
+            ws_comp.merge_cells(f'A{row}:D{row}')
+            ws_comp[f'E{row}'] = f"{Fcr:.1f} kgf/cm²"
+            ws_comp[f'E{row}'].fill = result_fill
+            ws_comp[f'E{row}'].font = result_font
+        
+        # Step 4: Calculate Strength
+        row += 3
+        ws_comp[f'A{row}'] = "STEP 4: CALCULATE NOMINAL AND DESIGN STRENGTH"
+        ws_comp[f'A{row}'].font = section_font
+        ws_comp[f'A{row}'].fill = section_fill
+        ws_comp.merge_cells(f'A{row}:E{row}')
+        
+        row += 2
+        ws_comp[f'A{row}'] = "AISC Equation E3-1:"
+        ws_comp[f'A{row}'].font = Font(bold=True, italic=True)
+        ws_comp[f'A{row}'].fill = equation_fill
+        ws_comp.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        ws_comp[f'A{row}'] = "Pn = Fcr × Ag"
+        ws_comp.merge_cells(f'A{row}:E{row}')
+        
+        row += 1
+        Pn = Fcr * Ag / 1000
+        ws_comp[f'A{row}'] = f"Pn = {Fcr:.1f} × {Ag:.2f} / 1000"
+        ws_comp.merge_cells(f'A{row}:D{row}')
+        ws_comp[f'E{row}'] = f"{Pn:.2f} tons"
+        ws_comp[f'E{row}'].fill = result_fill
+        ws_comp[f'E{row}'].font = result_font
+        
+        row += 2
+        ws_comp[f'A{row}'] = "Resistance Factor (AISC Section E1):"
+        ws_comp[f'A{row}'].font = Font(bold=True)
+        
+        row += 1
+        ws_comp[f'A{row}'] = "φc = 0.90"
+        ws_comp[f'A{row}'].fill = equation_fill
+        
+        row += 2
+        ws_comp[f'A{row}'] = "φPn = φc × Pn"
+        ws_comp.merge_cells(f'A{row}:B{row}')
+        ws_comp[f'C{row}'] = f"= 0.90 × {Pn:.2f}"
+        ws_comp[f'D{row}'] = "="
+        ws_comp[f'D{row}'].alignment = center_align
+        ws_comp[f'E{row}'] = f"{comp['phi_Pn']:.2f} tons"
+        ws_comp[f'E{row}'].fill = result_fill
+        ws_comp[f'E{row}'].font = result_font
+        ws_comp[f'E{row}'].border = thick_border
+        
+        # Summary Table
+        row += 3
+        ws_comp[f'A{row}'] = "COMPRESSION DESIGN SUMMARY"
+        ws_comp[f'A{row}'].font = section_font
+        ws_comp[f'A{row}'].fill = section_fill
+        ws_comp.merge_cells(f'A{row}:C{row}')
+        
+        row += 1
+        summary_data = [
+            ['Parameter', 'Value', 'Status'],
+            ['Design Strength (φPn)', f"{comp['phi_Pn']:.2f} tons", ''],
+            ['Nominal Strength (Pn)', f"{comp['Pn']:.2f} tons", ''],
+            ['Critical Stress (Fcr)', f"{comp['Fcr']:.1f} kgf/cm²", ''],
+            ['Elastic Buckling Stress (Fe)', f"{Fe:.1f} kgf/cm²", ''],
+            ['Slenderness Ratio (λc)', f"{comp['lambda_c']:.1f}", ''],
+            ['Buckling Mode', comp['mode'], ''],
+            ['Utilization Ratio', f"{comp['ratio']:.3f}", '✓ PASS' if comp['adequate'] else '✗ FAIL'],
+        ]
+        
+        for data_row in summary_data:
+            row += 1
+            for col, value in enumerate(data_row, start=1):
+                cell = ws_comp.cell(row=row, column=col)
+                cell.value = value
+                cell.border = thin_border
+                cell.alignment = center_align if col > 1 else left_align
+                
+                if 'Parameter' in str(value):
+                    cell.font = header_font
+                    cell.fill = header_fill
+                elif col == 3 and '✓' in str(value):
+                    cell.fill = adequate_fill
+                    cell.font = adequate_font
+                elif col == 3 and '✗' in str(value):
+                    cell.fill = inadequate_fill
+                    cell.font = inadequate_font
+        
+        # Auto-size columns
+        for col in ['A', 'B', 'C', 'D', 'E']:
+            ws_comp.column_dimensions[col].width = 25
     
     # Save to buffer
     wb.save(buffer)
@@ -2740,24 +3476,26 @@ with tab3:
                 else:
                     st.warning("⚠️ PDF export requires reportlab library")
             
+            # In TAB 3, replace the Excel generation button section with:
             with col_export2:
                 if EXCEL_AVAILABLE:
-                    if st.button("📊 Generate Excel Report", type="primary"):
+                    if st.button("📊 Generate Enhanced Excel Report", type="primary"):
                         design_params = {
                             'Mu': Mu_eval, 'Pu': Pu_eval,
-                            'Lb': Lb_eval, 'KL': KL_eval
+                            'Lb': Lb_eval, 'KL': KL_eval,
+                            'Cb': 1.0  # Add if you have Cb input
                         }
-                        excel_buffer = generate_excel_report(df, df_mat, section, selected_material, 
-                                                            st.session_state.evaluation_results, design_params)
+                        excel_buffer = generate_enhanced_excel_report(df, df_mat, section, selected_material, 
+                                                                     st.session_state.evaluation_results, design_params)
                         
                         if excel_buffer:
                             st.download_button(
-                                label="📥 Download Excel Report",
+                                label="📥 Download Enhanced Excel Report",
                                 data=excel_buffer,
-                                file_name=f"AISC_Report_{section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                                file_name=f"AISC_Enhanced_Report_{section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                             )
-                            st.success("✅ Excel report generated successfully!")
+                            st.success("✅ Enhanced Excel report with detailed calculations generated successfully!")
                 else:
                     st.warning("⚠️ Excel export requires openpyxl library")
         else:
