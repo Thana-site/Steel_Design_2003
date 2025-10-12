@@ -3496,45 +3496,49 @@ with tab3:
         if st.session_state.evaluation_results:
             col_export1, col_export2 = st.columns(2)
             
-        # In TAB 3, replace the PDF generation button:
-        with col_export1:
-            if PDF_AVAILABLE:
-                if st.button("📄 Generate Professional PDF Report", type="primary"):
-                    design_params = {
-                        'Mu': Mu_eval, 'Pu': Pu_eval,
-                        'Lb': Lb_eval, 'KL': KL_eval,
-                        'Cb': 1.0
-                    }
-                    
-                    with st.spinner('Generating professional PDF report...'):
-                        pdf_buffer = generate_professional_pdf_report(
-                            df, df_mat, section, selected_material, 
-                            st.session_state.evaluation_results, design_params
-                        )
-                    
-                    if pdf_buffer:
-                        st.download_button(
-                            label="📥 Download Professional PDF Report",
-                            data=pdf_buffer,
-                            file_name=f"AISC_Professional_Report_{section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                            mime="application/pdf"
-                        )
-                        st.success("✅ Professional PDF report generated successfully!")
-            else:
-                st.warning("⚠️ PDF export requires reportlab and matplotlib libraries")
-                st.code("pip install reportlab matplotlib")
+            # PDF Export
+            with col_export1:
+                if PDF_AVAILABLE:
+                    if st.button("📄 Generate Professional PDF Report", type="primary"):
+                        design_params = {
+                            'Mu': Mu_eval, 'Pu': Pu_eval,
+                            'Lb': Lb_eval, 'KL': KL_eval,
+                            'Cb': 1.0
+                        }
+                        
+                        with st.spinner('Generating professional PDF report...'):
+                            pdf_buffer = generate_professional_pdf_report(
+                                df, df_mat, section, selected_material, 
+                                st.session_state.evaluation_results, design_params
+                            )
+                        
+                        if pdf_buffer:
+                            st.download_button(
+                                label="📥 Download Professional PDF Report",
+                                data=pdf_buffer,
+                                file_name=f"AISC_Professional_Report_{section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                                mime="application/pdf"
+                            )
+                            st.success("✅ Professional PDF report generated successfully!")
+                else:
+                    st.warning("⚠️ PDF export requires reportlab and matplotlib libraries")
+                    st.code("pip install reportlab matplotlib")
             
-            # In TAB 3, replace the Excel generation button section with:
+            # Excel Export
             with col_export2:
                 if EXCEL_AVAILABLE:
                     if st.button("📊 Generate Enhanced Excel Report", type="primary"):
                         design_params = {
                             'Mu': Mu_eval, 'Pu': Pu_eval,
                             'Lb': Lb_eval, 'KL': KL_eval,
-                            'Cb': 1.0  # Add if you have Cb input
+                            'Cb': 1.0
                         }
-                        excel_buffer = generate_enhanced_excel_report(df, df_mat, section, selected_material, 
-                                                                     st.session_state.evaluation_results, design_params)
+                        
+                        with st.spinner('Generating enhanced Excel report...'):
+                            excel_buffer = generate_enhanced_excel_report(
+                                df, df_mat, section, selected_material, 
+                                st.session_state.evaluation_results, design_params
+                            )
                         
                         if excel_buffer:
                             st.download_button(
@@ -3546,11 +3550,9 @@ with tab3:
                             st.success("✅ Enhanced Excel report with detailed calculations generated successfully!")
                 else:
                     st.warning("⚠️ Excel export requires openpyxl library")
-     else:
-        st.info("ℹ️ Perform a design evaluation first to enable export functionality")
-    
-    else:
-        st.warning("⚠️ Please select a section and material from the sidebar")
+                    st.code("pip install openpyxl")
+        else:
+            st.info("ℹ️ Perform a design evaluation first to enable export functionality")
 
 # ==================== TAB 4: DOCUMENTATION ====================
 with tab4:
