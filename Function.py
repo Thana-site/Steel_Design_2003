@@ -3549,8 +3549,8 @@ with tab3:
         else:
             st.info("ℹ️ Perform a design evaluation first to enable export functionality")
     
-    else:
-        st.warning("⚠️ Please select a section and material from the sidebar")
+        else:
+            st.warning("⚠️ Please select a section and material from the sidebar")
 
 # ==================== TAB 4: DOCUMENTATION ====================
 with tab4:
