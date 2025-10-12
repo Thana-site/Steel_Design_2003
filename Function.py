@@ -56,6 +56,601 @@ try:
 except ImportError:
     EXCEL_AVAILABLE = False
 
+
+# ==================== AISC CLASSIFICATION FUNCTIONS ====================
+def classify_section_flexure(df, df_mat, section, material):
+    """
+    Classify section elements for flexural design per AISC 360-16 Table B4.1b
+    Returns: dict with flange and web classifications
+    """
+    try:
+        # Get section properties
+        bf = safe_scalar(df.loc[section, 'bf [mm]'])
+        tf = safe_scalar(df.loc[section, 'tf [mm]'])
+        
+        # For web
+        if 'ho [mm]' in df.columns:
+            h = safe_scalar(df.loc[section, 'ho [mm]'])
+        else:
+            d = safe_scalar(df.loc[section, 'd [mm]'])
+            h = d - 2 * tf
+        
+        tw = safe_scalar(df.loc[section, 'tw [mm]'])
+        
+        # Material properties
+        Fy = safe_scalar(df_mat.loc[material, "Yield Point (ksc)"])
+        E = safe_scalar(df_mat.loc[material, "E"])
+        
+        # Flange slenderness (AISC Table B4.1b Case 10 - Flanges of I-sections)
+        lambda_f = (bf / 2.0) / tf
+        lambda_pf = 0.38 * safe_sqrt(E / Fy)
+        lambda_rf = 1.0 * safe_sqrt(E / Fy)
+        
+        if lambda_f <= lambda_pf:
+            flange_class = "Compact"
+        elif lambda_f <= lambda_rf:
+            flange_class = "Non-compact"
+        else:
+            flange_class = "Slender"
+        
+        # Web slenderness (AISC Table B4.1b Case 15 - Webs in flexural compression)
+        lambda_w = h / tw
+        lambda_pw = 3.76 * safe_sqrt(E / Fy)
+        lambda_rw = 5.70 * safe_sqrt(E / Fy)
+        
+        if lambda_w <= lambda_pw:
+            web_class = "Compact"
+        elif lambda_w <= lambda_rw:
+            web_class = "Non-compact"
+        else:
+            web_class = "Slender"
+        
+        return {
+            'flange_class': flange_class,
+            'flange_lambda': lambda_f,
+            'flange_lambda_p': lambda_pf,
+            'flange_lambda_r': lambda_rf,
+            'web_class': web_class,
+            'web_lambda': lambda_w,
+            'web_lambda_p': lambda_pw,
+            'web_lambda_r': lambda_rw
+        }
+        
+    except Exception as e:
+        st.error(f"Error in flexural classification: {e}")
+        return None
+
+def classify_section_compression(df, df_mat, section, material):
+    """
+    Classify section elements for compression design per AISC 360-16 Table B4.1a
+    Returns: dict with overall classification
+    """
+    try:
+        # Get section properties
+        bf = safe_scalar(df.loc[section, 'bf [mm]'])
+        tf = safe_scalar(df.loc[section, 'tf [mm]'])
+        
+        d = safe_scalar(df.loc[section, 'd [mm]'])
+        tw = safe_scalar(df.loc[section, 'tw [mm]'])
+        h = d - 2 * tf
+        
+        # Material properties
+        Fy = safe_scalar(df_mat.loc[material, "Yield Point (ksc)"])
+        E = safe_scalar(df_mat.loc[material, "E"])
+        
+        # Flange slenderness (AISC Table B4.1a Case 1 - Flanges of I-sections)
+        lambda_f = (bf / 2.0) / tf
+        lambda_r_flange = 0.56 * safe_sqrt(E / Fy)
+        
+        # Web slenderness (AISC Table B4.1a Case 5 - Webs of doubly symmetric I-sections)
+        lambda_w = h / tw
+        lambda_r_web = 1.49 * safe_sqrt(E / Fy)
+        
+        flange_slender = lambda_f > lambda_r_flange
+        web_slender = lambda_w > lambda_r_web
+        
+        if flange_slender or web_slender:
+            overall_class = "Slender"
+            limiting_element = []
+            if flange_slender:
+                limiting_element.append("Flange")
+            if web_slender:
+                limiting_element.append("Web")
+            limiting = " & ".join(limiting_element)
+        else:
+            overall_class = "Non-slender"
+            limiting = "N/A"
+        
+        return {
+            'overall_class': overall_class,
+            'limiting_element': limiting,
+            'flange_lambda': lambda_f,
+            'flange_lambda_r': lambda_r_flange,
+            'flange_slender': flange_slender,
+            'web_lambda': lambda_w,
+            'web_lambda_r': lambda_r_web,
+            'web_slender': web_slender
+        }
+        
+    except Exception as e:
+        st.error(f"Error in compression classification: {e}")
+        return None
+
+def generate_excel_report(df, df_mat, section, material, analysis_results, design_params):
+    """Generate comprehensive Excel calculation report with formatting"""
+    if not EXCEL_AVAILABLE:
+        return None
+    
+    buffer = BytesIO()
+    wb = Workbook()
+    
+    # Define styles
+    header_fill = PatternFill(start_color="667EEA", end_color="667EEA", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    title_font = Font(bold=True, size=16, color="667EEA")
+    subtitle_font = Font(bold=True, size=14, color="2c3e50")
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Compact/Non-compact fill colors
+    compact_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+    noncompact_fill = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")
+    slender_fill = PatternFill(start_color="FFCDD2", end_color="FFCDD2", fill_type="solid")
+    
+    # Get classifications
+    flex_class = classify_section_flexure(df, df_mat, section, material)
+    comp_class = classify_section_compression(df, df_mat, section, material)
+    
+    # Sheet 1: Summary
+    ws_summary = wb.active
+    ws_summary.title = "Design Summary"
+    
+    # Title
+    ws_summary['A1'] = "AISC 360-16 STEEL DESIGN CALCULATION REPORT"
+    ws_summary['A1'].font = title_font
+    ws_summary['A1'].alignment = center_align
+    ws_summary.merge_cells('A1:D1')
+    
+    # Header Info
+    row = 3
+    ws_summary[f'A{row}'] = "Report Generated:"
+    ws_summary[f'B{row}'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    row += 1
+    ws_summary[f'A{row}'] = "Section:"
+    ws_summary[f'B{row}'] = section
+    row += 1
+    ws_summary[f'A{row}'] = "Material Grade:"
+    ws_summary[f'B{row}'] = material
+    
+    # Format header
+    for r in range(3, 6):
+        ws_summary[f'A{r}'].font = Font(bold=True)
+        ws_summary[f'A{r}'].fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
+    
+    # Material Properties
+    row = 8
+    ws_summary[f'A{row}'] = "MATERIAL PROPERTIES"
+    ws_summary[f'A{row}'].font = subtitle_font
+    ws_summary.merge_cells(f'A{row}:C{row}')
+    
+    row += 1
+    headers = ['Property', 'Value', 'Unit']
+    for col, header in enumerate(headers, start=1):
+        cell = ws_summary.cell(row=row, column=col)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+        cell.border = border
+    
+    Fy = safe_scalar(df_mat.loc[material, "Yield Point (ksc)"])
+    Fu = safe_scalar(df_mat.loc[material, "Tensile Strength (ksc)"])
+    E = safe_scalar(df_mat.loc[material, "E"])
+    
+    mat_props = [
+        ['Yield Strength (Fy)', f'{Fy:.1f}', 'kgf/cm²'],
+        ['Tensile Strength (Fu)', f'{Fu:.1f}', 'kgf/cm²'],
+        ['Modulus of Elasticity (E)', f'{E:.0f}', 'kgf/cm²']
+    ]
+    
+    for prop_row in mat_props:
+        row += 1
+        for col, value in enumerate(prop_row, start=1):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.value = value
+            cell.border = border
+            cell.alignment = center_align if col > 1 else left_align
+    
+    # ========== COMPREHENSIVE SECTION PROPERTIES ==========
+    row += 3
+    ws_summary[f'A{row}'] = "COMPLETE SECTION PROPERTIES"
+    ws_summary[f'A{row}'].font = subtitle_font
+    ws_summary.merge_cells(f'A{row}:C{row}')
+    
+    row += 1
+    for col, header in enumerate(headers, start=1):
+        cell = ws_summary.cell(row=row, column=col)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+        cell.border = border
+    
+    # Comprehensive property list
+    property_list = [
+        ('d [mm]', 'Overall Depth'),
+        ('bf [mm]', 'Flange Width'),
+        ('tw [mm]', 'Web Thickness'),
+        ('tf [mm]', 'Flange Thickness'),
+        ('r [mm]', 'Fillet Radius'),
+        ('A [cm2]', 'Cross-sectional Area'),
+        ('Ix [cm4]', 'Moment of Inertia X-axis'),
+        ('Iy [cm4]', 'Moment of Inertia Y-axis'),
+        ('rx [cm]', 'Radius of Gyration X-axis'),
+        ('ry [cm]', 'Radius of Gyration Y-axis'),
+        ('Sx [cm3]', 'Elastic Section Modulus X'),
+        ('Sy [cm3]', 'Elastic Section Modulus Y'),
+        ('Zx [cm3]', 'Plastic Section Modulus X'),
+        ('Zy [cm3]', 'Plastic Section Modulus Y'),
+        ('h/tw', 'Web Slenderness Ratio'),
+        ('0.5bf/tf', 'Flange Slenderness Ratio'),
+        ('ho [mm]', 'Distance Between Flange Centroids'),
+        ('j [cm4]', 'Torsional Constant'),
+        ('cw [10^6 cm6]', 'Warping Constant'),
+        ('rts [cm6]', 'Effective Radius'),
+        ('Lp [cm]', 'Limiting Length for Plastic'),
+        ('Lr [cm]', 'Limiting Length for Inelastic LTB')
+    ]
+    
+    weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
+    if weight_col in df.columns:
+        weight = safe_scalar(df.loc[section, weight_col])
+        row += 1
+        ws_summary[f'A{row}'] = "Unit Weight"
+        ws_summary[f'B{row}'] = f'{weight:.2f}'
+        ws_summary[f'C{row}'] = 'kg/m'
+        for col in range(1, 4):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.border = border
+            cell.alignment = center_align if col > 1 else left_align
+    
+    for prop_key, prop_description in property_list:
+        if prop_key in df.columns:
+            row += 1
+            value = safe_scalar(df.loc[section, prop_key])
+            unit = prop_key.split('[')[1].replace(']', '') if '[' in prop_key else ''
+            
+            ws_summary[f'A{row}'] = prop_description
+            ws_summary[f'B{row}'] = f'{value:.3f}' if value < 100 else f'{value:.2f}'
+            ws_summary[f'C{row}'] = unit
+            
+            for col in range(1, 4):
+                cell = ws_summary.cell(row=row, column=col)
+                cell.border = border
+                cell.alignment = center_align if col > 1 else left_align
+    
+    # ========== FLEXURAL CLASSIFICATION ==========
+    if flex_class:
+        row += 3
+        ws_summary[f'A{row}'] = "FLEXURAL MEMBER CLASSIFICATION (AISC Table B4.1b)"
+        ws_summary[f'A{row}'].font = subtitle_font
+        ws_summary.merge_cells(f'A{row}:C{row}')
+        
+        row += 1
+        ws_summary[f'A{row}'] = "Element"
+        ws_summary[f'B{row}'] = "Classification"
+        ws_summary[f'C{row}'] = "Details"
+        for col in range(1, 4):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = border
+        
+        # Flange classification
+        row += 1
+        ws_summary[f'A{row}'] = "Flange"
+        ws_summary[f'B{row}'] = flex_class['flange_class']
+        ws_summary[f'C{row}'] = f"λ={flex_class['flange_lambda']:.2f}, λp={flex_class['flange_lambda_p']:.2f}, λr={flex_class['flange_lambda_r']:.2f}"
+        
+        for col in range(1, 4):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.border = border
+            cell.alignment = center_align if col > 1 else left_align
+            
+            if col == 2:  # Classification column
+                if flex_class['flange_class'] == "Compact":
+                    cell.fill = compact_fill
+                    cell.font = Font(bold=True, color="2E7D32")
+                elif flex_class['flange_class'] == "Non-compact":
+                    cell.fill = noncompact_fill
+                    cell.font = Font(bold=True, color="F57C00")
+                else:
+                    cell.fill = slender_fill
+                    cell.font = Font(bold=True, color="C62828")
+        
+        # Web classification
+        row += 1
+        ws_summary[f'A{row}'] = "Web"
+        ws_summary[f'B{row}'] = flex_class['web_class']
+        ws_summary[f'C{row}'] = f"λ={flex_class['web_lambda']:.2f}, λp={flex_class['web_lambda_p']:.2f}, λr={flex_class['web_lambda_r']:.2f}"
+        
+        for col in range(1, 4):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.border = border
+            cell.alignment = center_align if col > 1 else left_align
+            
+            if col == 2:  # Classification column
+                if flex_class['web_class'] == "Compact":
+                    cell.fill = compact_fill
+                    cell.font = Font(bold=True, color="2E7D32")
+                elif flex_class['web_class'] == "Non-compact":
+                    cell.fill = noncompact_fill
+                    cell.font = Font(bold=True, color="F57C00")
+                else:
+                    cell.fill = slender_fill
+                    cell.font = Font(bold=True, color="C62828")
+    
+    # ========== COMPRESSION CLASSIFICATION ==========
+    if comp_class:
+        row += 3
+        ws_summary[f'A{row}'] = "COMPRESSION MEMBER CLASSIFICATION (AISC Table B4.1a)"
+        ws_summary[f'A{row}'].font = subtitle_font
+        ws_summary.merge_cells(f'A{row}:C{row}')
+        
+        row += 1
+        ws_summary[f'A{row}'] = "Element"
+        ws_summary[f'B{row}'] = "Classification"
+        ws_summary[f'C{row}'] = "Details"
+        for col in range(1, 4):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = border
+        
+        # Overall classification
+        row += 1
+        ws_summary[f'A{row}'] = "Overall Section"
+        ws_summary[f'B{row}'] = comp_class['overall_class']
+        
+        if comp_class['overall_class'] == "Slender":
+            ws_summary[f'C{row}'] = f"Limiting: {comp_class['limiting_element']}"
+        else:
+            ws_summary[f'C{row}'] = "All elements within limits"
+        
+        for col in range(1, 4):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.border = border
+            cell.alignment = center_align if col > 1 else left_align
+            
+            if col == 2:  # Classification column
+                if comp_class['overall_class'] == "Non-slender":
+                    cell.fill = compact_fill
+                    cell.font = Font(bold=True, color="2E7D32")
+                else:
+                    cell.fill = slender_fill
+                    cell.font = Font(bold=True, color="C62828")
+        
+        # Flange details
+        row += 1
+        ws_summary[f'A{row}'] = "Flange"
+        ws_summary[f'B{row}'] = "Slender" if comp_class['flange_slender'] else "Non-slender"
+        ws_summary[f'C{row}'] = f"λ={comp_class['flange_lambda']:.2f}, λr={comp_class['flange_lambda_r']:.2f}"
+        
+        for col in range(1, 4):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.border = border
+            cell.alignment = center_align if col > 1 else left_align
+        
+        # Web details
+        row += 1
+        ws_summary[f'A{row}'] = "Web"
+        ws_summary[f'B{row}'] = "Slender" if comp_class['web_slender'] else "Non-slender"
+        ws_summary[f'C{row}'] = f"λ={comp_class['web_lambda']:.2f}, λr={comp_class['web_lambda_r']:.2f}"
+        
+        for col in range(1, 4):
+            cell = ws_summary.cell(row=row, column=col)
+            cell.border = border
+            cell.alignment = center_align if col > 1 else left_align
+    
+    # Auto-size columns for Summary sheet
+    try:
+        for col_idx in range(1, ws_summary.max_column + 1):
+            column_letter = get_column_letter(col_idx)
+            max_length = 0
+            for row_idx in range(1, ws_summary.max_row + 1):
+                cell = ws_summary.cell(row=row_idx, column=col_idx)
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 60)
+            ws_summary.column_dimensions[column_letter].width = adjusted_width
+    except:
+        ws_summary.column_dimensions['A'].width = 40
+        ws_summary.column_dimensions['B'].width = 25
+        ws_summary.column_dimensions['C'].width = 30
+        ws_summary.column_dimensions['D'].width = 15
+    
+    # Sheet 2: Analysis Results
+    if analysis_results:
+        ws_results = wb.create_sheet("Analysis Results")
+        
+        row = 1
+        ws_results['A1'] = "DESIGN ANALYSIS RESULTS"
+        ws_results['A1'].font = title_font
+        ws_results.merge_cells('A1:D1')
+        
+        # Flexural Analysis
+        if 'flexural' in analysis_results:
+            row = 3
+            ws_results[f'A{row}'] = "FLEXURAL ANALYSIS (AISC F2)"
+            ws_results[f'A{row}'].font = subtitle_font
+            ws_results.merge_cells(f'A{row}:B{row}')
+            
+            row += 1
+            ws_results[f'A{row}'] = "Parameter"
+            ws_results[f'B{row}'] = "Value"
+            for col in range(1, 3):
+                cell = ws_results.cell(row=row, column=col)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center_align
+                cell.border = border
+            
+            flex_data = [
+                ['Design Moment (φMn)', f"{analysis_results['flexural']['phi_Mn']:.2f} t·m"],
+                ['Nominal Moment (Mn)', f"{analysis_results['flexural']['Mn']:.2f} t·m"],
+                ['Plastic Moment (Mp)', f"{analysis_results['flexural']['Mp']:.2f} t·m"],
+                ['Critical Length (Lp)', f"{analysis_results['flexural']['Lp']:.3f} m"],
+                ['Critical Length (Lr)', f"{analysis_results['flexural']['Lr']:.3f} m"],
+                ['Design Case', analysis_results['flexural']['case']],
+                ['Design Zone', analysis_results['flexural']['zone']],
+                ['Utilization Ratio', f"{analysis_results['flexural']['ratio']:.3f}"],
+                ['Status', '✓ ADEQUATE' if analysis_results['flexural']['adequate'] else '✗ INADEQUATE']
+            ]
+            
+            for data_row in flex_data:
+                row += 1
+                ws_results[f'A{row}'] = data_row[0]
+                ws_results[f'B{row}'] = data_row[1]
+                for col in range(1, 3):
+                    cell = ws_results.cell(row=row, column=col)
+                    cell.border = border
+                    cell.alignment = left_align if col == 1 else center_align
+                    
+                    # Color code status
+                    if col == 2 and data_row[0] == 'Status':
+                        if '✓' in str(data_row[1]):
+                            cell.fill = compact_fill
+                            cell.font = Font(bold=True, color="2E7D32")
+                        else:
+                            cell.fill = slender_fill
+                            cell.font = Font(bold=True, color="C62828")
+        
+        # Compression Analysis
+        if 'compression' in analysis_results:
+            row += 3
+            ws_results[f'A{row}'] = "COMPRESSION ANALYSIS (AISC E3)"
+            ws_results[f'A{row}'].font = subtitle_font
+            ws_results.merge_cells(f'A{row}:B{row}')
+            
+            row += 1
+            ws_results[f'A{row}'] = "Parameter"
+            ws_results[f'B{row}'] = "Value"
+            for col in range(1, 3):
+                cell = ws_results.cell(row=row, column=col)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center_align
+                cell.border = border
+            
+            comp_data = [
+                ['Design Strength (φPn)', f"{analysis_results['compression']['phi_Pn']:.2f} tons"],
+                ['Nominal Strength (Pn)', f"{analysis_results['compression']['Pn']:.2f} tons"],
+                ['Critical Stress (Fcr)', f"{analysis_results['compression']['Fcr']:.1f} kgf/cm²"],
+                ['Slenderness Ratio (λc)', f"{analysis_results['compression']['lambda_c']:.1f}"],
+                ['Buckling Mode', analysis_results['compression']['mode']],
+                ['Utilization Ratio', f"{analysis_results['compression']['ratio']:.3f}"],
+                ['Status', '✓ ADEQUATE' if analysis_results['compression']['adequate'] else '✗ INADEQUATE']
+            ]
+            
+            for data_row in comp_data:
+                row += 1
+                ws_results[f'A{row}'] = data_row[0]
+                ws_results[f'B{row}'] = data_row[1]
+                for col in range(1, 3):
+                    cell = ws_results.cell(row=row, column=col)
+                    cell.border = border
+                    cell.alignment = left_align if col == 1 else center_align
+                    
+                    # Color code status
+                    if col == 2 and data_row[0] == 'Status':
+                        if '✓' in str(data_row[1]):
+                            cell.fill = compact_fill
+                            cell.font = Font(bold=True, color="2E7D32")
+                        else:
+                            cell.fill = slender_fill
+                            cell.font = Font(bold=True, color="C62828")
+        
+        # Design Parameters Sheet
+        ws_params = wb.create_sheet("Design Parameters")
+        
+        row = 1
+        ws_params['A1'] = "DESIGN INPUT PARAMETERS"
+        ws_params['A1'].font = title_font
+        ws_params.merge_cells('A1:B1')
+        
+        row = 3
+        ws_params[f'A{row}'] = "Parameter"
+        ws_params[f'B{row}'] = "Value"
+        for col in range(1, 3):
+            cell = ws_params.cell(row=row, column=col)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = border
+        
+        if design_params:
+            param_data = []
+            if 'Mu' in design_params:
+                param_data.append(['Applied Moment (Mu)', f"{design_params['Mu']:.2f} t·m"])
+            if 'Pu' in design_params:
+                param_data.append(['Applied Axial Load (Pu)', f"{design_params['Pu']:.2f} tons"])
+            if 'Lb' in design_params:
+                param_data.append(['Unbraced Length (Lb)', f"{design_params['Lb']:.2f} m"])
+            if 'KL' in design_params:
+                param_data.append(['Effective Length (KL)', f"{design_params['KL']:.2f} m"])
+            if 'KLx' in design_params:
+                param_data.append(['Effective Length X (KLx)', f"{design_params['KLx']:.2f} m"])
+            if 'KLy' in design_params:
+                param_data.append(['Effective Length Y (KLy)', f"{design_params['KLy']:.2f} m"])
+            if 'Cb' in design_params:
+                param_data.append(['Moment Gradient Factor (Cb)', f"{design_params['Cb']:.2f}"])
+            
+            for data_row in param_data:
+                row += 1
+                ws_params[f'A{row}'] = data_row[0]
+                ws_params[f'B{row}'] = data_row[1]
+                for col in range(1, 3):
+                    cell = ws_params.cell(row=row, column=col)
+                    cell.border = border
+                    cell.alignment = left_align if col == 1 else center_align
+        
+        # Auto-size columns for all sheets
+        for ws in [ws_results, ws_params]:
+            try:
+                for col_idx in range(1, ws.max_column + 1):
+                    column_letter = get_column_letter(col_idx)
+                    max_length = 0
+                    for row_idx in range(1, ws.max_row + 1):
+                        cell = ws.cell(row=row_idx, column=col_idx)
+                        try:
+                            if cell.value:
+                                max_length = max(max_length, len(str(cell.value)))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 60)
+                    ws.column_dimensions[column_letter].width = adjusted_width
+            except:
+                ws.column_dimensions['A'].width = 40
+                ws.column_dimensions['B'].width = 30
+    
+    # Save to buffer
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+
 # ==================== PROFESSIONAL ENHANCED CSS ====================
 st.markdown("""
 <style>
