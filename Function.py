@@ -3144,26 +3144,6 @@ def evaluate_section_design(df, df_mat, section, material, design_loads, design_
         st.error(f"Error in section evaluation: {e}")
         return None
 
-
-# ==================== LOAD DATA ====================
-df, df_mat, success = load_data()
-
-if not success:
-    st.error("❌ Failed to load data. Please check your internet connection.")
-    st.stop()
-
-# ==================== DEBUG: Verify Data Loading ====================
-# Remove these debug lines after confirming everything works
-st.sidebar.markdown("### 🔍 Data Status")
-st.sidebar.success(f"✅ Loaded {len(df)} sections")
-st.sidebar.success(f"✅ Loaded {len(df_mat)} materials")
-
-with st.sidebar.expander("🔬 Show Available Data"):
-    st.write("**Materials:**")
-    st.write(list(df_mat.index))
-    st.write("\n**First 10 Sections:**")
-    st.write(list(df.index)[:10])
-
 # ==================== LIBRARY STATUS WARNINGS ====================
 if not PDF_AVAILABLE:
     st.sidebar.warning("⚠️ PDF export unavailable. Install: `pip install reportlab`")
