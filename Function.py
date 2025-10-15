@@ -3144,72 +3144,71 @@ def evaluate_section_design(df, df_mat, section, material, design_loads, design_
         st.error(f"Error in section evaluation: {e}")
         return None
 
-    # Material Selection with better error handling
-    try:
-        material_list = list(df_mat.index)
-        st.write(f"Available materials: {len(material_list)}")  # Debug line
-        
-        if len(material_list) > 0:
-            selected_material = st.selectbox(
-                "⚙️ Steel Grade:",
-                options=material_list,
-                index=0,
-                help="Select steel material grade per AISC 360-16"
-            )
-            st.session_state.selected_material = selected_material
-            
-            if selected_material:
-                Fy = df_mat.loc[selected_material, "Yield Point (ksc)"]
-                Fu = df_mat.loc[selected_material, "Tensile Strength (ksc)"]
-                st.markdown(f"""
-                <div class="info-box">
-                <b>Selected: {selected_material}</b><br>
-                • Fy = {Fy:.1f} ksc<br>
-                • Fu = {Fu:.1f} ksc<br>
-                • E = 2.04×10⁶ ksc
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.error("No materials available in database")
-    except Exception as e:
-        st.error(f"Error loading materials: {e}")
-        st.write("Material dataframe info:")
-        st.write(df_mat.head())
+# ==================== LOAD DATA ====================
+df, df_mat, success = load_data()
+
+if not success:
+    st.error("❌ Failed to load data. Please check your internet connection.")
+    st.stop()
+
+# ==================== LIBRARY STATUS WARNINGS ====================
+if not PDF_AVAILABLE:
+    st.sidebar.warning("⚠️ PDF export unavailable. Install: `pip install reportlab`")
+if not EXCEL_AVAILABLE:
+    st.sidebar.warning("⚠️ Excel export unavailable. Install: `pip install openpyxl`")
+
+# ==================== MAIN HEADER ====================
+st.markdown('<h1 class="main-header">AISC 360-16 Steel Design Professional v7.0</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">Professional UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
+
+# ==================== PROFESSIONAL SIDEBAR ====================
+with st.sidebar:
+    st.markdown("### 🔧 Design Configuration")
+    st.markdown("---")
+    
+    material_list = list(df_mat.index)
+    selected_material = st.selectbox(
+        "⚙️ Steel Grade:",
+        material_list,
+        index=0,
+        help="Select steel material grade per AISC 360-16"
+    )
+    st.session_state.selected_material = selected_material
+    
+    if selected_material:
+        Fy = df_mat.loc[selected_material, "Yield Point (ksc)"]
+        Fu = df_mat.loc[selected_material, "Tensile Strength (ksc)"]
+        st.markdown(f"""
+        <div class="info-box">
+        <b>Selected: {selected_material}</b><br>
+        • Fy = {Fy:.1f} ksc<br>
+        • Fu = {Fu:.1f} ksc<br>
+        • E = 2.04×10⁶ ksc
+        </div>
+        """, unsafe_allow_html=True)
     
     st.markdown("---")
     st.markdown("### 📐 Section Selection")
     
-    # Section Selection with better error handling
-    try:
-        section_list = list(df.index)
-        st.write(f"Available sections: {len(section_list)}")  # Debug line
+    section_list = list(df.index)
+    quick_section = st.selectbox(
+        "Select Section:",
+        ["None"] + section_list,
+        help="Quick select a specific section"
+    )
+    
+    if quick_section != "None":
+        st.session_state.selected_section = quick_section
+        weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
+        weight = df.loc[quick_section, weight_col]
         
-        if len(section_list) > 0:
-            quick_section = st.selectbox(
-                "Select Section:",
-                options=["None"] + section_list,
-                index=0,
-                help="Quick select a specific section"
-            )
-            
-            if quick_section != "None":
-                st.session_state.selected_section = quick_section
-                weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
-                weight = df.loc[quick_section, weight_col]
-                
-                st.markdown(f"""
-                <div class="success-box">
-                <b>{quick_section}</b><br>
-                • Weight: {weight:.1f} kg/m<br>
-                • Zx: {df.loc[quick_section, 'Zx [cm3]']:.0f} cm³
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.error("No sections available in database")
-    except Exception as e:
-        st.error(f"Error loading sections: {e}")
-        st.write("Section dataframe info:")
-        st.write(df.head())
+        st.markdown(f"""
+        <div class="success-box">
+        <b>{quick_section}</b><br>
+        • Weight: {weight:.1f} kg/m<br>
+        • Zx: {df.loc[quick_section, 'Zx [cm3]']:.0f} cm³
+        </div>
+        """, unsafe_allow_html=True)
 
 # ==================== ENHANCED TABS ====================
 tab1, tab2, tab3, tab4 = st.tabs([
