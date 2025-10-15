@@ -3175,10 +3175,6 @@ st.markdown('<h1 class="main-header">AISC 360-16 Steel Design Professional v7.0<
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">Professional UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
 # ==================== PROFESSIONAL SIDEBAR ====================
-with st.sidebar:
-    st.markdown("### 🔧 Design Configuration")
-    st.markdown("---")
-    
     # Debug: Show if data is loaded
     if df.empty or df_mat.empty:
         st.error("❌ Data not loaded properly!")
