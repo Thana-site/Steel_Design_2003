@@ -3174,7 +3174,14 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design Professional v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">Professional UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== PROFESSIONAL SIDEBAR ====================
+# ==================== ENHANCED SESSION STATE INITIALIZATION ====================
+# Initialize session state BEFORE sidebar (add this RIGHT AFTER data loading)
+if 'selected_section' not in st.session_state:
+    st.session_state.selected_section = None
+if 'selected_material' not in st.session_state:
+    st.session_state.selected_material = None
+
+# ==================== PROFESSIONAL SIDEBAR - FIXED VERSION ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
@@ -3184,72 +3191,114 @@ with st.sidebar:
         st.error("❌ Data not loaded properly!")
         st.stop()
     
-    # Material Selection with better error handling
+    # ========== MATERIAL SELECTION - FIXED ==========
+    st.markdown("### ⚙️ Steel Grade Selection")
+    
     try:
         material_list = list(df_mat.index)
-        st.write(f"Available materials: {len(material_list)}")  # Debug line
         
         if len(material_list) > 0:
+            # Get current selection from session state or use first material as default
+            default_material = st.session_state.selected_material if st.session_state.selected_material else material_list[0]
+            default_index = material_list.index(default_material) if default_material in material_list else 0
+            
+            # Material selector - ALWAYS stores to session state
             selected_material = st.selectbox(
-                "⚙️ Steel Grade:",
+                "Select Steel Grade:",
                 options=material_list,
-                index=0,
-                help="Select steel material grade per AISC 360-16"
+                index=default_index,
+                help="Select steel material grade per AISC 360-16",
+                key="material_selector"  # Unique key for widget
             )
+            
+            # Update session state whenever selection changes
             st.session_state.selected_material = selected_material
             
+            # Display material properties
             if selected_material:
-                Fy = df_mat.loc[selected_material, "Yield Point (ksc)"]
-                Fu = df_mat.loc[selected_material, "Tensile Strength (ksc)"]
+                Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
+                Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
+                E = safe_scalar(df_mat.loc[selected_material, "E"])
+                
                 st.markdown(f"""
                 <div class="info-box">
-                <b>Selected: {selected_material}</b><br>
-                • Fy = {Fy:.1f} ksc<br>
-                • Fu = {Fu:.1f} ksc<br>
-                • E = 2.04×10⁶ ksc
+                <b>✓ Selected: {selected_material}</b><br>
+                • Fy = {Fy:.1f} kgf/cm²<br>
+                • Fu = {Fu:.1f} kgf/cm²<br>
+                • E = {E:,.0f} kgf/cm²
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.error("No materials available in database")
+            st.error("❌ No materials available in database")
+            st.session_state.selected_material = None
+            
     except Exception as e:
-        st.error(f"Error loading materials: {e}")
-        st.write("Material dataframe info:")
+        st.error(f"❌ Error loading materials: {e}")
+        st.write("**Debug Info:**")
         st.write(df_mat.head())
+        st.session_state.selected_material = None
     
     st.markdown("---")
-    st.markdown("### 📐 Section Selection")
     
-    # Section Selection with better error handling
+    # ========== SECTION SELECTION - FIXED ==========
+    st.markdown("### 📐 Steel Section Selection")
+    
     try:
         section_list = list(df.index)
-        st.write(f"Available sections: {len(section_list)}")  # Debug line
         
         if len(section_list) > 0:
-            quick_section = st.selectbox(
+            # Get current selection or use first section as default
+            if st.session_state.selected_section and st.session_state.selected_section in section_list:
+                default_index = section_list.index(st.session_state.selected_section)
+            else:
+                default_index = 0
+                st.session_state.selected_section = section_list[0]  # Set default
+            
+            # Section selector - NO "None" option, direct selection
+            selected_section = st.selectbox(
                 "Select Section:",
-                options=["None"] + section_list,
-                index=0,
-                help="Quick select a specific section"
+                options=section_list,
+                index=default_index,
+                help="Quick select a specific steel section",
+                key="section_selector"  # Unique key for widget
             )
             
-            if quick_section != "None":
-                st.session_state.selected_section = quick_section
+            # Update session state
+            st.session_state.selected_section = selected_section
+            
+            # Display section properties
+            if selected_section:
                 weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
-                weight = df.loc[quick_section, weight_col]
+                weight = safe_scalar(df.loc[selected_section, weight_col])
+                d = safe_scalar(df.loc[selected_section, 'd [mm]'])
+                bf = safe_scalar(df.loc[selected_section, 'bf [mm]'])
+                Zx = safe_scalar(df.loc[selected_section, 'Zx [cm3]'])
                 
                 st.markdown(f"""
                 <div class="success-box">
-                <b>{quick_section}</b><br>
+                <b>✓ Selected: {selected_section}</b><br>
                 • Weight: {weight:.1f} kg/m<br>
-                • Zx: {df.loc[quick_section, 'Zx [cm3]']:.0f} cm³
+                • Depth: {d:.0f} mm<br>
+                • Width: {bf:.0f} mm<br>
+                • Zx: {Zx:.0f} cm³
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.error("No sections available in database")
+            st.error("❌ No sections available in database")
+            st.session_state.selected_section = None
+            
     except Exception as e:
-        st.error(f"Error loading sections: {e}")
-        st.write("Section dataframe info:")
+        st.error(f"❌ Error loading sections: {e}")
+        st.write("**Debug Info:**")
         st.write(df.head())
+        st.session_state.selected_section = None
+    
+    # ========== QUICK STATUS INDICATOR ==========
+    st.markdown("---")
+    if st.session_state.selected_section and st.session_state.selected_material:
+        st.success("✅ Ready for Analysis")
+    else:
+        st.warning("⚠️ Select section and material")
 
 # ==================== ENHANCED TABS ====================
 tab1, tab2, tab3, tab4 = st.tabs([
