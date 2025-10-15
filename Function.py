@@ -3175,7 +3175,7 @@ st.markdown('<h1 class="main-header">AISC 360-16 Steel Design Professional v7.0<
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">Professional UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
 # ==================== ENHANCED SESSION STATE INITIALIZATION ====================
-# Initialize session state BEFORE sidebar (add this RIGHT AFTER data loading)
+# Initialize session state BEFORE sidebar
 if 'selected_section' not in st.session_state:
     st.session_state.selected_section = None
 if 'selected_material' not in st.session_state:
