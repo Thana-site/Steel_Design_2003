@@ -48,6 +48,13 @@ from reportlab.lib.units import inch, cm
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
+tab1, tab2, tab3, tab4 = st.tabs([
+    "Overview",
+    "Section Comparison",
+    "Design Evaluation & Export",
+    "Documentation"
+])
+
 class EquationBox(Flowable):
     """Custom flowable for equation boxes with proper padding and no overlap"""
     def __init__(self, text, width):
