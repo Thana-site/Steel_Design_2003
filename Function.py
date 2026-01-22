@@ -762,7 +762,1000 @@ def generate_excel_report(df, df_mat, section, material, analysis_results, desig
     wb.save(buffer)
     buffer.seek(0)
     return buffer
-
+def generate_professional_calculation_report(df, df_mat, section, material, analysis_results, design_params, project_info):
+    """
+    Generate professional engineering calculation report with:
+    - Project information header
+    - Hand calculation style (detailed step-by-step)
+    - Summary tables
+    - Graphs/Charts
+    - Professional formatting
+    """
+    if not PDF_AVAILABLE:
+        return None
+    
+    buffer = BytesIO()
+    
+    # Create document
+    doc = BaseDocTemplate(
+        buffer, 
+        pagesize=letter,
+        rightMargin=0.6*inch, 
+        leftMargin=0.6*inch,
+        topMargin=1.2*inch,
+        bottomMargin=0.8*inch,
+        title="AISC 360-16 Structural Calculation"
+    )
+    
+    # Define frame
+    frame = Frame(
+        doc.leftMargin, 
+        doc.bottomMargin, 
+        doc.width, 
+        doc.height - 0.2*inch,
+        id='normal',
+        topPadding=10,
+        bottomPadding=10
+    )
+    template = PageTemplate(id='main', frames=frame, onPage=lambda c, d: None)
+    doc.addPageTemplates([template])
+    
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # ==================== CUSTOM STYLES ====================
+    title_style = ParagraphStyle(
+        'CalcTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=rl_colors.HexColor('#1a237e'),
+        spaceAfter=12,
+        spaceBefore=6,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold',
+        leading=22
+    )
+    
+    heading1_style = ParagraphStyle(
+        'CalcHeading1',
+        parent=styles['Heading1'],
+        fontSize=14,
+        textColor=rl_colors.white,
+        spaceAfter=8,
+        spaceBefore=14,
+        fontName='Helvetica-Bold',
+        backColor=rl_colors.HexColor('#1a237e'),
+        borderPadding=8,
+        leading=18
+    )
+    
+    heading2_style = ParagraphStyle(
+        'CalcHeading2',
+        parent=styles['Heading2'],
+        fontSize=12,
+        textColor=rl_colors.HexColor('#1565c0'),
+        spaceAfter=6,
+        spaceBefore=10,
+        fontName='Helvetica-Bold',
+        borderWidth=0,
+        borderColor=rl_colors.HexColor('#1565c0'),
+        borderPadding=4,
+        leading=16
+    )
+    
+    body_style = ParagraphStyle(
+        'CalcBody',
+        parent=styles['Normal'],
+        fontSize=10,
+        leading=14,
+        spaceAfter=4,
+        spaceBefore=2,
+        alignment=TA_LEFT
+    )
+    
+    equation_style = ParagraphStyle(
+        'CalcEquation',
+        parent=styles['Code'],
+        fontSize=10,
+        textColor=rl_colors.HexColor('#0d47a1'),
+        backColor=rl_colors.HexColor('#e3f2fd'),
+        borderWidth=1,
+        borderColor=rl_colors.HexColor('#1976d2'),
+        borderPadding=10,
+        leftIndent=20,
+        rightIndent=20,
+        spaceAfter=8,
+        spaceBefore=6,
+        fontName='Courier',
+        leading=14,
+        alignment=TA_LEFT
+    )
+    
+    result_style = ParagraphStyle(
+        'CalcResult',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=rl_colors.HexColor('#1b5e20'),
+        backColor=rl_colors.HexColor('#e8f5e9'),
+        borderWidth=2,
+        borderColor=rl_colors.HexColor('#4caf50'),
+        borderPadding=10,
+        spaceAfter=10,
+        spaceBefore=6,
+        fontName='Helvetica-Bold',
+        leading=16,
+        alignment=TA_CENTER
+    )
+    
+    reference_style = ParagraphStyle(
+        'CalcReference',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=rl_colors.HexColor('#616161'),
+        fontName='Helvetica-Oblique',
+        leading=12,
+        leftIndent=30
+    )
+    
+    # ==================== PROJECT HEADER TABLE ====================
+    story.append(Spacer(1, 0.1*inch))
+    
+    # Project info table (professional engineering header)
+    header_data = [
+        [Paragraph('<b>STRUCTURAL CALCULATION SHEET</b>', 
+                  ParagraphStyle('header', fontSize=14, alignment=TA_CENTER, textColor=rl_colors.white)),
+         '', '', ''],
+        ['Project:', project_info.get('project_name', 'N/A'), 
+         'Project No.:', project_info.get('project_no', 'N/A')],
+        ['Subject:', f'Steel Design - {section}', 
+         'Date:', project_info.get('date', datetime.now().strftime('%Y-%m-%d'))],
+        ['Designer:', project_info.get('designer', 'N/A'), 
+         'Checker:', project_info.get('checker', 'N/A')],
+        ['Reference:', 'AISC 360-16', 
+         'Revision:', project_info.get('revision', '0')],
+    ]
+    
+    header_table = Table(header_data, colWidths=[1.2*inch, 2.8*inch, 1.0*inch, 1.5*inch])
+    header_table.setStyle(TableStyle([
+        # Title row
+        ('SPAN', (0, 0), (-1, 0)),
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1a237e')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('TOPPADDING', (0, 0), (-1, 0), 12),
+        
+        # Data rows
+        ('BACKGROUND', (0, 1), (0, -1), rl_colors.HexColor('#e8eaf6')),
+        ('BACKGROUND', (2, 1), (2, -1), rl_colors.HexColor('#e8eaf6')),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (2, 1), (2, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 1, rl_colors.HexColor('#1a237e')),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 0.2*inch))
+    
+    # ==================== TABLE OF CONTENTS ====================
+    story.append(Paragraph("TABLE OF CONTENTS", heading1_style))
+    story.append(Spacer(1, 6))
+    
+    toc_data = [
+        ['1.', 'Design Data & Material Properties', ''],
+        ['2.', 'Section Properties', ''],
+        ['3.', 'Section Classification (AISC Table B4.1)', ''],
+        ['4.', 'Flexural Design (AISC Chapter F2)', ''],
+        ['5.', 'Compression Design (AISC Chapter E3)', ''],
+        ['6.', 'Design Summary & Conclusion', ''],
+    ]
+    
+    toc_table = Table(toc_data, colWidths=[0.4*inch, 5*inch, 1*inch])
+    toc_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+    ]))
+    story.append(toc_table)
+    story.append(Spacer(1, 0.15*inch))
+    
+    # ==================== 1. DESIGN DATA ====================
+    story.append(Paragraph("1. DESIGN DATA & MATERIAL PROPERTIES", heading1_style))
+    story.append(Spacer(1, 8))
+    
+    # Get material properties
+    Fy = safe_scalar(df_mat.loc[material, "Yield Point (ksc)"])
+    Fu = safe_scalar(df_mat.loc[material, "Tensile Strength (ksc)"])
+    E = safe_scalar(df_mat.loc[material, "E"])
+    
+    story.append(Paragraph("<b>1.1 Material Properties</b>", heading2_style))
+    story.append(Paragraph(f"Steel Grade: <b>{material}</b>", body_style))
+    story.append(Spacer(1, 4))
+    
+    mat_table_data = [
+        ['Property', 'Symbol', 'Value', 'Unit'],
+        ['Yield Strength', 'Fy', f'{Fy:.1f}', 'kgf/cm²'],
+        ['Tensile Strength', 'Fu', f'{Fu:.1f}', 'kgf/cm²'],
+        ['Modulus of Elasticity', 'E', f'{E:,.0f}', 'kgf/cm²'],
+        ['Poisson\'s Ratio', 'ν', '0.30', '-'],
+        ['Shear Modulus', 'G', f'{E/(2*1.3):,.0f}', 'kgf/cm²'],
+    ]
+    
+    mat_table = Table(mat_table_data, colWidths=[2.2*inch, 1*inch, 1.5*inch, 1.3*inch])
+    mat_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1565c0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#f5f5f5')])
+    ]))
+    story.append(mat_table)
+    story.append(Spacer(1, 10))
+    
+    # Design Parameters
+    story.append(Paragraph("<b>1.2 Design Parameters (Input)</b>", heading2_style))
+    
+    design_table_data = [['Parameter', 'Symbol', 'Value', 'Unit']]
+    
+    if 'Mu' in design_params:
+        design_table_data.append(['Required Moment Strength', 'Mu', f"{design_params['Mu']:.2f}", 't·m'])
+    if 'Pu' in design_params:
+        design_table_data.append(['Required Axial Strength', 'Pu', f"{design_params['Pu']:.2f}", 'tons'])
+    if 'Lb' in design_params:
+        design_table_data.append(['Unbraced Length', 'Lb', f"{design_params['Lb']:.2f}", 'm'])
+    if 'KL' in design_params:
+        design_table_data.append(['Effective Length', 'KL', f"{design_params['KL']:.2f}", 'm'])
+    if 'Cb' in design_params:
+        design_table_data.append(['Moment Gradient Factor', 'Cb', f"{design_params['Cb']:.2f}", '-'])
+    
+    design_table = Table(design_table_data, colWidths=[2.2*inch, 1*inch, 1.5*inch, 1.3*inch])
+    design_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#ff6f00')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
+    ]))
+    story.append(design_table)
+    
+    # ==================== 2. SECTION PROPERTIES ====================
+    story.append(PageBreak())
+    story.append(Paragraph("2. SECTION PROPERTIES", heading1_style))
+    story.append(Spacer(1, 8))
+    
+    story.append(Paragraph(f"<b>Selected Section: {section}</b>", heading2_style))
+    story.append(Spacer(1, 4))
+    
+    # Get all section properties
+    d = safe_scalar(df.loc[section, 'd [mm]'])
+    bf = safe_scalar(df.loc[section, 'bf [mm]'])
+    tf = safe_scalar(df.loc[section, 'tf [mm]'])
+    tw = safe_scalar(df.loc[section, 'tw [mm]'])
+    r = safe_scalar(df.loc[section, 'r [mm]']) if 'r [mm]' in df.columns else 0
+    A = safe_scalar(df.loc[section, 'A [cm2]'])
+    Ix = safe_scalar(df.loc[section, 'Ix [cm4]'])
+    Iy = safe_scalar(df.loc[section, 'Iy [cm4]'])
+    rx = safe_scalar(df.loc[section, 'rx [cm]'])
+    ry = safe_scalar(df.loc[section, 'ry [cm]'])
+    Sx = safe_scalar(df.loc[section, 'Sx [cm3]'])
+    Sy = safe_scalar(df.loc[section, 'Sy [cm3]'])
+    Zx = safe_scalar(df.loc[section, 'Zx [cm3]'])
+    Zy = safe_scalar(df.loc[section, 'Zy [cm3]'])
+    J = safe_scalar(df.loc[section, 'j [cm4]']) if 'j [cm4]' in df.columns else 0
+    ho = safe_scalar(df.loc[section, 'ho [mm]']) if 'ho [mm]' in df.columns else (d - tf)
+    rts = safe_scalar(df.loc[section, 'rts [cm]']) if 'rts [cm]' in df.columns else ry * 1.2
+    
+    weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
+    weight = safe_scalar(df.loc[section, weight_col])
+    
+    # Section properties in two columns
+    props_data_1 = [
+        ['Geometric Properties', '', ''],
+        ['Overall Depth', 'd', f'{d:.0f} mm'],
+        ['Flange Width', 'bf', f'{bf:.0f} mm'],
+        ['Flange Thickness', 'tf', f'{tf:.1f} mm'],
+        ['Web Thickness', 'tw', f'{tw:.1f} mm'],
+        ['Fillet Radius', 'r', f'{r:.1f} mm'],
+        ['Unit Weight', 'w', f'{weight:.1f} kg/m'],
+    ]
+    
+    props_data_2 = [
+        ['Section Properties', '', ''],
+        ['Cross-sectional Area', 'A', f'{A:.2f} cm²'],
+        ['Moment of Inertia (x)', 'Ix', f'{Ix:,.0f} cm⁴'],
+        ['Moment of Inertia (y)', 'Iy', f'{Iy:,.0f} cm⁴'],
+        ['Radius of Gyration (x)', 'rx', f'{rx:.2f} cm'],
+        ['Radius of Gyration (y)', 'ry', f'{ry:.2f} cm'],
+        ['Torsional Constant', 'J', f'{J:.2f} cm⁴'],
+    ]
+    
+    props_data_3 = [
+        ['Section Moduli', '', ''],
+        ['Elastic Modulus (x)', 'Sx', f'{Sx:,.1f} cm³'],
+        ['Elastic Modulus (y)', 'Sy', f'{Sy:,.1f} cm³'],
+        ['Plastic Modulus (x)', 'Zx', f'{Zx:,.1f} cm³'],
+        ['Plastic Modulus (y)', 'Zy', f'{Zy:,.1f} cm³'],
+        ['Distance b/w flanges', 'ho', f'{ho:.1f} mm'],
+        ['Effective radius (LTB)', 'rts', f'{rts:.2f} cm'],
+    ]
+    
+    # Create combined table
+    def create_props_table(data):
+        table = Table(data, colWidths=[2.2*inch, 0.8*inch, 1.2*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#37474f')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('SPAN', (0, 0), (-1, 0)),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#fafafa')])
+        ]))
+        return table
+    
+    # Create a combined layout
+    combined_data = [[create_props_table(props_data_1), create_props_table(props_data_2)]]
+    combined_table = Table(combined_data, colWidths=[3.3*inch, 3.3*inch])
+    combined_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(combined_table)
+    story.append(Spacer(1, 8))
+    story.append(create_props_table(props_data_3))
+    
+    # Add section diagram
+    story.append(Spacer(1, 0.15*inch))
+    story.append(Paragraph("<b>Section Cross-Section:</b>", body_style))
+    story.append(Spacer(1, 6))
+    
+    # Generate section diagram
+    fig_section = create_detailed_section_diagram(d, bf, tf, tw, section)
+    img_buffer_section = BytesIO()
+    plt.savefig(img_buffer_section, format='png', dpi=150, bbox_inches='tight',
+                facecolor='white', edgecolor='none')
+    plt.close(fig_section)
+    img_buffer_section.seek(0)
+    
+    section_img = Image(img_buffer_section, width=4*inch, height=3*inch)
+    story.append(section_img)
+    
+    # ==================== 3. SECTION CLASSIFICATION ====================
+    story.append(PageBreak())
+    story.append(Paragraph("3. SECTION CLASSIFICATION (AISC Table B4.1)", heading1_style))
+    story.append(Spacer(1, 8))
+    
+    # Get classifications
+    flex_class = classify_section_flexure(df, df_mat, section, material)
+    comp_class = classify_section_compression(df, df_mat, section, material)
+    
+    if flex_class:
+        story.append(Paragraph("<b>3.1 Flexural Member Classification (Table B4.1b)</b>", heading2_style))
+        story.append(Spacer(1, 4))
+        
+        # Flange Classification - Hand Calculation Style
+        story.append(Paragraph("<b>Flange Classification (Case 10: Flanges of I-shaped sections)</b>", body_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Table B4.1b</i>", reference_style))
+        story.append(Spacer(1, 4))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>λf = bf / (2·tf) = {bf:.1f} / (2 × {tf:.1f}) = <b>{flex_class['flange_lambda']:.2f}</b></font>",
+            equation_style
+        ))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>λpf = 0.38·√(E/Fy) = 0.38 × √({E:,.0f}/{Fy:.1f}) = <b>{flex_class['flange_lambda_p']:.2f}</b></font>",
+            equation_style
+        ))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>λrf = 1.0·√(E/Fy) = 1.0 × √({E:,.0f}/{Fy:.1f}) = <b>{flex_class['flange_lambda_r']:.2f}</b></font>",
+            equation_style
+        ))
+        
+        # Classification check
+        if flex_class['flange_lambda'] <= flex_class['flange_lambda_p']:
+            check_text = f"λf = {flex_class['flange_lambda']:.2f} ≤ λpf = {flex_class['flange_lambda_p']:.2f}"
+            result_text = "FLANGE: COMPACT ✓"
+            result_color = '#4caf50'
+        elif flex_class['flange_lambda'] <= flex_class['flange_lambda_r']:
+            check_text = f"λpf = {flex_class['flange_lambda_p']:.2f} < λf = {flex_class['flange_lambda']:.2f} ≤ λrf = {flex_class['flange_lambda_r']:.2f}"
+            result_text = "FLANGE: NON-COMPACT"
+            result_color = '#ff9800'
+        else:
+            check_text = f"λf = {flex_class['flange_lambda']:.2f} > λrf = {flex_class['flange_lambda_r']:.2f}"
+            result_text = "FLANGE: SLENDER ✗"
+            result_color = '#f44336'
+        
+        story.append(Paragraph(f"<font face='Courier'>Check: {check_text}</font>", equation_style))
+        story.append(Paragraph(
+            f"<b>{result_text}</b>",
+            ParagraphStyle('FlgResult', parent=result_style, textColor=rl_colors.HexColor(result_color))
+        ))
+        story.append(Spacer(1, 10))
+        
+        # Web Classification - Hand Calculation Style
+        story.append(Paragraph("<b>Web Classification (Case 15: Webs in flexural compression)</b>", body_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Table B4.1b</i>", reference_style))
+        story.append(Spacer(1, 4))
+        
+        h_web = ho if 'ho [mm]' in df.columns else (d - 2*tf)
+        story.append(Paragraph(
+            f"<font face='Courier'>λw = h / tw = {h_web:.1f} / {tw:.1f} = <b>{flex_class['web_lambda']:.2f}</b></font>",
+            equation_style
+        ))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>λpw = 3.76·√(E/Fy) = 3.76 × √({E:,.0f}/{Fy:.1f}) = <b>{flex_class['web_lambda_p']:.2f}</b></font>",
+            equation_style
+        ))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>λrw = 5.70·√(E/Fy) = 5.70 × √({E:,.0f}/{Fy:.1f}) = <b>{flex_class['web_lambda_r']:.2f}</b></font>",
+            equation_style
+        ))
+        
+        # Web classification check
+        if flex_class['web_lambda'] <= flex_class['web_lambda_p']:
+            check_text = f"λw = {flex_class['web_lambda']:.2f} ≤ λpw = {flex_class['web_lambda_p']:.2f}"
+            result_text = "WEB: COMPACT ✓"
+            result_color = '#4caf50'
+        elif flex_class['web_lambda'] <= flex_class['web_lambda_r']:
+            check_text = f"λpw = {flex_class['web_lambda_p']:.2f} < λw = {flex_class['web_lambda']:.2f} ≤ λrw = {flex_class['web_lambda_r']:.2f}"
+            result_text = "WEB: NON-COMPACT"
+            result_color = '#ff9800'
+        else:
+            check_text = f"λw = {flex_class['web_lambda']:.2f} > λrw = {flex_class['web_lambda_r']:.2f}"
+            result_text = "WEB: SLENDER ✗"
+            result_color = '#f44336'
+        
+        story.append(Paragraph(f"<font face='Courier'>Check: {check_text}</font>", equation_style))
+        story.append(Paragraph(
+            f"<b>{result_text}</b>",
+            ParagraphStyle('WebResult', parent=result_style, textColor=rl_colors.HexColor(result_color))
+        ))
+    
+    # ==================== 4. FLEXURAL DESIGN ====================
+    if analysis_results and 'flexural' in analysis_results:
+        story.append(PageBreak())
+        story.append(Paragraph("4. FLEXURAL DESIGN (AISC Chapter F2)", heading1_style))
+        story.append(Spacer(1, 8))
+        
+        flex = analysis_results['flexural']
+        Lb = design_params.get('Lb', 0)
+        Cb = design_params.get('Cb', 1.0)
+        
+        # Step 1: Plastic Moment
+        story.append(Paragraph("<b>Step 1: Calculate Plastic Moment Capacity (Mp)</b>", heading2_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Equation F2-1</i>", reference_style))
+        story.append(Spacer(1, 4))
+        
+        Mp_kgcm = Fy * Zx
+        Mp_tm = Mp_kgcm / 100000
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>Mp = Fy × Zx</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Mp = {Fy:.1f} × {Zx:,.1f}</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Mp = {Mp_kgcm:,.0f} kgf·cm = <b>{Mp_tm:.2f} t·m</b></font>",
+            equation_style
+        ))
+        story.append(Spacer(1, 8))
+        
+        # Step 2: Limiting Lengths
+        story.append(Paragraph("<b>Step 2: Calculate Limiting Laterally Unbraced Lengths</b>", heading2_style))
+        story.append(Spacer(1, 4))
+        
+        # Lp calculation
+        story.append(Paragraph("<b>Compact Limit Lp (Equation F2-5):</b>", body_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Equation F2-5</i>", reference_style))
+        
+        Lp_cm = 1.76 * ry * math.sqrt(E / Fy)
+        story.append(Paragraph(
+            f"<font face='Courier'>Lp = 1.76 × ry × √(E/Fy)</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Lp = 1.76 × {ry:.2f} × √({E:,.0f}/{Fy:.1f})</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Lp = {Lp_cm:.1f} cm = <b>{flex['Lp']:.3f} m</b></font>",
+            equation_style
+        ))
+        story.append(Spacer(1, 6))
+        
+        # Lr calculation
+        story.append(Paragraph("<b>Inelastic Limit Lr (Equation F2-6):</b>", body_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Equation F2-6</i>", reference_style))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>Lr = 1.95 × rts × (E/0.7Fy) × √(Jc/Sxho) × √(1 + √(1 + 6.76(0.7Fy/E)²(Sxho/Jc)²))</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>where: rts = {rts:.2f} cm, J = {J:.2f} cm⁴, ho = {ho:.1f} mm, c = 1.0</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Lr = <b>{flex['Lr']:.3f} m</b></font>",
+            equation_style
+        ))
+        story.append(Spacer(1, 8))
+        
+        # Step 3: Determine Nominal Moment
+        story.append(Paragraph(f"<b>Step 3: Determine Nominal Moment (Lb = {Lb:.2f} m)</b>", heading2_style))
+        story.append(Spacer(1, 4))
+        
+        if Lb <= flex['Lp']:
+            story.append(Paragraph(
+                f"<font face='Courier'>Lb = {Lb:.2f} m ≤ Lp = {flex['Lp']:.3f} m</font>",
+                equation_style
+            ))
+            story.append(Paragraph("<b>→ YIELDING CONTROLS (F2.1) - LTB does not apply</b>", body_style))
+            story.append(Paragraph("<i>Reference: AISC 360-16, Equation F2-1</i>", reference_style))
+            story.append(Paragraph(
+                f"<font face='Courier'>Mn = Mp = <b>{flex['Mn']:.2f} t·m</b></font>",
+                equation_style
+            ))
+            
+        elif Lb <= flex['Lr']:
+            story.append(Paragraph(
+                f"<font face='Courier'>Lp = {flex['Lp']:.3f} m < Lb = {Lb:.2f} m ≤ Lr = {flex['Lr']:.3f} m</font>",
+                equation_style
+            ))
+            story.append(Paragraph("<b>→ INELASTIC LATERAL-TORSIONAL BUCKLING (F2.2)</b>", body_style))
+            story.append(Paragraph("<i>Reference: AISC 360-16, Equation F2-2</i>", reference_style))
+            
+            Mr = 0.7 * Fy * Sx / 100000
+            story.append(Paragraph(
+                f"<font face='Courier'>Mn = Cb × [Mp - (Mp - 0.7FySx) × ((Lb-Lp)/(Lr-Lp))] ≤ Mp</font>",
+                equation_style
+            ))
+            story.append(Paragraph(
+                f"<font face='Courier'>Mn = {Cb:.2f} × [{Mp_tm:.2f} - ({Mp_tm:.2f} - {Mr:.2f}) × (({Lb:.2f}-{flex['Lp']:.3f})/({flex['Lr']:.3f}-{flex['Lp']:.3f}))]</font>",
+                equation_style
+            ))
+            story.append(Paragraph(
+                f"<font face='Courier'>Mn = <b>{flex['Mn']:.2f} t·m</b></font>",
+                equation_style
+            ))
+            
+        else:
+            story.append(Paragraph(
+                f"<font face='Courier'>Lb = {Lb:.2f} m > Lr = {flex['Lr']:.3f} m</font>",
+                equation_style
+            ))
+            story.append(Paragraph("<b>→ ELASTIC LATERAL-TORSIONAL BUCKLING (F2.3)</b>", body_style))
+            story.append(Paragraph("<i>Reference: AISC 360-16, Equations F2-3 and F2-4</i>", reference_style))
+            
+            story.append(Paragraph(
+                f"<font face='Courier'>Fcr = (Cb×π²×E)/((Lb/rts)²) × √(1 + 0.078(Jc/Sxho)(Lb/rts)²)</font>",
+                equation_style
+            ))
+            story.append(Paragraph(
+                f"<font face='Courier'>Mn = Fcr × Sx ≤ Mp</font>",
+                equation_style
+            ))
+            story.append(Paragraph(
+                f"<font face='Courier'>Mn = <b>{flex['Mn']:.2f} t·m</b></font>",
+                equation_style
+            ))
+        
+        story.append(Spacer(1, 8))
+        
+        # Step 4: Design Strength
+        story.append(Paragraph("<b>Step 4: Calculate Design Flexural Strength</b>", heading2_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Section F1</i>", reference_style))
+        story.append(Spacer(1, 4))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>φb = 0.90 (LRFD)</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>φbMn = 0.90 × {flex['Mn']:.2f} = <b>{flex['phi_Mn']:.2f} t·m</b></font>",
+            equation_style
+        ))
+        story.append(Spacer(1, 8))
+        
+        # Step 5: Adequacy Check
+        story.append(Paragraph("<b>Step 5: Adequacy Check</b>", heading2_style))
+        story.append(Spacer(1, 4))
+        
+        Mu = design_params.get('Mu', 0)
+        ratio = flex['ratio']
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>Mu = {Mu:.2f} t·m</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>φbMn = {flex['phi_Mn']:.2f} t·m</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Ratio = Mu / φbMn = {Mu:.2f} / {flex['phi_Mn']:.2f} = <b>{ratio:.3f}</b></font>",
+            equation_style
+        ))
+        
+        if flex['adequate']:
+            story.append(Paragraph(
+                f"<font face='Courier'>Check: {ratio:.3f} ≤ 1.0 → <b>OK ✓</b></font>",
+                equation_style
+            ))
+            story.append(Paragraph("<b>FLEXURAL DESIGN: ADEQUATE ✓</b>", result_style))
+        else:
+            story.append(Paragraph(
+                f"<font face='Courier'>Check: {ratio:.3f} > 1.0 → <b>NG ✗</b></font>",
+                equation_style
+            ))
+            story.append(Paragraph(
+                "<b>FLEXURAL DESIGN: INADEQUATE ✗</b>",
+                ParagraphStyle('FailResult', parent=result_style, 
+                              textColor=rl_colors.HexColor('#c62828'),
+                              backColor=rl_colors.HexColor('#ffebee'),
+                              borderColor=rl_colors.HexColor('#f44336'))
+            ))
+        
+        # Add flexural capacity chart
+        story.append(Spacer(1, 0.15*inch))
+        story.append(Paragraph("<b>Flexural Capacity Curve:</b>", body_style))
+        story.append(Spacer(1, 6))
+        
+        fig_flex = create_flexural_capacity_chart(df, df_mat, section, material, Lb, Cb, flex)
+        img_buffer_flex = BytesIO()
+        plt.savefig(img_buffer_flex, format='png', dpi=150, bbox_inches='tight',
+                    facecolor='white', edgecolor='none')
+        plt.close(fig_flex)
+        img_buffer_flex.seek(0)
+        
+        flex_img = Image(img_buffer_flex, width=5.5*inch, height=3.5*inch)
+        story.append(flex_img)
+    
+    # ==================== 5. COMPRESSION DESIGN ====================
+    if analysis_results and 'compression' in analysis_results:
+        story.append(PageBreak())
+        story.append(Paragraph("5. COMPRESSION DESIGN (AISC Chapter E3)", heading1_style))
+        story.append(Spacer(1, 8))
+        
+        comp = analysis_results['compression']
+        KL = design_params.get('KL', 0)
+        
+        # Step 1: Slenderness Ratio
+        story.append(Paragraph("<b>Step 1: Calculate Slenderness Ratio</b>", heading2_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Section E2</i>", reference_style))
+        story.append(Spacer(1, 4))
+        
+        KL_cm = KL * 100
+        lambda_x = KL_cm / rx
+        lambda_y = KL_cm / ry
+        lambda_c = max(lambda_x, lambda_y)
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>KL = {KL:.2f} m = {KL_cm:.0f} cm</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>(KL/r)x = {KL_cm:.0f} / {rx:.2f} = <b>{lambda_x:.1f}</b></font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>(KL/r)y = {KL_cm:.0f} / {ry:.2f} = <b>{lambda_y:.1f}</b></font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Governing: (KL/r)max = <b>{lambda_c:.1f}</b> {'(X-axis)' if lambda_x >= lambda_y else '(Y-axis)'}</font>",
+            equation_style
+        ))
+        
+        # Check slenderness limit
+        if lambda_c <= 200:
+            story.append(Paragraph(
+                f"<font face='Courier'>Check: {lambda_c:.1f} ≤ 200 → OK (AISC E2)</font>",
+                equation_style
+            ))
+        else:
+            story.append(Paragraph(
+                f"<font face='Courier'>Check: {lambda_c:.1f} > 200 → Exceeds preferred limit (AISC E2)</font>",
+                equation_style
+            ))
+        story.append(Spacer(1, 8))
+        
+        # Step 2: Elastic Buckling Stress
+        story.append(Paragraph("<b>Step 2: Calculate Elastic Buckling Stress (Fe)</b>", heading2_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Equation E3-4</i>", reference_style))
+        story.append(Spacer(1, 4))
+        
+        Fe = (math.pi**2 * E) / (lambda_c**2)
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>Fe = π²E / (KL/r)²</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Fe = π² × {E:,.0f} / {lambda_c:.1f}²</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Fe = <b>{Fe:,.1f} kgf/cm²</b></font>",
+            equation_style
+        ))
+        story.append(Spacer(1, 8))
+        
+        # Step 3: Critical Stress
+        story.append(Paragraph("<b>Step 3: Determine Critical Stress (Fcr)</b>", heading2_style))
+        story.append(Spacer(1, 4))
+        
+        lambda_limit = 4.71 * math.sqrt(E / Fy)
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>Limiting Slenderness = 4.71 × √(E/Fy) = 4.71 × √({E:,.0f}/{Fy:.1f}) = {lambda_limit:.1f}</font>",
+            equation_style
+        ))
+        
+        if lambda_c <= lambda_limit:
+            story.append(Paragraph(
+                f"<font face='Courier'>(KL/r) = {lambda_c:.1f} ≤ {lambda_limit:.1f}</font>",
+                equation_style
+            ))
+            story.append(Paragraph("<b>→ INELASTIC BUCKLING CONTROLS (E3-2)</b>", body_style))
+            story.append(Paragraph("<i>Reference: AISC 360-16, Equation E3-2</i>", reference_style))
+            
+            story.append(Paragraph(
+                f"<font face='Courier'>Fcr = [0.658^(Fy/Fe)] × Fy</font>",
+                equation_style
+            ))
+            story.append(Paragraph(
+                f"<font face='Courier'>Fcr = [0.658^({Fy:.1f}/{Fe:.1f})] × {Fy:.1f}</font>",
+                equation_style
+            ))
+        else:
+            story.append(Paragraph(
+                f"<font face='Courier'>(KL/r) = {lambda_c:.1f} > {lambda_limit:.1f}</font>",
+                equation_style
+            ))
+            story.append(Paragraph("<b>→ ELASTIC BUCKLING CONTROLS (E3-3)</b>", body_style))
+            story.append(Paragraph("<i>Reference: AISC 360-16, Equation E3-3</i>", reference_style))
+            
+            story.append(Paragraph(
+                f"<font face='Courier'>Fcr = 0.877 × Fe</font>",
+                equation_style
+            ))
+            story.append(Paragraph(
+                f"<font face='Courier'>Fcr = 0.877 × {Fe:.1f}</font>",
+                equation_style
+            ))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>Fcr = <b>{comp['Fcr']:,.1f} kgf/cm²</b></font>",
+            equation_style
+        ))
+        story.append(Spacer(1, 8))
+        
+        # Step 4: Nominal and Design Strength
+        story.append(Paragraph("<b>Step 4: Calculate Nominal and Design Strength</b>", heading2_style))
+        story.append(Paragraph("<i>Reference: AISC 360-16, Equation E3-1</i>", reference_style))
+        story.append(Spacer(1, 4))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>Pn = Fcr × Ag</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Pn = {comp['Fcr']:,.1f} × {A:.2f} = {comp['Fcr']*A:,.0f} kgf = <b>{comp['Pn']:.2f} tons</b></font>",
+            equation_style
+        ))
+        story.append(Spacer(1, 4))
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>φc = 0.90 (LRFD)</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>φcPn = 0.90 × {comp['Pn']:.2f} = <b>{comp['phi_Pn']:.2f} tons</b></font>",
+            equation_style
+        ))
+        story.append(Spacer(1, 8))
+        
+        # Step 5: Adequacy Check
+        story.append(Paragraph("<b>Step 5: Adequacy Check</b>", heading2_style))
+        story.append(Spacer(1, 4))
+        
+        Pu = design_params.get('Pu', 0)
+        ratio = comp['ratio']
+        
+        story.append(Paragraph(
+            f"<font face='Courier'>Pu = {Pu:.2f} tons</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>φcPn = {comp['phi_Pn']:.2f} tons</font>",
+            equation_style
+        ))
+        story.append(Paragraph(
+            f"<font face='Courier'>Ratio = Pu / φcPn = {Pu:.2f} / {comp['phi_Pn']:.2f} = <b>{ratio:.3f}</b></font>",
+            equation_style
+        ))
+        
+        if comp['adequate']:
+            story.append(Paragraph(
+                f"<font face='Courier'>Check: {ratio:.3f} ≤ 1.0 → <b>OK ✓</b></font>",
+                equation_style
+            ))
+            story.append(Paragraph("<b>COMPRESSION DESIGN: ADEQUATE ✓</b>", result_style))
+        else:
+            story.append(Paragraph(
+                f"<font face='Courier'>Check: {ratio:.3f} > 1.0 → <b>NG ✗</b></font>",
+                equation_style
+            ))
+            story.append(Paragraph(
+                "<b>COMPRESSION DESIGN: INADEQUATE ✗</b>",
+                ParagraphStyle('FailResult', parent=result_style, 
+                              textColor=rl_colors.HexColor('#c62828'),
+                              backColor=rl_colors.HexColor('#ffebee'),
+                              borderColor=rl_colors.HexColor('#f44336'))
+            ))
+        
+        # Add compression capacity chart
+        story.append(Spacer(1, 0.15*inch))
+        story.append(Paragraph("<b>Column Capacity Curve:</b>", body_style))
+        story.append(Spacer(1, 6))
+        
+        fig_comp = create_compression_capacity_chart(E, Fy, A, lambda_c, lambda_limit, comp, Pu)
+        img_buffer_comp = BytesIO()
+        plt.savefig(img_buffer_comp, format='png', dpi=150, bbox_inches='tight',
+                    facecolor='white', edgecolor='none')
+        plt.close(fig_comp)
+        img_buffer_comp.seek(0)
+        
+        comp_img = Image(img_buffer_comp, width=5.5*inch, height=3.5*inch)
+        story.append(comp_img)
+    
+    # ==================== 6. DESIGN SUMMARY ====================
+    story.append(PageBreak())
+    story.append(Paragraph("6. DESIGN SUMMARY & CONCLUSION", heading1_style))
+    story.append(Spacer(1, 10))
+    
+    # Summary Table
+    summary_data = [
+        ['CHECK', 'CAPACITY', 'DEMAND', 'RATIO', 'STATUS'],
+    ]
+    
+    if 'flexural' in analysis_results:
+        flex = analysis_results['flexural']
+        Mu = design_params.get('Mu', 0)
+        status = '✓ PASS' if flex['adequate'] else '✗ FAIL'
+        summary_data.append(['Flexural (φbMn)', f"{flex['phi_Mn']:.2f} t·m", 
+                           f"{Mu:.2f} t·m", f"{flex['ratio']:.3f}", status])
+    
+    if 'compression' in analysis_results:
+        comp = analysis_results['compression']
+        Pu = design_params.get('Pu', 0)
+        status = '✓ PASS' if comp['adequate'] else '✗ FAIL'
+        summary_data.append(['Compression (φcPn)', f"{comp['phi_Pn']:.2f} tons",
+                           f"{Pu:.2f} tons", f"{comp['ratio']:.3f}", status])
+    
+    summary_table = Table(summary_data, colWidths=[1.6*inch, 1.3*inch, 1.2*inch, 0.9*inch, 1*inch])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1a237e')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 1, rl_colors.HexColor('#1a237e')),
+    ]))
+    
+    # Color code status column
+    for i, row in enumerate(summary_data[1:], start=1):
+        if '✓' in row[-1]:
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (-1, i), (-1, i), rl_colors.HexColor('#c8e6c9')),
+                ('TEXTCOLOR', (-1, i), (-1, i), rl_colors.HexColor('#2e7d32')),
+                ('FONTNAME', (-1, i), (-1, i), 'Helvetica-Bold'),
+            ]))
+        else:
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (-1, i), (-1, i), rl_colors.HexColor('#ffcdd2')),
+                ('TEXTCOLOR', (-1, i), (-1, i), rl_colors.HexColor('#c62828')),
+                ('FONTNAME', (-1, i), (-1, i), 'Helvetica-Bold'),
+            ]))
+    
+    story.append(summary_table)
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Overall Conclusion
+    overall_adequate = True
+    if 'flexural' in analysis_results:
+        overall_adequate = overall_adequate and analysis_results['flexural']['adequate']
+    if 'compression' in analysis_results:
+        overall_adequate = overall_adequate and analysis_results['compression']['adequate']
+    
+    if overall_adequate:
+        conclusion_style = ParagraphStyle(
+            'Conclusion',
+            parent=result_style,
+            fontSize=14,
+            textColor=rl_colors.HexColor('#1b5e20'),
+            backColor=rl_colors.HexColor('#c8e6c9'),
+            borderColor=rl_colors.HexColor('#4caf50'),
+            borderWidth=3
+        )
+        story.append(Paragraph(
+            f"<b>CONCLUSION: SECTION {section} IS ADEQUATE FOR THE DESIGN LOADS ✓</b>",
+            conclusion_style
+        ))
+    else:
+        conclusion_style = ParagraphStyle(
+            'Conclusion',
+            parent=result_style,
+            fontSize=14,
+            textColor=rl_colors.HexColor('#b71c1c'),
+            backColor=rl_colors.HexColor('#ffcdd2'),
+            borderColor=rl_colors.HexColor('#f44336'),
+            borderWidth=3
+        )
+        story.append(Paragraph(
+            f"<b>CONCLUSION: SECTION {section} IS INADEQUATE - REVISE DESIGN ✗</b>",
+            conclusion_style
+        ))
+    
+    # Signature Block
+    story.append(Spacer(1, 0.5*inch))
+    
+    sig_data = [
+        ['PREPARED BY:', '', 'CHECKED BY:', ''],
+        ['', '', '', ''],
+        ['', '', '', ''],
+        [f"Name: {project_info.get('designer', '_______________')}", '',
+         f"Name: {project_info.get('checker', '_______________')}", ''],
+        ['Date: _____________', '', 'Date: _____________', ''],
+        ['Signature: _____________', '', 'Signature: _____________', ''],
+    ]
+    
+    sig_table = Table(sig_data, colWidths=[2*inch, 0.7*inch, 2*inch, 0.7*inch])
+    sig_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(sig_table)
+    
+    # Build PDF
+    doc.build(story, canvasmaker=NumberedCanvas)
+    buffer.seek(0)
+    return buffer
 
 # ==================== PROFESSIONAL ENHANCED CSS ====================
 st.markdown("""
@@ -1093,6 +2086,182 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def create_detailed_section_diagram(d, bf, tf, tw, section_name):
+    """Create a detailed I-beam cross-section diagram with dimensions"""
+    fig, ax = plt.subplots(figsize=(6, 5))
+    
+    # Scale for visualization
+    scale = 1.0
+    d_s, bf_s, tf_s, tw_s = d*scale, bf*scale, tf*scale, tw*scale
+    
+    # Center
+    cx, cy = 0, 0
+    
+    # Draw I-beam
+    # Top flange
+    ax.add_patch(patches.Rectangle(
+        (cx - bf_s/2, cy + d_s/2 - tf_s), bf_s, tf_s,
+        linewidth=2, edgecolor='#1a237e', facecolor='#e8eaf6'
+    ))
+    
+    # Bottom flange
+    ax.add_patch(patches.Rectangle(
+        (cx - bf_s/2, cy - d_s/2), bf_s, tf_s,
+        linewidth=2, edgecolor='#1a237e', facecolor='#e8eaf6'
+    ))
+    
+    # Web
+    ax.add_patch(patches.Rectangle(
+        (cx - tw_s/2, cy - d_s/2 + tf_s), tw_s, d_s - 2*tf_s,
+        linewidth=2, edgecolor='#1a237e', facecolor='#e8eaf6'
+    ))
+    
+    # Dimension lines
+    arrow_props = dict(arrowstyle='<->', color='#d32f2f', lw=1.5)
+    
+    # Overall height (d)
+    offset_d = bf_s * 0.25
+    ax.annotate('', xy=(bf_s/2 + offset_d, d_s/2),
+                xytext=(bf_s/2 + offset_d, -d_s/2),
+                arrowprops=arrow_props)
+    ax.text(bf_s/2 + offset_d*1.8, 0, f'd = {d:.0f} mm',
+            fontsize=10, color='#d32f2f', va='center', fontweight='bold')
+    
+    # Flange width (bf)
+    offset_bf = d_s * 0.15
+    ax.annotate('', xy=(-bf_s/2, d_s/2 + offset_bf),
+                xytext=(bf_s/2, d_s/2 + offset_bf),
+                arrowprops=arrow_props)
+    ax.text(0, d_s/2 + offset_bf*2, f'bf = {bf:.0f} mm',
+            fontsize=10, color='#d32f2f', ha='center', fontweight='bold')
+    
+    # Flange thickness (tf)
+    ax.annotate('', xy=(-bf_s/2 - offset_d*0.5, d_s/2),
+                xytext=(-bf_s/2 - offset_d*0.5, d_s/2 - tf_s),
+                arrowprops=dict(arrowstyle='<->', color='#1976d2', lw=1.2))
+    ax.text(-bf_s/2 - offset_d*1.5, d_s/2 - tf_s/2, f'tf = {tf:.1f}',
+            fontsize=9, color='#1976d2', va='center', ha='right')
+    
+    # Web thickness (tw)
+    ax.annotate('', xy=(-tw_s/2, -d_s/2 + tf_s + offset_bf*0.5),
+                xytext=(tw_s/2, -d_s/2 + tf_s + offset_bf*0.5),
+                arrowprops=dict(arrowstyle='<->', color='#388e3c', lw=1.2))
+    ax.text(0, -d_s/2 + tf_s - offset_bf*0.8, f'tw = {tw:.1f}',
+            fontsize=9, color='#388e3c', ha='center')
+    
+    # Styling
+    ax.set_xlim(-bf_s * 1.0, bf_s * 1.3)
+    ax.set_ylim(-d_s * 0.75, d_s * 0.85)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.set_title(f'{section_name}\nCross-Section', fontsize=12, fontweight='bold', color='#1a237e')
+    
+    # Add axis labels
+    ax.plot([cx, cx], [-d_s*0.6, d_s*0.6], 'k--', lw=0.5, alpha=0.5)
+    ax.plot([-bf_s*0.6, bf_s*0.6], [cy, cy], 'k--', lw=0.5, alpha=0.5)
+    ax.text(bf_s*0.65, 0, 'X', fontsize=8, va='center')
+    ax.text(0, d_s*0.65, 'Y', fontsize=8, ha='center')
+    
+    plt.tight_layout()
+    return fig
+
+
+def create_flexural_capacity_chart(df, df_mat, section, material, Lb, Cb, flex_result):
+    """Create flexural capacity curve for PDF report"""
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Generate capacity curve
+    Lb_points = np.linspace(0.1, 15, 200)
+    Mn_points = []
+    
+    for lb in Lb_points:
+        r = aisc_360_16_f2_flexural_design(df, df_mat, section, material, lb, Cb)
+        Mn_points.append(0.9 * r['Mn'] if r else 0)
+    
+    # Plot capacity curve
+    ax.plot(Lb_points, Mn_points, 'b-', linewidth=2.5, label='φbMn Capacity')
+    
+    # Zone shading
+    ax.axvspan(0, flex_result['Lp'], alpha=0.15, color='green', label='Yielding Zone (F2.1)')
+    ax.axvspan(flex_result['Lp'], flex_result['Lr'], alpha=0.15, color='orange', label='Inelastic LTB (F2.2)')
+    ax.axvspan(flex_result['Lr'], 15, alpha=0.15, color='red', label='Elastic LTB (F2.3)')
+    
+    # Vertical lines
+    ax.axvline(x=flex_result['Lp'], color='green', linestyle='--', linewidth=1.5)
+    ax.axvline(x=flex_result['Lr'], color='orange', linestyle='--', linewidth=1.5)
+    
+    # Add labels
+    ax.text(flex_result['Lp'], ax.get_ylim()[1]*0.95, f'Lp={flex_result["Lp"]:.2f}m',
+            fontsize=9, color='green', ha='center', fontweight='bold')
+    ax.text(flex_result['Lr'], ax.get_ylim()[1]*0.95, f'Lr={flex_result["Lr"]:.2f}m',
+            fontsize=9, color='orange', ha='center', fontweight='bold')
+    
+    # Design point
+    ax.plot([Lb], [flex_result['phi_Mn']], 'r*', markersize=15, 
+            label=f'Design Point (Lb={Lb:.2f}m)', zorder=5)
+    
+    # Styling
+    ax.set_xlabel('Unbraced Length, Lb (m)', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Design Moment, φbMn (t·m)', fontsize=11, fontweight='bold')
+    ax.set_title(f'AISC F2: Flexural Capacity Curve - {section}', fontsize=12, fontweight='bold')
+    ax.grid(True, alpha=0.3, linestyle=':')
+    ax.legend(loc='upper right', fontsize=9, framealpha=0.95)
+    ax.set_xlim(0, 15)
+    ax.set_ylim(0, None)
+    
+    plt.tight_layout()
+    return fig
+
+
+def create_compression_capacity_chart(E, Fy, Ag, lambda_c, lambda_limit, comp_result, Pu):
+    """Create compression capacity curve for PDF report"""
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Generate capacity curve
+    lambda_points = np.linspace(1, 250, 250)
+    Pn_points = []
+    
+    for lc in lambda_points:
+        Fe = (math.pi**2 * E) / (lc**2)
+        if lc <= lambda_limit:
+            Fcr = (0.658**(Fy/Fe)) * Fy
+        else:
+            Fcr = 0.877 * Fe
+        Pn_points.append(0.9 * Fcr * Ag / 1000.0)
+    
+    # Plot capacity curve
+    ax.plot(lambda_points, Pn_points, 'b-', linewidth=2.5, label='φcPn Capacity')
+    
+    # Zone shading
+    ax.axvspan(0, lambda_limit, alpha=0.15, color='green', label='Inelastic Buckling (E3-2)')
+    ax.axvspan(lambda_limit, 250, alpha=0.15, color='orange', label='Elastic Buckling (E3-3)')
+    
+    # Vertical line at limit
+    ax.axvline(x=lambda_limit, color='orange', linestyle='--', linewidth=1.5)
+    ax.text(lambda_limit, ax.get_ylim()[1]*0.95 if ax.get_ylim()[1] > 0 else Pn_points[0]*0.95, 
+            f'λ limit={lambda_limit:.1f}',
+            fontsize=9, color='orange', ha='center', fontweight='bold')
+    
+    # Design point
+    ax.plot([comp_result['lambda_c']], [comp_result['phi_Pn']], 'r*', markersize=15,
+            label=f'Design Point (λ={comp_result["lambda_c"]:.1f})', zorder=5)
+    
+    # Demand line
+    if Pu > 0:
+        ax.axhline(y=Pu, color='red', linestyle='--', linewidth=1.5, label=f'Pu = {Pu:.1f} tons')
+    
+    # Styling
+    ax.set_xlabel('Slenderness Ratio (KL/r)', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Design Strength, φcPn (tons)', fontsize=11, fontweight='bold')
+    ax.set_title('AISC E3: Column Capacity Curve', fontsize=12, fontweight='bold')
+    ax.grid(True, alpha=0.3, linestyle=':')
+    ax.legend(loc='upper right', fontsize=9, framealpha=0.95)
+    ax.set_xlim(0, 250)
+    ax.set_ylim(0, None)
+    
+    plt.tight_layout()
+    return fig
+
 # ==================== DATA PATHS ====================
 file_path = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
@@ -1108,6 +2277,15 @@ if 'calculation_report' not in st.session_state:
     st.session_state.calculation_report = ""
 if 'evaluation_results' not in st.session_state:
     st.session_state.evaluation_results = None
+if 'project_info' not in st.session_state:
+    st.session_state.project_info = {
+        'project_name': '',
+        'project_no': '',
+        'designer': '',
+        'checker': '',
+        'date': datetime.now().strftime('%Y-%m-%d'),
+        'revision': '0'
+    }
 
 # ==================== HELPER FUNCTIONS ====================
 @st.cache_data
@@ -3161,52 +4339,143 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design Professional v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">Professional UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== PROFESSIONAL SIDEBAR ====================
+# ==================== IMPROVED PROFESSIONAL SIDEBAR ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
     
+    # ========== MATERIAL SELECTION ==========
     material_list = list(df_mat.index)
     selected_material = st.selectbox(
         "⚙️ Steel Grade:",
         material_list,
         index=0,
+        key="material_selector",
         help="Select steel material grade per AISC 360-16"
     )
     st.session_state.selected_material = selected_material
     
     if selected_material:
-        Fy = df_mat.loc[selected_material, "Yield Point (ksc)"]
-        Fu = df_mat.loc[selected_material, "Tensile Strength (ksc)"]
+        Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
+        Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
+        E = safe_scalar(df_mat.loc[selected_material, "E"])
+        
         st.markdown(f"""
         <div class="info-box">
-        <b>Selected: {selected_material}</b><br>
-        • Fy = {Fy:.1f} ksc<br>
-        • Fu = {Fu:.1f} ksc<br>
-        • E = 2.04×10⁶ ksc
+        <b>📋 Material: {selected_material}</b><br>
+        • Fy = {Fy:.1f} kgf/cm²<br>
+        • Fu = {Fu:.1f} kgf/cm²<br>
+        • E = {E:,.0f} kgf/cm²
         </div>
         """, unsafe_allow_html=True)
     
     st.markdown("---")
     st.markdown("### 📐 Section Selection")
     
+    # ========== SECTION SELECTION - FIXED ==========
     section_list = list(df.index)
-    quick_section = st.selectbox(
-        "Select Section:",
-        ["None"] + section_list,
-        help="Quick select a specific section"
+    
+    # Get default index from session state
+    default_index = 0
+    if st.session_state.selected_section and st.session_state.selected_section in section_list:
+        default_index = section_list.index(st.session_state.selected_section)
+    
+    # Use selectbox with proper index tracking
+    selected_section = st.selectbox(
+        "🔩 Select Section:",
+        section_list,
+        index=default_index,
+        key="section_selector",
+        help="Select steel section from database"
     )
     
-    if quick_section != "None":
-        st.session_state.selected_section = quick_section
+    # Update session state
+    st.session_state.selected_section = selected_section
+    
+    # ========== SECTION PREVIEW CARD ==========
+    if selected_section:
         weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
-        weight = df.loc[quick_section, weight_col]
+        
+        # Get section properties
+        weight = safe_scalar(df.loc[selected_section, weight_col])
+        d = safe_scalar(df.loc[selected_section, 'd [mm]'])
+        bf = safe_scalar(df.loc[selected_section, 'bf [mm]'])
+        tf = safe_scalar(df.loc[selected_section, 'tf [mm]'])
+        tw = safe_scalar(df.loc[selected_section, 'tw [mm]'])
+        Zx = safe_scalar(df.loc[selected_section, 'Zx [cm3]'])
+        Ix = safe_scalar(df.loc[selected_section, 'Ix [cm4]'])
+        A = safe_scalar(df.loc[selected_section, 'A [cm2]'])
         
         st.markdown(f"""
         <div class="success-box">
-        <b>{quick_section}</b><br>
-        • Weight: {weight:.1f} kg/m<br>
-        • Zx: {df.loc[quick_section, 'Zx [cm3]']:.0f} cm³
+        <h4 style="margin:0; color:#2E7D32;">✅ {selected_section}</h4>
+        <hr style="margin:8px 0; border-color:#4caf50;">
+        <b>Dimensions:</b><br>
+        • d = {d:.0f} mm<br>
+        • bf = {bf:.0f} mm<br>
+        • tf = {tf:.1f} mm<br>
+        • tw = {tw:.1f} mm<br>
+        <b>Properties:</b><br>
+        • A = {A:.1f} cm²<br>
+        • Ix = {Ix:,.0f} cm⁴<br>
+        • Zx = {Zx:,.0f} cm³<br>
+        • Weight = {weight:.1f} kg/m
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # ========== PROJECT INFORMATION ==========
+    st.markdown("---")
+    st.markdown("### 📁 Project Information")
+    
+    with st.expander("📝 Edit Project Info", expanded=False):
+        if 'project_info' not in st.session_state:
+            st.session_state.project_info = {
+                'project_name': '',
+                'project_no': '',
+                'designer': '',
+                'checker': '',
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'revision': '0'
+            }
+        
+        st.session_state.project_info['project_name'] = st.text_input(
+            "Project Name:", 
+            value=st.session_state.project_info['project_name'],
+            key="proj_name"
+        )
+        st.session_state.project_info['project_no'] = st.text_input(
+            "Project No.:", 
+            value=st.session_state.project_info['project_no'],
+            key="proj_no"
+        )
+        st.session_state.project_info['designer'] = st.text_input(
+            "Designer:", 
+            value=st.session_state.project_info['designer'],
+            key="designer"
+        )
+        st.session_state.project_info['checker'] = st.text_input(
+            "Checker:", 
+            value=st.session_state.project_info['checker'],
+            key="checker"
+        )
+        st.session_state.project_info['date'] = st.text_input(
+            "Date:", 
+            value=st.session_state.project_info['date'],
+            key="date"
+        )
+        st.session_state.project_info['revision'] = st.text_input(
+            "Revision:", 
+            value=st.session_state.project_info['revision'],
+            key="revision"
+        )
+    
+    # Show current project info summary
+    if st.session_state.project_info['project_name']:
+        st.markdown(f"""
+        <div class="metric-card">
+        <b>📋 Current Project:</b><br>
+        {st.session_state.project_info['project_name']}<br>
+        <small>Rev. {st.session_state.project_info['revision']} | {st.session_state.project_info['date']}</small>
         </div>
         """, unsafe_allow_html=True)
 
@@ -3645,40 +4914,47 @@ with tab3:
                     st.markdown('</div>', unsafe_allow_html=True)
         
         # Export Section
-        st.markdown("---")
-        st.markdown("### 📥 Export Calculation Reports")
-        
-        if st.session_state.evaluation_results:
-            col_export1, col_export2 = st.columns(2)
-            
-            # PDF Export
-            with col_export1:
-                if PDF_AVAILABLE:
-                    if st.button("📄 Generate Professional PDF Report", type="primary"):
-                        design_params = {
-                            'Mu': Mu_eval, 'Pu': Pu_eval,
-                            'Lb': Lb_eval, 'KL': KL_eval,
-                            'Cb': 1.0
-                        }
+        with col_export1:
+            if PDF_AVAILABLE:
+                if st.button("📄 Generate Professional Calculation Report", type="primary"):
+                    design_params = {
+                        'Mu': Mu_eval, 'Pu': Pu_eval,
+                        'Lb': Lb_eval, 'KL': KL_eval,
+                        'Cb': 1.0
+                    }
+                    
+                    # Get project info from session state
+                    project_info = st.session_state.get('project_info', {
+                        'project_name': 'N/A',
+                        'project_no': 'N/A',
+                        'designer': 'N/A',
+                        'checker': 'N/A',
+                        'date': datetime.now().strftime('%Y-%m-%d'),
+                        'revision': '0'
+                    })
+                    
+                    with st.spinner('Generating professional calculation report...'):
+                        pdf_buffer = generate_professional_calculation_report(
+                            df, df_mat, section, selected_material, 
+                            st.session_state.evaluation_results, design_params, project_info
+                        )
+                    
+                    if pdf_buffer:
+                        # Create filename with project info
+                        proj_name = project_info.get('project_name', 'Project').replace(' ', '_')[:20]
+                        filename = f"Calc_{proj_name}_{section}_{datetime.now().strftime('%Y%m%d')}.pdf"
                         
-                        with st.spinner('Generating professional PDF report...'):
-                            pdf_buffer = generate_professional_pdf_report(
-                                df, df_mat, section, selected_material, 
-                                st.session_state.evaluation_results, design_params
-                            )
-                        
-                        if pdf_buffer:
-                            st.download_button(
-                                label="📥 Download Professional PDF Report",
-                                data=pdf_buffer,
-                                file_name=f"AISC_Professional_Report_{section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                                mime="application/pdf"
-                            )
-                            st.success("✅ Professional PDF report generated successfully!")
-                else:
-                    st.warning("⚠️ PDF export requires reportlab and matplotlib libraries")
-                    st.code("pip install reportlab matplotlib")
-            
+                        st.download_button(
+                            label="📥 Download Calculation Report (PDF)",
+                            data=pdf_buffer,
+                            file_name=filename,
+                            mime="application/pdf"
+                        )
+                        st.success("✅ Professional calculation report generated!")
+            else:
+                st.warning("⚠️ PDF export requires reportlab library")
+                st.code("pip install reportlab")
+                    
             # Excel Export
             with col_export2:
                 if EXCEL_AVAILABLE:
