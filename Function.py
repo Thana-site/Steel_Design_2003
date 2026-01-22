@@ -4914,6 +4914,8 @@ with tab3:
                     st.markdown('</div>', unsafe_allow_html=True)
         
         # Export Section
+        col_export1, col_export2 = st.columns(2)
+        
         with col_export1:
             if PDF_AVAILABLE:
                 if st.button("📄 Generate Professional Calculation Report", type="primary"):
@@ -4954,36 +4956,36 @@ with tab3:
             else:
                 st.warning("⚠️ PDF export requires reportlab library")
                 st.code("pip install reportlab")
+        
+        # Excel Export
+        with col_export2:
+            if EXCEL_AVAILABLE:
+                if st.button("📊 Generate Enhanced Excel Report", type="primary"):
+                    design_params = {
+                        'Mu': Mu_eval, 'Pu': Pu_eval,
+                        'Lb': Lb_eval, 'KL': KL_eval,
+                        'Cb': 1.0
+                    }
                     
-            # Excel Export
-            with col_export2:
-                if EXCEL_AVAILABLE:
-                    if st.button("📊 Generate Enhanced Excel Report", type="primary"):
-                        design_params = {
-                            'Mu': Mu_eval, 'Pu': Pu_eval,
-                            'Lb': Lb_eval, 'KL': KL_eval,
-                            'Cb': 1.0
-                        }
-                        
-                        with st.spinner('Generating enhanced Excel report...'):
-                            excel_buffer = generate_enhanced_excel_report(
-                                df, df_mat, section, selected_material, 
-                                st.session_state.evaluation_results, design_params
-                            )
-                        
-                        if excel_buffer:
-                            st.download_button(
-                                label="📥 Download Enhanced Excel Report",
-                                data=excel_buffer,
-                                file_name=f"AISC_Enhanced_Report_{section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-                            st.success("✅ Enhanced Excel report with detailed calculations generated successfully!")
-                else:
-                    st.warning("⚠️ Excel export requires openpyxl library")
-                    st.code("pip install openpyxl")
-        else:
-            st.info("ℹ️ Perform a design evaluation first to enable export functionality")
+                    with st.spinner('Generating enhanced Excel report...'):
+                        excel_buffer = generate_enhanced_excel_report(
+                            df, df_mat, section, selected_material, 
+                            st.session_state.evaluation_results, design_params
+                        )
+                    
+                    if excel_buffer:
+                        st.download_button(
+                            label="📥 Download Enhanced Excel Report",
+                            data=excel_buffer,
+                            file_name=f"AISC_Enhanced_Report_{section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                        st.success("✅ Enhanced Excel report with detailed calculations generated successfully!")
+            else:
+                st.warning("⚠️ Excel export requires openpyxl library")
+                st.code("pip install openpyxl")
+    else:
+        st.info("ℹ️ Select a section and material first, then perform evaluation to enable export functionality")
 
 # ==================== TAB 4: DOCUMENTATION ====================
 with tab4:
