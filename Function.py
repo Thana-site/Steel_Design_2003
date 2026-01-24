@@ -25,7 +25,6 @@ from datetime import datetime
 import io
 import base64
 from io import BytesIO
-import streamlit.components.v1 as components
 
 # Add these imports at the top with other imports
 from reportlab.lib.pagesizes import letter, A4
@@ -6111,55 +6110,34 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== SIDEBAR WITH CUSTOM HTML DROPDOWNS ====================
+# ==================== IMPROVED SIDEBAR ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
 
-    # ========== MATERIAL SELECTION (CUSTOM HTML) ==========
+    # ========== MATERIAL SELECTION ==========
     material_list = [str(x).strip() for x in df_mat.index.tolist()]
 
-    # Initialize
+    # Initialize with first value if not set
     if 'selected_material' not in st.session_state or not st.session_state.selected_material:
         st.session_state.selected_material = material_list[0]
 
-    # Clean and validate
+    # Clean session state value
     st.session_state.selected_material = str(st.session_state.selected_material).strip()
+
+    # Validate
     if st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0]
 
-    # Create options HTML
-    material_options = ""
-    for mat in material_list:
-        selected_attr = 'selected="selected"' if mat == st.session_state.selected_material else ''
-        material_options += f'<option value="{mat}" {selected_attr}>{mat}</option>\n'
+    # Selectbox WITHOUT index parameter (testing if index is broken in v1.42)
+    selected_material = st.selectbox(
+        "⚙️ Steel Grade:",
+        options=material_list
+    )
 
-    # Custom HTML dropdown for material
-    st.markdown("**⚙️ Steel Grade:**")
-    material_html = f"""
-    <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.0.0/dist/streamlit-component-lib.js"></script>
-    <select id="material_select" style="width: 100%; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
-        {material_options}
-    </select>
-    <script>
-        var select = document.getElementById('material_select');
-        select.value = '{st.session_state.selected_material}';
+    # Update state
+    st.session_state.selected_material = selected_material
 
-        select.addEventListener('change', function() {{
-            window.parent.Streamlit.setComponentValue(this.value);
-        }});
-    </script>
-    """
-    selected_material_new = components.html(material_html, height=50)
-
-    # Only update and rerun if value actually changed
-    if selected_material_new and selected_material_new != st.session_state.selected_material:
-        st.session_state.selected_material = selected_material_new
-        st.rerun()
-
-    selected_material = st.session_state.selected_material
-
-    # Material Properties Display
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
         Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
@@ -6177,50 +6155,30 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📐 Section Selection")
 
-    # ========== SECTION SELECTION (CUSTOM HTML) ==========
+    # ========== SECTION SELECTION ==========
     section_list = [str(x).strip() for x in df.index.tolist()]
 
-    # Initialize
+    # Initialize with first value if not set
     if 'selected_section' not in st.session_state or not st.session_state.selected_section:
         st.session_state.selected_section = section_list[0]
 
-    # Clean and validate
+    # Clean session state value
     st.session_state.selected_section = str(st.session_state.selected_section).strip()
+
+    # Validate
     if st.session_state.selected_section not in section_list:
         st.session_state.selected_section = section_list[0]
 
-    # Create options HTML
-    section_options = ""
-    for sec in section_list:
-        selected_attr = 'selected="selected"' if sec == st.session_state.selected_section else ''
-        section_options += f'<option value="{sec}" {selected_attr}>{sec}</option>\n'
+    # Selectbox WITHOUT index parameter (testing if index is broken in v1.42)
+    selected_section = st.selectbox(
+        "🔩 Select Section:",
+        options=section_list
+    )
 
-    # Custom HTML dropdown for section
-    st.markdown("**🔩 Select Section:**")
-    section_html = f"""
-    <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.0.0/dist/streamlit-component-lib.js"></script>
-    <select id="section_select" style="width: 100%; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
-        {section_options}
-    </select>
-    <script>
-        var select = document.getElementById('section_select');
-        select.value = '{st.session_state.selected_section}';
+    # Update state
+    st.session_state.selected_section = selected_section
 
-        select.addEventListener('change', function() {{
-            window.parent.Streamlit.setComponentValue(this.value);
-        }});
-    </script>
-    """
-    selected_section_new = components.html(section_html, height=50)
-
-    # Only update and rerun if value actually changed
-    if selected_section_new and selected_section_new != st.session_state.selected_section:
-        st.session_state.selected_section = selected_section_new
-        st.rerun()
-
-    selected_section = st.session_state.selected_section
-
-    # Section Properties Display
+    # ========== SECTION PREVIEW CARD ==========
     if selected_section:
         weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
 
