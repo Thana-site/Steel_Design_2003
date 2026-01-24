@@ -6065,7 +6065,7 @@ if not success:
     st.error("❌ Failed to load data. Please check your internet connection.")
     st.stop()
 
-# ==================== SESSION STATE INITIALIZATION (MUST BE AFTER DATA LOAD) ====================
+# ==================== SESSION STATE INITIALIZATION (NOW SAFE TO USE df) ====================
 if 'selected_section' not in st.session_state:
     st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
 
