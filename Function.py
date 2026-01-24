@@ -6114,97 +6114,77 @@ st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; fo
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
-    
-    # ========== INITIALIZE SESSION STATE ==========
-    if 'selected_section' not in st.session_state:
-        st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
-    if 'selected_material' not in st.session_state:
-        st.session_state.selected_material = list(df_mat.index)[0] if len(df_mat.index) > 0 else None
-    
+
     # ========== MATERIAL SELECTION ==========
     material_list = list(df_mat.index)
 
-    # Ensure selected_material is valid, if not set default
-    if 'selected_material' not in st.session_state or st.session_state.selected_material not in material_list:
+    # Ensure selected_material is valid
+    if st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0] if material_list else None
 
-    # Find the index of currently selected material
-    try:
-        material_index = material_list.index(st.session_state.selected_material)
-    except (ValueError, AttributeError):
-        material_index = 0
-        st.session_state.selected_material = material_list[0] if material_list else None
+    # Get index
+    material_index = material_list.index(st.session_state.selected_material) if st.session_state.selected_material in material_list else 0
 
-    # Selectbox - displays the option at material_index
-    selected_material = st.selectbox(
+    # Selectbox
+    st.session_state.selected_material = st.selectbox(
         "⚙️ Steel Grade:",
         options=material_list,
         index=material_index,
         help="Select steel material grade per AISC 360-16"
     )
 
-    # Update session state immediately if selection changed
-    st.session_state.selected_material = selected_material
+    if st.session_state.selected_material:
+        Fy = safe_scalar(df_mat.loc[st.session_state.selected_material, "Yield Point (ksc)"])
+        Fu = safe_scalar(df_mat.loc[st.session_state.selected_material, "Tensile Strength (ksc)"])
+        E = safe_scalar(df_mat.loc[st.session_state.selected_material, "E"])
 
-    if selected_material:
-        Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
-        Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
-        E = safe_scalar(df_mat.loc[selected_material, "E"])
-        
         st.markdown(f"""
         <div class="info-box">
-        <b>📋 Material: {selected_material}</b><br>
+        <b>📋 Material: {st.session_state.selected_material}</b><br>
         • Fy = {Fy:.1f} kgf/cm²<br>
         • Fu = {Fu:.1f} kgf/cm²<br>
         • E = {E:,.0f} kgf/cm²
         </div>
         """, unsafe_allow_html=True)
-    
+
     st.markdown("---")
     st.markdown("### 📐 Section Selection")
-    
+
     # ========== SECTION SELECTION ==========
     section_list = list(df.index)
 
-    # Ensure selected_section is valid, if not set default
-    if 'selected_section' not in st.session_state or st.session_state.selected_section not in section_list:
+    # Ensure selected_section is valid
+    if st.session_state.selected_section not in section_list:
         st.session_state.selected_section = section_list[0] if section_list else None
 
-    # Find the index of currently selected section
-    try:
-        section_index = section_list.index(st.session_state.selected_section)
-    except (ValueError, AttributeError):
-        section_index = 0
-        st.session_state.selected_section = section_list[0] if section_list else None
+    # Get index
+    section_index = section_list.index(st.session_state.selected_section) if st.session_state.selected_section in section_list else 0
 
-    # Selectbox - displays the option at section_index
-    selected_section = st.selectbox(
+    # Selectbox
+    st.session_state.selected_section = st.selectbox(
         "🔩 Select Section:",
         options=section_list,
         index=section_index,
         help="Select steel section from database"
     )
 
-    # Update session state immediately if selection changed
-    st.session_state.selected_section = selected_section
-    
     # ========== SECTION PREVIEW CARD ==========
-    if selected_section:
+    if st.session_state.selected_section:
         weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
-        
+
         # Get section properties
-        weight = safe_scalar(df.loc[selected_section, weight_col])
-        d = safe_scalar(df.loc[selected_section, 'd [mm]'])
-        bf = safe_scalar(df.loc[selected_section, 'bf [mm]'])
-        tf = safe_scalar(df.loc[selected_section, 'tf [mm]'])
-        tw = safe_scalar(df.loc[selected_section, 'tw [mm]'])
-        Zx = safe_scalar(df.loc[selected_section, 'Zx [cm3]'])
-        Ix = safe_scalar(df.loc[selected_section, 'Ix [cm4]'])
-        A = safe_scalar(df.loc[selected_section, 'A [cm2]'])
+        weight = safe_scalar(df.loc[st.session_state.selected_section, weight_col])
+        d = safe_scalar(df.loc[st.session_state.selected_section, 'd [mm]'])
+        bf = safe_scalar(df.loc[st.session_state.selected_section, 'bf [mm]'])
+        tf = safe_scalar(df.loc[st.session_state.selected_section, 'tf [mm]'])
+        tw = safe_scalar(df.loc[st.session_state.selected_section, 'tw [mm]'])
+        Zx = safe_scalar(df.loc[st.session_state.selected_section, 'Zx [cm3]'])
+        Ix = safe_scalar(df.loc[st.session_state.selected_section, 'Ix [cm4]'])
+        A = safe_scalar(df.loc[st.session_state.selected_section, 'A [cm2]'])
         
         st.markdown(f"""
         <div class="success-box">
-        <h4 style="margin:0; color:#2E7D32;">✅ {selected_section}</h4>
+        <h4 style="margin:0; color:#2E7D32;">✅ {st.session_state.selected_section}</h4>
         <hr style="margin:8px 0; border-color:#4caf50;">
         <b>Dimensions:</b><br>
         • d = {d:.0f} mm<br>
@@ -6274,6 +6254,10 @@ with st.sidebar:
         <small>Rev. {st.session_state.project_info['revision']} | {st.session_state.project_info['date']}</small>
         </div>
         """, unsafe_allow_html=True)
+
+# Create local variables for compatibility with tab code
+selected_material = st.session_state.selected_material
+selected_section = st.session_state.selected_section
 
 # ==================== ENHANCED TABS WITH TAB 5 ====================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
