@@ -3422,9 +3422,9 @@ file_path_mat = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/
 
 # ==================== SESSION STATE INITIALIZATION ====================
 if 'selected_section' not in st.session_state:
-    st.session_state.selected_section = None
+    st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
 if 'selected_material' not in st.session_state:
-    st.session_state.selected_material = None
+    st.session_state.selected_material = list(df_mat.index)[0] if len(df_mat.index) > 0 else None
 if 'selected_sections' not in st.session_state:
     st.session_state.selected_sections = []
 if 'calculation_report' not in st.session_state:
@@ -6080,13 +6080,24 @@ with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
     
+    # ========== INITIALIZE SESSION STATE ==========
+    if 'selected_section' not in st.session_state:
+        st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
+    if 'selected_material' not in st.session_state:
+        st.session_state.selected_material = list(df_mat.index)[0] if len(df_mat.index) > 0 else None
+    
     # ========== MATERIAL SELECTION ==========
     material_list = list(df_mat.index)
+    
+    # Calculate material default index
+    material_default_index = 0
+    if st.session_state.selected_material in material_list:
+        material_default_index = material_list.index(st.session_state.selected_material)
+    
     selected_material = st.selectbox(
         "⚙️ Steel Grade:",
         material_list,
-        index=0,
-        key="material_selector",
+        index=material_default_index,
         help="Select steel material grade per AISC 360-16"
     )
     st.session_state.selected_material = selected_material
@@ -6111,17 +6122,15 @@ with st.sidebar:
     # ========== SECTION SELECTION - FIXED ==========
     section_list = list(df.index)
     
-    # Get default index from session state
-    default_index = 0
-    if st.session_state.selected_section and st.session_state.selected_section in section_list:
-        default_index = section_list.index(st.session_state.selected_section)
+    # Calculate section default index
+    section_default_index = 0
+    if st.session_state.selected_section in section_list:
+        section_default_index = section_list.index(st.session_state.selected_section)
     
-    # Use selectbox with proper index tracking
     selected_section = st.selectbox(
         "🔩 Select Section:",
         section_list,
-        index=default_index,
-        key="section_selector",
+        index=section_default_index,
         help="Select steel section from database"
     )
     
