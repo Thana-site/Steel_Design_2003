@@ -6059,6 +6059,19 @@ def evaluate_section_design(df, df_mat, section, material, design_loads, design_
         return None
 
 # ==================== LOAD DATA ====================
+@st.cache_data
+def load_data():
+    """Load steel section and material databases"""
+    try:
+        file_path = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
+        file_path_mat = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
+        
+        df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
+        df_mat = pd.read_csv(file_path_mat, index_col=0, encoding="utf-8")
+        return df, df_mat, True
+    except Exception as e:
+        return pd.DataFrame(), pd.DataFrame(), False
+
 # Load data immediately
 df, df_mat, data_loaded = load_data()
 
