@@ -5962,8 +5962,8 @@ with tab_report:  # Change to your tab variable name
 '''
 
 if __name__ == "__main__":
-    # Demo/test mode
-    st.set_page_config(page_title="Steel Design Report Demo", layout="wide")
+    # Demo/test mode - page config already set at top of file
+    # Note: st.set_page_config() is already called at line ~20
     
     # Create sample DataFrames for testing
     df_sections = pd.DataFrame({
@@ -5986,8 +5986,10 @@ if __name__ == "__main__":
         'Tensile Strength (ksc)': [4588, 4078]  # 450 MPa, 400 MPa
     }, index=['ASTM A992 Gr.50', 'ASTM A36'])
     
-    render_design_report_tab(df_sections, df_materials)
-
+    # This demo code will only run if this file is executed directly
+    # When imported as part of the main app, this section is skipped
+    st.info("ℹ️ Running in demo mode with sample data")
+    # render_design_report_tab(df_sections, df_materials)  # Uncomment if needed
 
 # ==================== EVALUATION FUNCTION ====================
 def evaluate_section_design(df, df_mat, section, material, design_loads, design_lengths):
