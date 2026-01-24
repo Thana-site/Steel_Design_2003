@@ -6129,22 +6129,10 @@ with st.sidebar:
     if st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0]
 
-    # Find index
-    material_index = 0
-    for i, mat in enumerate(material_list):
-        if mat == st.session_state.selected_material:
-            material_index = i
-            break
-
-    # Debug display
-    st.caption(f"Current: {st.session_state.selected_material} | Index: {material_index}")
-
-    # Selectbox
+    # Selectbox WITHOUT index parameter (testing if index is broken in v1.42)
     selected_material = st.selectbox(
         "⚙️ Steel Grade:",
-        material_list,
-        index=material_index,
-        placeholder="Choose a steel grade..."
+        options=material_list
     )
 
     # Update state
@@ -6181,22 +6169,10 @@ with st.sidebar:
     if st.session_state.selected_section not in section_list:
         st.session_state.selected_section = section_list[0]
 
-    # Find index
-    section_index = 0
-    for i, sec in enumerate(section_list):
-        if sec == st.session_state.selected_section:
-            section_index = i
-            break
-
-    # Debug display
-    st.caption(f"Current: {st.session_state.selected_section} | Index: {section_index}")
-
-    # Selectbox
+    # Selectbox WITHOUT index parameter (testing if index is broken in v1.42)
     selected_section = st.selectbox(
         "🔩 Select Section:",
-        section_list,
-        index=section_index,
-        placeholder="Choose a section..."
+        options=section_list
     )
 
     # Update state
