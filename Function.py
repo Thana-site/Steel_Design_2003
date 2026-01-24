@@ -6059,13 +6059,15 @@ def evaluate_section_design(df, df_mat, section, material, design_loads, design_
         return None
 
 # ==================== LOAD DATA ====================
-df, df_mat, success = load_data()
+# Load data immediately
+df, df_mat, data_loaded = load_data()
 
-if not success:
+# Stop if data failed to load
+if not data_loaded:
     st.error("❌ Failed to load data. Please check your internet connection.")
     st.stop()
 
-# ==================== SESSION STATE INITIALIZATION (NOW SAFE TO USE df) ====================
+# ==================== NOW SAFE TO INITIALIZE SESSION STATE ====================
 if 'selected_section' not in st.session_state:
     st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
 
