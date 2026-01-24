@@ -5409,20 +5409,6 @@ def generate_enhanced_excel_report(df, df_mat, section, material, analysis_resul
     buffer.seek(0)
     return buffer
 
-# Import the report generator (assumes it's in the same directory)
-from steel_design_report_generator import (
-    SteelDesignReportGenerator,
-    create_member_data,
-    calculate_flexural_strength,
-    calculate_compression_strength,
-    calculate_tension_strength,
-    calculate_interaction,
-    classify_section_flange,
-    classify_section_web,
-    get_overall_classification,
-    format_number
-)
-
 # ==================== CSS STYLES ====================
 
 def get_tab_styles():
