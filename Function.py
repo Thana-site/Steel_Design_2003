@@ -6110,11 +6110,12 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== IMPROVED SIDEBAR ====================
-with st.sidebar:
-    st.markdown("### 🔧 Design Configuration")
-    st.markdown("---")
+# ==================== MATERIAL AND SECTION SELECTION (MOVED TO MAIN AREA) ====================
+st.markdown("### 🔧 Design Configuration")
 
+col1, col2 = st.columns(2)
+
+with col1:
     # ========== MATERIAL SELECTION ==========
     material_list = [str(x).strip() for x in df_mat.index.tolist()]
 
@@ -6129,7 +6130,7 @@ with st.sidebar:
     if st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0]
 
-    # Selectbox WITHOUT index parameter (testing if index is broken in v1.42)
+    # Selectbox in MAIN AREA (not sidebar)
     selected_material = st.selectbox(
         "⚙️ Steel Grade:",
         options=material_list
@@ -6138,6 +6139,38 @@ with st.sidebar:
     # Update state
     st.session_state.selected_material = selected_material
 
+with col2:
+    # ========== SECTION SELECTION ==========
+    section_list = [str(x).strip() for x in df.index.tolist()]
+
+    # Initialize with first value if not set
+    if 'selected_section' not in st.session_state or not st.session_state.selected_section:
+        st.session_state.selected_section = section_list[0]
+
+    # Clean session state value
+    st.session_state.selected_section = str(st.session_state.selected_section).strip()
+
+    # Validate
+    if st.session_state.selected_section not in section_list:
+        st.session_state.selected_section = section_list[0]
+
+    # Selectbox in MAIN AREA (not sidebar)
+    selected_section = st.selectbox(
+        "🔩 Select Section:",
+        options=section_list
+    )
+
+    # Update state
+    st.session_state.selected_section = selected_section
+
+st.markdown("---")
+
+# ==================== SIDEBAR WITH INFO ONLY ====================
+with st.sidebar:
+    st.markdown("### 📊 Current Selection")
+    st.markdown("---")
+
+    # Material Properties Display
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
         Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
@@ -6153,32 +6186,8 @@ with st.sidebar:
         """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 📐 Section Selection")
 
-    # ========== SECTION SELECTION ==========
-    section_list = [str(x).strip() for x in df.index.tolist()]
-
-    # Initialize with first value if not set
-    if 'selected_section' not in st.session_state or not st.session_state.selected_section:
-        st.session_state.selected_section = section_list[0]
-
-    # Clean session state value
-    st.session_state.selected_section = str(st.session_state.selected_section).strip()
-
-    # Validate
-    if st.session_state.selected_section not in section_list:
-        st.session_state.selected_section = section_list[0]
-
-    # Selectbox WITHOUT index parameter (testing if index is broken in v1.42)
-    selected_section = st.selectbox(
-        "🔩 Select Section:",
-        options=section_list
-    )
-
-    # Update state
-    st.session_state.selected_section = selected_section
-
-    # ========== SECTION PREVIEW CARD ==========
+    # Section Properties Display
     if selected_section:
         weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
 
