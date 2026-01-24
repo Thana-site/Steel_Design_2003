@@ -6125,22 +6125,25 @@ with st.sidebar:
     # Get index
     material_index = material_list.index(st.session_state.selected_material) if st.session_state.selected_material in material_list else 0
 
-    # Selectbox
-    st.session_state.selected_material = st.selectbox(
+    # Standard st.selectbox
+    selected_material = st.selectbox(
         "⚙️ Steel Grade:",
         options=material_list,
         index=material_index,
         help="Select steel material grade per AISC 360-16"
     )
 
-    if st.session_state.selected_material:
-        Fy = safe_scalar(df_mat.loc[st.session_state.selected_material, "Yield Point (ksc)"])
-        Fu = safe_scalar(df_mat.loc[st.session_state.selected_material, "Tensile Strength (ksc)"])
-        E = safe_scalar(df_mat.loc[st.session_state.selected_material, "E"])
+    # Update session state
+    st.session_state.selected_material = selected_material
+
+    if selected_material:
+        Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
+        Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
+        E = safe_scalar(df_mat.loc[selected_material, "E"])
 
         st.markdown(f"""
         <div class="info-box">
-        <b>📋 Material: {st.session_state.selected_material}</b><br>
+        <b>📋 Material: {selected_material}</b><br>
         • Fy = {Fy:.1f} kgf/cm²<br>
         • Fu = {Fu:.1f} kgf/cm²<br>
         • E = {E:,.0f} kgf/cm²
@@ -6160,31 +6163,34 @@ with st.sidebar:
     # Get index
     section_index = section_list.index(st.session_state.selected_section) if st.session_state.selected_section in section_list else 0
 
-    # Selectbox
-    st.session_state.selected_section = st.selectbox(
+    # Standard st.selectbox
+    selected_section = st.selectbox(
         "🔩 Select Section:",
         options=section_list,
         index=section_index,
         help="Select steel section from database"
     )
 
+    # Update session state
+    st.session_state.selected_section = selected_section
+
     # ========== SECTION PREVIEW CARD ==========
-    if st.session_state.selected_section:
+    if selected_section:
         weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
 
         # Get section properties
-        weight = safe_scalar(df.loc[st.session_state.selected_section, weight_col])
-        d = safe_scalar(df.loc[st.session_state.selected_section, 'd [mm]'])
-        bf = safe_scalar(df.loc[st.session_state.selected_section, 'bf [mm]'])
-        tf = safe_scalar(df.loc[st.session_state.selected_section, 'tf [mm]'])
-        tw = safe_scalar(df.loc[st.session_state.selected_section, 'tw [mm]'])
-        Zx = safe_scalar(df.loc[st.session_state.selected_section, 'Zx [cm3]'])
-        Ix = safe_scalar(df.loc[st.session_state.selected_section, 'Ix [cm4]'])
-        A = safe_scalar(df.loc[st.session_state.selected_section, 'A [cm2]'])
-        
+        weight = safe_scalar(df.loc[selected_section, weight_col])
+        d = safe_scalar(df.loc[selected_section, 'd [mm]'])
+        bf = safe_scalar(df.loc[selected_section, 'bf [mm]'])
+        tf = safe_scalar(df.loc[selected_section, 'tf [mm]'])
+        tw = safe_scalar(df.loc[selected_section, 'tw [mm]'])
+        Zx = safe_scalar(df.loc[selected_section, 'Zx [cm3]'])
+        Ix = safe_scalar(df.loc[selected_section, 'Ix [cm4]'])
+        A = safe_scalar(df.loc[selected_section, 'A [cm2]'])
+
         st.markdown(f"""
         <div class="success-box">
-        <h4 style="margin:0; color:#2E7D32;">✅ {st.session_state.selected_section}</h4>
+        <h4 style="margin:0; color:#2E7D32;">✅ {selected_section}</h4>
         <hr style="margin:8px 0; border-color:#4caf50;">
         <b>Dimensions:</b><br>
         • d = {d:.0f} mm<br>
