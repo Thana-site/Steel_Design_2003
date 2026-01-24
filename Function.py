@@ -6124,24 +6124,26 @@ with st.sidebar:
     # ========== MATERIAL SELECTION ==========
     material_list = list(df_mat.index)
 
-    # Ensure selected_material is valid
-    if st.session_state.selected_material not in material_list:
+    # Ensure selected_material is valid, if not set default
+    if 'selected_material' not in st.session_state or st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0] if material_list else None
 
-    # Calculate current index
-    material_index = 0
-    if st.session_state.selected_material and st.session_state.selected_material in material_list:
+    # Find the index of currently selected material
+    try:
         material_index = material_list.index(st.session_state.selected_material)
+    except (ValueError, AttributeError):
+        material_index = 0
+        st.session_state.selected_material = material_list[0] if material_list else None
 
-    # Selectbox without key - let it display naturally
+    # Selectbox - displays the option at material_index
     selected_material = st.selectbox(
         "⚙️ Steel Grade:",
-        material_list,
+        options=material_list,
         index=material_index,
         help="Select steel material grade per AISC 360-16"
     )
 
-    # Store the selection in session state
+    # Update session state immediately if selection changed
     st.session_state.selected_material = selected_material
 
     if selected_material:
@@ -6164,24 +6166,26 @@ with st.sidebar:
     # ========== SECTION SELECTION ==========
     section_list = list(df.index)
 
-    # Ensure selected_section is valid
-    if st.session_state.selected_section not in section_list:
+    # Ensure selected_section is valid, if not set default
+    if 'selected_section' not in st.session_state or st.session_state.selected_section not in section_list:
         st.session_state.selected_section = section_list[0] if section_list else None
 
-    # Calculate current index
-    section_index = 0
-    if st.session_state.selected_section and st.session_state.selected_section in section_list:
+    # Find the index of currently selected section
+    try:
         section_index = section_list.index(st.session_state.selected_section)
+    except (ValueError, AttributeError):
+        section_index = 0
+        st.session_state.selected_section = section_list[0] if section_list else None
 
-    # Selectbox without key - let it display naturally
+    # Selectbox - displays the option at section_index
     selected_section = st.selectbox(
         "🔩 Select Section:",
-        section_list,
+        options=section_list,
         index=section_index,
         help="Select steel section from database"
     )
 
-    # Store the selection in session state
+    # Update session state immediately if selection changed
     st.session_state.selected_section = selected_section
     
     # ========== SECTION PREVIEW CARD ==========
