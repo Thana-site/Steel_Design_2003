@@ -6118,6 +6118,10 @@ with st.sidebar:
     # ========== MATERIAL SELECTION ==========
     material_list = list(df_mat.index)
 
+    # Debug: Show what we're working with
+    # st.write(f"DEBUG: material_list length: {len(material_list)}")
+    # st.write(f"DEBUG: session_state.selected_material: {st.session_state.selected_material}")
+
     # Ensure selected_material is valid
     if st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0] if material_list else None
@@ -6129,13 +6133,19 @@ with st.sidebar:
         material_index = 0
         st.session_state.selected_material = material_list[0] if material_list else None
 
-    # Selectbox - using index to show current selection
+    # st.write(f"DEBUG: Calculated material_index: {material_index}")
+    # st.write(f"DEBUG: Value at that index: {material_list[material_index] if material_index < len(material_list) else 'OUT OF RANGE'}")
+
+    # Selectbox
     selected_material = st.selectbox(
         label="⚙️ Steel Grade:",
         options=material_list,
         index=material_index,
+        format_func=lambda x: str(x),
         help="Select steel material grade per AISC 360-16"
     )
+
+    # st.write(f"DEBUG: Selectbox returned: {selected_material}")
 
     # Always update session state
     st.session_state.selected_material = selected_material
@@ -6160,6 +6170,10 @@ with st.sidebar:
     # ========== SECTION SELECTION ==========
     section_list = list(df.index)
 
+    # Debug: Show what we're working with
+    # st.write(f"DEBUG: section_list length: {len(section_list)}")
+    # st.write(f"DEBUG: session_state.selected_section: {st.session_state.selected_section}")
+
     # Ensure selected_section is valid
     if st.session_state.selected_section not in section_list:
         st.session_state.selected_section = section_list[0] if section_list else None
@@ -6171,13 +6185,19 @@ with st.sidebar:
         section_index = 0
         st.session_state.selected_section = section_list[0] if section_list else None
 
-    # Selectbox - using index to show current selection
+    # st.write(f"DEBUG: Calculated section_index: {section_index}")
+    # st.write(f"DEBUG: Value at that index: {section_list[section_index] if section_index < len(section_list) else 'OUT OF RANGE'}")
+
+    # Selectbox
     selected_section = st.selectbox(
         label="🔩 Select Section:",
         options=section_list,
         index=section_index,
+        format_func=lambda x: str(x),
         help="Select steel section from database"
     )
+
+    # st.write(f"DEBUG: Selectbox returned: {selected_section}")
 
     # Always update session state
     st.session_state.selected_section = selected_section
