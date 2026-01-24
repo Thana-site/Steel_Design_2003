@@ -6137,6 +6137,7 @@ with st.sidebar:
     # Custom HTML dropdown for material
     st.markdown("**⚙️ Steel Grade:**")
     material_html = f"""
+    <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.0.0/dist/streamlit-component-lib.js"></script>
     <select id="material_select" style="width: 100%; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
         {material_options}
     </select>
@@ -6145,11 +6146,7 @@ with st.sidebar:
         select.value = '{st.session_state.selected_material}';
 
         select.addEventListener('change', function() {{
-            window.parent.postMessage({{
-                type: 'streamlit:setComponentValue',
-                key: 'material_changed',
-                value: this.value
-            }}, '*');
+            window.parent.Streamlit.setComponentValue(this.value);
         }});
     </script>
     """
@@ -6200,6 +6197,7 @@ with st.sidebar:
     # Custom HTML dropdown for section
     st.markdown("**🔩 Select Section:**")
     section_html = f"""
+    <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.0.0/dist/streamlit-component-lib.js"></script>
     <select id="section_select" style="width: 100%; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
         {section_options}
     </select>
@@ -6208,11 +6206,7 @@ with st.sidebar:
         select.value = '{st.session_state.selected_section}';
 
         select.addEventListener('change', function() {{
-            window.parent.postMessage({{
-                type: 'streamlit:setComponentValue',
-                key: 'section_changed',
-                value: this.value
-            }}, '*');
+            window.parent.Streamlit.setComponentValue(this.value);
         }});
     </script>
     """
