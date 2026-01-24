@@ -6065,17 +6065,24 @@ if not success:
     st.error("❌ Failed to load data. Please check your internet connection.")
     st.stop()
 
-# ==================== SESSION STATE INITIALIZATION (MOVED HERE) ====================
+# ==================== SESSION STATE INITIALIZATION (SAFE) ====================
+# Initialize ALL session state variables here, AFTER data is loaded
+
 if 'selected_section' not in st.session_state:
     st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
+
 if 'selected_material' not in st.session_state:
     st.session_state.selected_material = list(df_mat.index)[0] if len(df_mat.index) > 0 else None
+
 if 'selected_sections' not in st.session_state:
     st.session_state.selected_sections = []
+
 if 'calculation_report' not in st.session_state:
     st.session_state.calculation_report = ""
+
 if 'evaluation_results' not in st.session_state:
     st.session_state.evaluation_results = None
+
 if 'project_info' not in st.session_state:
     st.session_state.project_info = {
         'project_name': '',
@@ -6085,6 +6092,21 @@ if 'project_info' not in st.session_state:
         'date': datetime.now().strftime('%Y-%m-%d'),
         'revision': '0'
     }
+
+if 'report_members' not in st.session_state:
+    st.session_state.report_members = []
+
+if 'generated_report' not in st.session_state:
+    st.session_state.generated_report = None
+
+if 'loaded_data' not in st.session_state:
+    st.session_state.loaded_data = None
+
+if 'member_groups' not in st.session_state:
+    st.session_state.member_groups = {}
+
+if 'analysis_results_tab5' not in st.session_state:
+    st.session_state.analysis_results_tab5 = {}
 
 # ==================== LIBRARY STATUS WARNINGS ====================
 if not PDF_AVAILABLE:
