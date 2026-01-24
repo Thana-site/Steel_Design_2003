@@ -169,7 +169,1161 @@ class NumberedCanvas(canvas.Canvas):
                             f"Page {self._pageNumber} of {page_count}")
         self.drawString(0.75*inch, 0.4*inch, 
                        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+# ==================== HELPER FUNCTIONS ====================
 
+def safe_scalar(value):
+    """Convert pandas Series or array to scalar value"""
+    if hasattr(value, 'iloc'):
+        return float(value.iloc[0])
+    elif hasattr(value, '__len__') and not isinstance(value, str):
+        return float(value[0])
+    return float(value)
+
+def format_number(value, decimals=2):
+    """Format number with specified decimals"""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return "—"
+    return f"{value:,.{decimals}f}"
+
+def format_equation_result(value, decimals=2, unit=""):
+    """Format equation result with unit"""
+    formatted = format_number(value, decimals)
+    if unit:
+        return f"{formatted} {unit}"
+    return formatted
+
+# ==================== SECTION CLASSIFICATION ====================
+
+def classify_section_flange(bf, tf, tw, d, Fy, E=200000):
+    """
+    Classify section flange per AISC 360-16 Table B4.1b
+    Returns: 'Compact', 'Noncompact', or 'Slender'
+    """
+    # Flange slenderness ratio
+    lambda_f = bf / (2 * tf)
+    
+    # Limiting ratios (Table B4.1b Case 10 - I-shaped rolled sections)
+    lambda_pf = 0.38 * math.sqrt(E / Fy)  # Compact limit
+    lambda_rf = 1.0 * math.sqrt(E / Fy)   # Noncompact limit
+    
+    if lambda_f <= lambda_pf:
+        return 'Compact', lambda_f, lambda_pf, lambda_rf
+    elif lambda_f <= lambda_rf:
+        return 'Noncompact', lambda_f, lambda_pf, lambda_rf
+    else:
+        return 'Slender', lambda_f, lambda_pf, lambda_rf
+
+def classify_section_web(h, tw, Fy, E=200000):
+    """
+    Classify section web per AISC 360-16 Table B4.1b
+    Returns: 'Compact', 'Noncompact', or 'Slender'
+    """
+    # Web slenderness ratio
+    lambda_w = h / tw
+    
+    # Limiting ratios (Table B4.1b Case 15 - Webs in flexure)
+    lambda_pw = 3.76 * math.sqrt(E / Fy)  # Compact limit
+    lambda_rw = 5.70 * math.sqrt(E / Fy)  # Noncompact limit
+    
+    if lambda_w <= lambda_pw:
+        return 'Compact', lambda_w, lambda_pw, lambda_rw
+    elif lambda_w <= lambda_rw:
+        return 'Noncompact', lambda_w, lambda_pw, lambda_rw
+    else:
+        return 'Slender', lambda_w, lambda_pw, lambda_rw
+
+def get_overall_classification(flange_class, web_class):
+    """Get overall section classification"""
+    classes = ['Compact', 'Noncompact', 'Slender']
+    return classes[max(classes.index(flange_class), classes.index(web_class))]
+
+# ==================== FLEXURAL STRENGTH (AISC F2) ====================
+
+def calculate_flexural_strength(section_props, Lb, Cb=1.0, E=200000):
+    """
+    Calculate flexural strength per AISC 360-16 Chapter F2
+    Returns dict with all calculation steps
+    """
+    Fy = section_props['Fy']
+    Zx = section_props['Zx']
+    Sx = section_props['Sx']
+    Iy = section_props['Iy']
+    ry = section_props['ry']
+    J = section_props.get('J', 0)
+    Cw = section_props.get('Cw', 0)
+    ho = section_props.get('ho', section_props.get('d', 0) - section_props.get('tf', 0))
+    rts = section_props.get('rts', ry)
+    
+    # Convert units if needed (assuming cm to mm)
+    Zx_mm3 = Zx * 1000  # cm³ to mm³
+    Sx_mm3 = Sx * 1000
+    Iy_mm4 = Iy * 10000  # cm⁴ to mm⁴
+    ry_mm = ry * 10
+    Lb_mm = Lb * 1000  # m to mm
+    J_mm4 = J * 10000 if J else 1
+    Cw_mm6 = Cw * 1000000 if Cw else 1
+    ho_mm = ho * 10 if ho else 1
+    rts_mm = rts * 10 if rts else ry_mm
+    c = 1.0  # For doubly symmetric I-shapes
+    
+    # Plastic moment
+    Mp = Fy * Zx_mm3 / 1e6  # kN·m
+    
+    # Limiting lengths
+    Lp = 1.76 * ry_mm * math.sqrt(E / Fy)  # mm
+    
+    # Lr calculation
+    try:
+        term1 = (J_mm4 * c) / (Sx_mm3 * ho_mm)
+        term2 = math.sqrt(term1**2 + 6.76 * (0.7 * Fy / E)**2)
+        Lr = 1.95 * rts_mm * (E / (0.7 * Fy)) * math.sqrt(term1 + term2)
+    except:
+        Lr = Lp * 3  # Fallback estimate
+    
+    # Determine limit state
+    if Lb_mm <= Lp:
+        # Case (a): Yielding - Compact section, full plastic moment
+        Mn = Mp
+        limit_state = "Yielding (Lb ≤ Lp)"
+        case = "F2-1"
+        Fcr = Fy  # Not applicable but set for reference
+    elif Lb_mm <= Lr:
+        # Case (b): Inelastic LTB
+        Mn = Cb * (Mp - (Mp - 0.7 * Fy * Sx_mm3 / 1e6) * (Lb_mm - Lp) / (Lr - Lp))
+        Mn = min(Mn, Mp)
+        limit_state = "Inelastic LTB (Lp < Lb ≤ Lr)"
+        case = "F2-2"
+        Fcr = Cb * (Fy - (Fy - 0.7 * Fy) * (Lb_mm - Lp) / (Lr - Lp))
+    else:
+        # Case (c): Elastic LTB
+        try:
+            term_a = (Cb * math.pi**2 * E) / (Lb_mm / rts_mm)**2
+            term_b = math.sqrt(1 + 0.078 * (J_mm4 * c / (Sx_mm3 * ho_mm)) * (Lb_mm / rts_mm)**2)
+            Fcr = term_a * term_b
+        except:
+            Fcr = 0.7 * Fy
+        Mn = Fcr * Sx_mm3 / 1e6
+        Mn = min(Mn, Mp)
+        limit_state = "Elastic LTB (Lb > Lr)"
+        case = "F2-3"
+    
+    # Design strength
+    phi = 0.90
+    phi_Mn = phi * Mn
+    
+    return {
+        'Mp': Mp,
+        'Mn': Mn,
+        'phi': phi,
+        'phi_Mn': phi_Mn,
+        'Lp': Lp / 1000,  # Convert back to m
+        'Lr': Lr / 1000,
+        'Lb': Lb,
+        'Cb': Cb,
+        'Fcr': Fcr,
+        'limit_state': limit_state,
+        'case': case,
+        'Fy': Fy,
+        'Zx': Zx,
+        'Sx': Sx
+    }
+
+# ==================== AXIAL STRENGTH (AISC E3) ====================
+
+def calculate_compression_strength(section_props, KL_x, KL_y, E=200000):
+    """
+    Calculate compression strength per AISC 360-16 Chapter E3
+    Returns dict with all calculation steps
+    """
+    Fy = section_props['Fy']
+    Ag = section_props['Ag']
+    rx = section_props['rx']
+    ry = section_props['ry']
+    
+    # Convert units
+    Ag_mm2 = Ag * 100  # cm² to mm²
+    rx_mm = rx * 10  # cm to mm
+    ry_mm = ry * 10
+    KLx_mm = KL_x * 1000  # m to mm
+    KLy_mm = KL_y * 1000
+    
+    # Slenderness ratios
+    lambda_x = KLx_mm / rx_mm
+    lambda_y = KLy_mm / ry_mm
+    lambda_governing = max(lambda_x, lambda_y)
+    governing_axis = 'x' if lambda_x >= lambda_y else 'y'
+    
+    # Elastic buckling stress
+    Fe = (math.pi**2 * E) / lambda_governing**2
+    
+    # Limiting slenderness
+    lambda_limit = 4.71 * math.sqrt(E / Fy)
+    
+    # Critical stress
+    if lambda_governing <= lambda_limit:
+        # Inelastic buckling (E3-2)
+        Fcr = 0.658**(Fy / Fe) * Fy
+        buckling_mode = "Inelastic"
+        equation = "E3-2"
+    else:
+        # Elastic buckling (E3-3)
+        Fcr = 0.877 * Fe
+        buckling_mode = "Elastic"
+        equation = "E3-3"
+    
+    # Nominal and design strength
+    Pn = Fcr * Ag_mm2 / 1000  # kN
+    phi = 0.90
+    phi_Pn = phi * Pn
+    
+    return {
+        'Pn': Pn,
+        'phi': phi,
+        'phi_Pn': phi_Pn,
+        'Fcr': Fcr,
+        'Fe': Fe,
+        'lambda_x': lambda_x,
+        'lambda_y': lambda_y,
+        'lambda_governing': lambda_governing,
+        'lambda_limit': lambda_limit,
+        'governing_axis': governing_axis,
+        'buckling_mode': buckling_mode,
+        'equation': equation,
+        'KL_x': KL_x,
+        'KL_y': KL_y,
+        'Ag': Ag,
+        'Fy': Fy
+    }
+
+def calculate_tension_strength(section_props, E=200000):
+    """
+    Calculate tension strength per AISC 360-16 Chapter D
+    Returns dict with all calculation steps
+    """
+    Fy = section_props['Fy']
+    Fu = section_props.get('Fu', 1.2 * Fy)  # Estimate if not provided
+    Ag = section_props['Ag']
+    Ae = section_props.get('Ae', 0.85 * Ag)  # Effective area, default 85%
+    
+    # Convert units
+    Ag_mm2 = Ag * 100
+    Ae_mm2 = Ae * 100
+    
+    # Yielding on gross section (D2-1)
+    Pn_yield = Fy * Ag_mm2 / 1000  # kN
+    phi_yield = 0.90
+    
+    # Rupture on net section (D2-2)
+    Pn_rupture = Fu * Ae_mm2 / 1000  # kN
+    phi_rupture = 0.75
+    
+    # Design strength (governing)
+    phi_Pn_yield = phi_yield * Pn_yield
+    phi_Pn_rupture = phi_rupture * Pn_rupture
+    
+    if phi_Pn_yield <= phi_Pn_rupture:
+        governing = "Yielding (D2-1)"
+        phi_Pn = phi_Pn_yield
+        Pn = Pn_yield
+        phi = phi_yield
+    else:
+        governing = "Rupture (D2-2)"
+        phi_Pn = phi_Pn_rupture
+        Pn = Pn_rupture
+        phi = phi_rupture
+    
+    return {
+        'Pn_yield': Pn_yield,
+        'Pn_rupture': Pn_rupture,
+        'phi_yield': phi_yield,
+        'phi_rupture': phi_rupture,
+        'phi_Pn_yield': phi_Pn_yield,
+        'phi_Pn_rupture': phi_Pn_rupture,
+        'Pn': Pn,
+        'phi': phi,
+        'phi_Pn': phi_Pn,
+        'governing': governing,
+        'Ag': Ag,
+        'Ae': Ae,
+        'Fy': Fy,
+        'Fu': Fu
+    }
+
+# ==================== COMBINED FORCES (AISC H1) ====================
+
+def calculate_interaction(Pu, phi_Pn, Mux, phi_Mnx, Muy=0, phi_Mny=None, is_tension=False):
+    """
+    Calculate combined force interaction per AISC 360-16 Chapter H1
+    Returns dict with all calculation steps
+    """
+    if phi_Mny is None:
+        phi_Mny = phi_Mnx * 0.5  # Estimate for minor axis
+    
+    Pr = abs(Pu)
+    Pc = phi_Pn
+    Mrx = abs(Mux)
+    Mcx = phi_Mnx
+    Mry = abs(Muy)
+    Mcy = phi_Mny
+    
+    # Axial ratio
+    axial_ratio = Pr / Pc if Pc > 0 else 999
+    
+    if is_tension or Pu < 0:
+        # Tension + Bending: Linear interaction
+        moment_ratio_x = Mrx / Mcx if Mcx > 0 else 0
+        moment_ratio_y = Mry / Mcy if Mcy > 0 else 0
+        
+        interaction_ratio = axial_ratio + moment_ratio_x + moment_ratio_y
+        equation_used = "H1-1 (Modified for Tension)"
+        equation_text = "Pu/φPn + Mux/φMnx + Muy/φMny ≤ 1.0"
+    else:
+        # Compression + Bending: AISC H1
+        if axial_ratio >= 0.2:
+            # Equation H1-1a
+            moment_term = (Mrx / Mcx + Mry / Mcy) if Mcx > 0 and Mcy > 0 else 0
+            interaction_ratio = axial_ratio + (8.0 / 9.0) * moment_term
+            equation_used = "H1-1a"
+            equation_text = "Pu/φPn + (8/9)(Mux/φMnx + Muy/φMny) ≤ 1.0"
+        else:
+            # Equation H1-1b
+            moment_term = (Mrx / Mcx + Mry / Mcy) if Mcx > 0 and Mcy > 0 else 0
+            interaction_ratio = axial_ratio / 2.0 + moment_term
+            equation_used = "H1-1b"
+            equation_text = "Pu/(2φPn) + (Mux/φMnx + Muy/φMny) ≤ 1.0"
+    
+    design_ok = interaction_ratio <= 1.0
+    
+    return {
+        'Pu': Pu,
+        'phi_Pn': phi_Pn,
+        'Mux': Mux,
+        'phi_Mnx': phi_Mnx,
+        'Muy': Muy,
+        'phi_Mny': phi_Mny,
+        'axial_ratio': axial_ratio,
+        'interaction_ratio': interaction_ratio,
+        'equation_used': equation_used,
+        'equation_text': equation_text,
+        'design_ok': design_ok,
+        'is_tension': is_tension or Pu < 0
+    }
+
+# ==================== HTML REPORT GENERATOR ====================
+
+class SteelDesignReportGenerator:
+    """Generate steel member design reports in HTML format"""
+    
+    def __init__(self, project_info=None):
+        self.project_info = project_info or {}
+        self.members = []
+        self.report_date = datetime.now().strftime("%Y-%m-%d")
+        
+    def add_member(self, member_data):
+        """Add a member to the report"""
+        self.members.append(member_data)
+    
+    def _get_css_styles(self):
+        """Return CSS styles for the report"""
+        return """
+        <style>
+            * { box-sizing: border-box; }
+            body { 
+                font-family: 'Segoe UI', Arial, sans-serif; 
+                font-size: 10pt; 
+                line-height: 1.4;
+                color: #333;
+                max-width: 210mm;
+                margin: 0 auto;
+                padding: 15mm;
+            }
+            .report-header {
+                text-align: center;
+                border-bottom: 2px solid #2c3e50;
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+            }
+            .report-title { 
+                font-size: 16pt; 
+                font-weight: bold; 
+                color: #2c3e50;
+                margin: 0;
+            }
+            .report-subtitle {
+                font-size: 11pt;
+                color: #666;
+                margin: 5px 0;
+            }
+            .member-section {
+                page-break-inside: avoid;
+                margin-bottom: 25px;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                padding: 15px;
+                background: #fafafa;
+            }
+            .member-header {
+                background: #2c3e50;
+                color: white;
+                padding: 8px 12px;
+                margin: -15px -15px 15px -15px;
+                border-radius: 5px 5px 0 0;
+                font-size: 12pt;
+                font-weight: bold;
+            }
+            .section-title {
+                font-size: 11pt;
+                font-weight: bold;
+                color: #2c3e50;
+                border-bottom: 1px solid #2c3e50;
+                padding-bottom: 3px;
+                margin: 15px 0 10px 0;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10px 0;
+                font-size: 9pt;
+            }
+            th, td {
+                border: 1px solid #ccc;
+                padding: 6px 8px;
+                text-align: left;
+                vertical-align: middle;
+            }
+            th {
+                background: #ecf0f1;
+                font-weight: bold;
+                color: #2c3e50;
+            }
+            .calc-table th:first-child { width: 25%; }
+            .calc-table th:nth-child(2) { width: 30%; }
+            .calc-table th:nth-child(3) { width: 25%; }
+            .calc-table th:nth-child(4) { width: 20%; }
+            .equation { 
+                font-family: 'Cambria Math', 'Times New Roman', serif;
+                font-style: italic;
+            }
+            .result { 
+                font-weight: bold; 
+                color: #2c3e50;
+            }
+            .pass { 
+                background: #d4edda; 
+                color: #155724;
+                font-weight: bold;
+            }
+            .fail { 
+                background: #f8d7da; 
+                color: #721c24;
+                font-weight: bold;
+            }
+            .warning {
+                background: #fff3cd;
+                color: #856404;
+                font-weight: bold;
+            }
+            .governing {
+                background: #cce5ff;
+                font-weight: bold;
+            }
+            .conclusion-box {
+                border: 2px solid #2c3e50;
+                border-radius: 5px;
+                padding: 12px;
+                margin-top: 15px;
+            }
+            .conclusion-pass {
+                border-color: #28a745;
+                background: #d4edda;
+            }
+            .conclusion-fail {
+                border-color: #dc3545;
+                background: #f8d7da;
+            }
+            .unit { 
+                font-size: 8pt; 
+                color: #666; 
+            }
+            .note {
+                font-size: 8pt;
+                color: #666;
+                font-style: italic;
+                margin: 5px 0;
+            }
+            @media print {
+                body { padding: 10mm; }
+                .member-section { page-break-inside: avoid; }
+            }
+        </style>
+        """
+    
+    def _generate_member_geometry_table(self, member):
+        """Generate Member & Geometry Summary table"""
+        html = """
+        <div class="section-title">1. Member & Geometry Summary</div>
+        <table>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Parameter</th>
+                <th>Value</th>
+            </tr>
+        """
+        
+        params = [
+            ('Member No.', member.get('member_no', '—')),
+            ('Member Type', member.get('member_type', '—')),
+            ('Length (m)', format_number(member.get('length', 0), 2)),
+            ('K Factor', format_number(member.get('K', 1.0), 2)),
+            ('KL (m)', format_number(member.get('KL', 0), 2)),
+            ('Lb (m)', format_number(member.get('Lb', 0), 2)),
+        ]
+        
+        for i in range(0, len(params), 2):
+            p1 = params[i]
+            p2 = params[i+1] if i+1 < len(params) else ('', '')
+            html += f"""
+            <tr>
+                <td><b>{p1[0]}</b></td>
+                <td>{p1[1]}</td>
+                <td><b>{p2[0]}</b></td>
+                <td>{p2[1]}</td>
+            </tr>
+            """
+        
+        html += "</table>"
+        return html
+    
+    def _generate_section_properties_table(self, member):
+        """Generate Section Properties & Classification table"""
+        section = member.get('section_props', {})
+        classification = member.get('classification', 'Compact')
+        
+        html = """
+        <div class="section-title">2. Section Properties & Classification</div>
+        <table>
+            <tr>
+                <th>Property</th>
+                <th>Value</th>
+                <th>Property</th>
+                <th>Value</th>
+            </tr>
+        """
+        
+        props = [
+            ('Section', member.get('section_name', '—')),
+            ('Ag (cm²)', format_number(section.get('Ag', 0), 2)),
+            ('Ix (cm⁴)', format_number(section.get('Ix', 0), 1)),
+            ('Iy (cm⁴)', format_number(section.get('Iy', 0), 1)),
+            ('Sx (cm³)', format_number(section.get('Sx', 0), 1)),
+            ('Zx (cm³)', format_number(section.get('Zx', 0), 1)),
+            ('rx (cm)', format_number(section.get('rx', 0), 2)),
+            ('ry (cm)', format_number(section.get('ry', 0), 2)),
+            ('Fy (MPa)', format_number(section.get('Fy', 0), 0)),
+            ('E (MPa)', '200,000'),
+            ('Classification', f"<b>{classification}</b>"),
+            ('', ''),
+        ]
+        
+        for i in range(0, len(props), 2):
+            p1 = props[i]
+            p2 = props[i+1] if i+1 < len(props) else ('', '')
+            html += f"""
+            <tr>
+                <td><b>{p1[0]}</b></td>
+                <td>{p1[1]}</td>
+                <td><b>{p2[0]}</b></td>
+                <td>{p2[1]}</td>
+            </tr>
+            """
+        
+        html += "</table>"
+        return html
+    
+    def _generate_flexural_strength_table(self, member):
+        """Generate Flexural Strength Calculation table"""
+        flex = member.get('flexural_results', {})
+        section = member.get('section_props', {})
+        classification = member.get('classification', 'Compact')
+        
+        # Determine which section modulus to use
+        use_Zx = classification == 'Compact'
+        S_used = section.get('Zx', 0) if use_Zx else section.get('Sx', 0)
+        S_label = 'Zx' if use_Zx else 'Sx'
+        
+        html = f"""
+        <div class="section-title">3. Flexural Strength Calculation (AISC F2)</div>
+        <p class="note">Limit State: {flex.get('limit_state', '—')} | Equation: {flex.get('case', '—')}</p>
+        <table class="calc-table">
+            <tr>
+                <th>Item</th>
+                <th>Expression</th>
+                <th>Substitution</th>
+                <th>Result</th>
+            </tr>
+            <tr>
+                <td>Limiting Length Lp</td>
+                <td class="equation">Lp = 1.76·ry·√(E/Fy)</td>
+                <td>1.76 × {format_number(section.get('ry', 0)*10, 1)} × √(200000/{format_number(section.get('Fy', 0), 0)})</td>
+                <td class="result">{format_number(flex.get('Lp', 0), 3)} m</td>
+            </tr>
+            <tr>
+                <td>Limiting Length Lr</td>
+                <td class="equation">Lr (per AISC F2-6)</td>
+                <td>—</td>
+                <td class="result">{format_number(flex.get('Lr', 0), 3)} m</td>
+            </tr>
+            <tr>
+                <td>Plastic Moment Mp</td>
+                <td class="equation">Mp = Fy·Zx</td>
+                <td>{format_number(section.get('Fy', 0), 0)} × {format_number(section.get('Zx', 0)*1000, 0)} / 10⁶</td>
+                <td class="result">{format_number(flex.get('Mp', 0), 2)} kN·m</td>
+            </tr>
+            <tr>
+                <td>Nominal Moment Mn</td>
+                <td class="equation">Mn = Fy·{S_label} (or LTB)</td>
+                <td>Per {flex.get('case', 'F2-1')}</td>
+                <td class="result">{format_number(flex.get('Mn', 0), 2)} kN·m</td>
+            </tr>
+            <tr>
+                <td>Resistance Factor</td>
+                <td class="equation">φb = 0.90</td>
+                <td>—</td>
+                <td class="result">0.90</td>
+            </tr>
+            <tr>
+                <td><b>Design Strength φMn</b></td>
+                <td class="equation">φMn = φb × Mn</td>
+                <td>0.90 × {format_number(flex.get('Mn', 0), 2)}</td>
+                <td class="result"><b>{format_number(flex.get('phi_Mn', 0), 2)} kN·m</b></td>
+            </tr>
+        </table>
+        <p class="note">Note: {'Using Zx for compact section' if use_Zx else 'Using Sx for noncompact/slender section per F2'}</p>
+        """
+        return html
+    
+    def _generate_compression_strength_table(self, member):
+        """Generate Compression Strength Calculation table"""
+        comp = member.get('compression_results', {})
+        section = member.get('section_props', {})
+        
+        html = f"""
+        <div class="section-title">4. Compression Strength Calculation (AISC E3)</div>
+        <p class="note">Buckling Mode: {comp.get('buckling_mode', '—')} | Equation: {comp.get('equation', '—')} | Governing Axis: {comp.get('governing_axis', '—')}</p>
+        <table class="calc-table">
+            <tr>
+                <th>Item</th>
+                <th>Expression</th>
+                <th>Substitution</th>
+                <th>Result</th>
+            </tr>
+            <tr>
+                <td>Slenderness (x-axis)</td>
+                <td class="equation">λx = KLx / rx</td>
+                <td>{format_number(member.get('KL', 0)*1000, 0)} / {format_number(section.get('rx', 0)*10, 1)}</td>
+                <td class="result">{format_number(comp.get('lambda_x', 0), 1)}</td>
+            </tr>
+            <tr>
+                <td>Slenderness (y-axis)</td>
+                <td class="equation">λy = KLy / ry</td>
+                <td>{format_number(member.get('KL', 0)*1000, 0)} / {format_number(section.get('ry', 0)*10, 1)}</td>
+                <td class="result">{format_number(comp.get('lambda_y', 0), 1)}</td>
+            </tr>
+            <tr>
+                <td>Limiting Slenderness</td>
+                <td class="equation">4.71·√(E/Fy)</td>
+                <td>4.71 × √(200000/{format_number(section.get('Fy', 0), 0)})</td>
+                <td class="result">{format_number(comp.get('lambda_limit', 0), 1)}</td>
+            </tr>
+            <tr>
+                <td>Euler Stress Fe</td>
+                <td class="equation">Fe = π²E / λ²</td>
+                <td>π² × 200000 / {format_number(comp.get('lambda_governing', 0), 1)}²</td>
+                <td class="result">{format_number(comp.get('Fe', 0), 1)} MPa</td>
+            </tr>
+            <tr>
+                <td>Critical Stress Fcr</td>
+                <td class="equation">{comp.get('equation', 'E3-2/E3-3')}</td>
+                <td>Per AISC E3</td>
+                <td class="result">{format_number(comp.get('Fcr', 0), 1)} MPa</td>
+            </tr>
+            <tr>
+                <td>Nominal Strength Pn</td>
+                <td class="equation">Pn = Fcr × Ag</td>
+                <td>{format_number(comp.get('Fcr', 0), 1)} × {format_number(section.get('Ag', 0)*100, 0)} / 1000</td>
+                <td class="result">{format_number(comp.get('Pn', 0), 1)} kN</td>
+            </tr>
+            <tr>
+                <td>Resistance Factor</td>
+                <td class="equation">φc = 0.90</td>
+                <td>—</td>
+                <td class="result">0.90</td>
+            </tr>
+            <tr>
+                <td><b>Design Strength φPn</b></td>
+                <td class="equation">φPn = φc × Pn</td>
+                <td>0.90 × {format_number(comp.get('Pn', 0), 1)}</td>
+                <td class="result"><b>{format_number(comp.get('phi_Pn', 0), 1)} kN</b></td>
+            </tr>
+        </table>
+        """
+        return html
+    
+    def _generate_tension_strength_table(self, member):
+        """Generate Tension Strength Calculation table"""
+        tens = member.get('tension_results', {})
+        section = member.get('section_props', {})
+        
+        html = f"""
+        <div class="section-title">4. Tension Strength Calculation (AISC D2)</div>
+        <p class="note">Governing Limit State: {tens.get('governing', '—')}</p>
+        <table class="calc-table">
+            <tr>
+                <th>Item</th>
+                <th>Expression</th>
+                <th>Substitution</th>
+                <th>Result</th>
+            </tr>
+            <tr>
+                <td>Yielding on Gross Section</td>
+                <td class="equation">Pn = Fy × Ag</td>
+                <td>{format_number(section.get('Fy', 0), 0)} × {format_number(section.get('Ag', 0)*100, 0)} / 1000</td>
+                <td class="result">{format_number(tens.get('Pn_yield', 0), 1)} kN</td>
+            </tr>
+            <tr>
+                <td>Design Strength (Yield)</td>
+                <td class="equation">φPn = 0.90 × Pn</td>
+                <td>0.90 × {format_number(tens.get('Pn_yield', 0), 1)}</td>
+                <td class="result">{format_number(tens.get('phi_Pn_yield', 0), 1)} kN</td>
+            </tr>
+            <tr>
+                <td>Rupture on Net Section</td>
+                <td class="equation">Pn = Fu × Ae</td>
+                <td>{format_number(tens.get('Fu', 0), 0)} × {format_number(tens.get('Ae', 0)*100, 0)} / 1000</td>
+                <td class="result">{format_number(tens.get('Pn_rupture', 0), 1)} kN</td>
+            </tr>
+            <tr>
+                <td>Design Strength (Rupture)</td>
+                <td class="equation">φPn = 0.75 × Pn</td>
+                <td>0.75 × {format_number(tens.get('Pn_rupture', 0), 1)}</td>
+                <td class="result">{format_number(tens.get('phi_Pn_rupture', 0), 1)} kN</td>
+            </tr>
+            <tr>
+                <td><b>Design Strength φPn</b></td>
+                <td class="equation">Min(φPn_yield, φPn_rupture)</td>
+                <td>Governing: {tens.get('governing', '—')}</td>
+                <td class="result"><b>{format_number(tens.get('phi_Pn', 0), 1)} kN</b></td>
+            </tr>
+        </table>
+        """
+        return html
+    
+    def _generate_load_combination_table(self, member):
+        """Generate Load Combination Summary table"""
+        loads = member.get('loads', [])
+        
+        html = """
+        <div class="section-title">5. Load Combination Summary</div>
+        <table>
+            <tr>
+                <th>Load Comb.</th>
+                <th>Pu (kN)</th>
+                <th>Mux (kN·m)</th>
+                <th>Muy (kN·m)</th>
+                <th>Load Type</th>
+            </tr>
+        """
+        
+        for load in loads:
+            Pu = load.get('Pu', 0)
+            load_type = "Compression" if Pu > 0 else ("Tension" if Pu < 0 else "—")
+            html += f"""
+            <tr>
+                <td>{load.get('LC', '—')}</td>
+                <td>{format_number(Pu, 1)}</td>
+                <td>{format_number(load.get('Mux', 0), 2)}</td>
+                <td>{format_number(load.get('Muy', 0), 2)}</td>
+                <td>{load_type}</td>
+            </tr>
+            """
+        
+        html += "</table>"
+        return html
+    
+    def _generate_interaction_table(self, member):
+        """Generate Combined Force Check table"""
+        interactions = member.get('interaction_results', [])
+        
+        if not interactions:
+            return ""
+        
+        html = """
+        <div class="section-title">6. Combined Force Check (AISC H1)</div>
+        <table>
+            <tr>
+                <th>LC</th>
+                <th>Equation</th>
+                <th>Substitution</th>
+                <th>Ratio</th>
+                <th>Status</th>
+            </tr>
+        """
+        
+        # Find governing (max ratio)
+        max_ratio = max(i.get('interaction_ratio', 0) for i in interactions)
+        
+        for inter in interactions:
+            ratio = inter.get('interaction_ratio', 0)
+            is_governing = (ratio == max_ratio)
+            status_class = 'pass' if ratio <= 1.0 else 'fail'
+            row_class = 'governing' if is_governing else ''
+            status = "OK" if ratio <= 1.0 else "NG"
+            
+            # Build substitution string
+            Pu = inter.get('Pu', 0)
+            phi_Pn = inter.get('phi_Pn', 1)
+            Mux = inter.get('Mux', 0)
+            phi_Mnx = inter.get('phi_Mnx', 1)
+            
+            if inter.get('is_tension', False):
+                subst = f"|{format_number(Pu, 1)}|/{format_number(phi_Pn, 1)} + {format_number(Mux, 2)}/{format_number(phi_Mnx, 2)}"
+            else:
+                axial_ratio = abs(Pu) / phi_Pn if phi_Pn > 0 else 0
+                if axial_ratio >= 0.2:
+                    subst = f"{format_number(abs(Pu), 1)}/{format_number(phi_Pn, 1)} + (8/9)({format_number(Mux, 2)}/{format_number(phi_Mnx, 2)})"
+                else:
+                    subst = f"{format_number(abs(Pu), 1)}/(2×{format_number(phi_Pn, 1)}) + {format_number(Mux, 2)}/{format_number(phi_Mnx, 2)}"
+            
+            gov_marker = " ★" if is_governing else ""
+            
+            html += f"""
+            <tr class="{row_class}">
+                <td>{inter.get('LC', '—')}{gov_marker}</td>
+                <td class="equation">{inter.get('equation_used', '—')}</td>
+                <td>{subst}</td>
+                <td class="result">{format_number(ratio, 3)}</td>
+                <td class="{status_class}">{status}</td>
+            </tr>
+            """
+        
+        html += "</table>"
+        html += '<p class="note">★ = Governing Load Combination</p>'
+        return html
+    
+    def _generate_conclusion(self, member):
+        """Generate Design Conclusion section"""
+        interactions = member.get('interaction_results', [])
+        
+        if not interactions:
+            max_ratio = 0
+            governing_lc = "—"
+            governing_state = "—"
+        else:
+            max_idx = max(range(len(interactions)), key=lambda i: interactions[i].get('interaction_ratio', 0))
+            max_inter = interactions[max_idx]
+            max_ratio = max_inter.get('interaction_ratio', 0)
+            governing_lc = max_inter.get('LC', '—')
+            governing_state = max_inter.get('equation_used', '—')
+        
+        design_ok = max_ratio <= 1.0
+        status_class = 'conclusion-pass' if design_ok else 'conclusion-fail'
+        status_text = 'PASS ✓' if design_ok else 'FAIL ✗'
+        
+        html = f"""
+        <div class="section-title">7. Design Conclusion</div>
+        <div class="conclusion-box {status_class}">
+            <table>
+                <tr>
+                    <th>Item</th>
+                    <th>Result</th>
+                </tr>
+                <tr>
+                    <td>Governing Load Combination</td>
+                    <td><b>LC-{governing_lc}</b></td>
+                </tr>
+                <tr>
+                    <td>Governing Limit State</td>
+                    <td><b>{governing_state}</b></td>
+                </tr>
+                <tr>
+                    <td>Maximum Strength Ratio</td>
+                    <td><b>{format_number(max_ratio, 3)}</b></td>
+                </tr>
+                <tr>
+                    <td>Design Status</td>
+                    <td class="{'pass' if design_ok else 'fail'}" style="font-size: 12pt;"><b>{status_text}</b></td>
+                </tr>
+            </table>
+        </div>
+        """
+        return html
+    
+    def generate_member_report(self, member):
+        """Generate complete report section for one member"""
+        member_type = member.get('member_type', 'Beam-Column')
+        
+        html = f"""
+        <div class="member-section">
+            <div class="member-header">
+                Member: {member.get('member_no', '—')} | Section: {member.get('section_name', '—')} | Type: {member_type}
+            </div>
+        """
+        
+        # 1. Member & Geometry Summary
+        html += self._generate_member_geometry_table(member)
+        
+        # 2. Section Properties & Classification
+        html += self._generate_section_properties_table(member)
+        
+        # 3. Flexural Strength (if applicable)
+        if member_type in ['Beam', 'Beam-Column']:
+            html += self._generate_flexural_strength_table(member)
+        
+        # 4. Axial Strength
+        if member_type in ['Column', 'Beam-Column']:
+            html += self._generate_compression_strength_table(member)
+        elif member_type == 'Tension Member':
+            html += self._generate_tension_strength_table(member)
+        
+        # 5. Load Combination Summary
+        html += self._generate_load_combination_table(member)
+        
+        # 6. Combined Force Check (if beam-column)
+        if member_type in ['Beam-Column', 'Column']:
+            html += self._generate_interaction_table(member)
+        
+        # 7. Design Conclusion
+        html += self._generate_conclusion(member)
+        
+        html += "</div>"
+        return html
+    
+    def generate_full_report(self):
+        """Generate complete HTML report for all members"""
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Steel Design Report</title>
+            {self._get_css_styles()}
+        </head>
+        <body>
+            <div class="report-header">
+                <h1 class="report-title">STEEL MEMBER DESIGN REPORT</h1>
+                <p class="report-subtitle">AISC 360-16 Specification for Structural Steel Buildings</p>
+                <p class="report-subtitle">
+                    Project: {self.project_info.get('name', '—')} | 
+                    Date: {self.report_date} |
+                    Prepared by: {self.project_info.get('engineer', '—')}
+                </p>
+            </div>
+        """
+        
+        # Generate report for each member
+        for member in self.members:
+            html += self.generate_member_report(member)
+        
+        html += """
+        </body>
+        </html>
+        """
+        
+        return html
+
+
+# ==================== STREAMLIT INTEGRATION FUNCTIONS ====================
+
+def create_member_data(member_no, section_name, section_props, member_type, 
+                       length, K, KL, Lb, loads, classification='Compact'):
+    """
+    Create a complete member data dictionary for report generation
+    
+    Parameters:
+    - member_no: Member identifier
+    - section_name: Section designation (e.g., "W14x22")
+    - section_props: Dict with section properties (Ag, Ix, Iy, Sx, Zx, rx, ry, Fy, etc.)
+    - member_type: 'Beam', 'Column', 'Beam-Column', or 'Tension Member'
+    - length: Member length (m)
+    - K: Effective length factor
+    - KL: Effective length (m)
+    - Lb: Unbraced length for flexure (m)
+    - loads: List of dicts with 'LC', 'Pu', 'Mux', 'Muy'
+    - classification: 'Compact', 'Noncompact', or 'Slender'
+    
+    Returns complete member dict with all calculations
+    """
+    
+    member = {
+        'member_no': member_no,
+        'section_name': section_name,
+        'section_props': section_props,
+        'member_type': member_type,
+        'length': length,
+        'K': K,
+        'KL': KL,
+        'Lb': Lb,
+        'loads': loads,
+        'classification': classification
+    }
+    
+    # Calculate flexural strength
+    if member_type in ['Beam', 'Beam-Column']:
+        member['flexural_results'] = calculate_flexural_strength(
+            section_props, Lb, Cb=1.0
+        )
+    
+    # Calculate axial strength
+    if member_type in ['Column', 'Beam-Column']:
+        member['compression_results'] = calculate_compression_strength(
+            section_props, KL, KL
+        )
+    elif member_type == 'Tension Member':
+        member['tension_results'] = calculate_tension_strength(section_props)
+    
+    # Calculate interaction for each load combination
+    interaction_results = []
+    
+    for load in loads:
+        LC = load.get('LC', 1)
+        Pu = load.get('Pu', 0)  # kN
+        Mux = load.get('Mux', 0)  # kN·m
+        Muy = load.get('Muy', 0)  # kN·m
+        
+        # Get capacities
+        if member_type == 'Tension Member':
+            phi_Pn = member.get('tension_results', {}).get('phi_Pn', 1)
+            phi_Mnx = 0
+            phi_Mny = 0
+            is_tension = True
+        else:
+            phi_Pn = member.get('compression_results', {}).get('phi_Pn', 1)
+            phi_Mnx = member.get('flexural_results', {}).get('phi_Mn', 1)
+            phi_Mny = phi_Mnx * 0.5  # Estimate for minor axis
+            is_tension = Pu < 0
+        
+        if member_type in ['Beam-Column', 'Column', 'Tension Member']:
+            inter = calculate_interaction(
+                Pu, phi_Pn, Mux, phi_Mnx, Muy, phi_Mny, is_tension
+            )
+            inter['LC'] = LC
+            interaction_results.append(inter)
+        elif member_type == 'Beam':
+            # Beam only - check moment ratio
+            ratio = abs(Mux) / phi_Mnx if phi_Mnx > 0 else 999
+            interaction_results.append({
+                'LC': LC,
+                'Pu': 0,
+                'phi_Pn': 0,
+                'Mux': Mux,
+                'phi_Mnx': phi_Mnx,
+                'Muy': Muy,
+                'phi_Mny': phi_Mny,
+                'interaction_ratio': ratio,
+                'equation_used': 'Mu/φMn',
+                'equation_text': 'Mu/φMn ≤ 1.0',
+                'design_ok': ratio <= 1.0,
+                'is_tension': False
+            })
+    
+    member['interaction_results'] = interaction_results
+    
+    return member
+
+
+# ==================== EXAMPLE USAGE / DEMO ====================
+
+def demo_report():
+    """Generate a demo report"""
+    
+    # Sample section properties (W14x22 equivalent in metric)
+    section_props = {
+        'Ag': 41.8,      # cm²
+        'Ix': 8247,      # cm⁴
+        'Iy': 533,       # cm⁴
+        'Sx': 467,       # cm³
+        'Zx': 524,       # cm³
+        'rx': 14.0,      # cm
+        'ry': 3.57,      # cm
+        'Fy': 345,       # MPa (Gr. 50)
+        'Fu': 450,       # MPa
+        'J': 16.4,       # cm⁴
+        'd': 35.0,       # cm
+        'tf': 1.07,      # cm
+        'ho': 33.9,      # cm
+        'rts': 3.91      # cm
+    }
+    
+    # Sample loads for a beam-column
+    loads = [
+        {'LC': 1, 'Pu': 450, 'Mux': 85, 'Muy': 0},
+        {'LC': 2, 'Pu': 520, 'Mux': 95, 'Muy': 0},
+        {'LC': 3, 'Pu': -180, 'Mux': 65, 'Muy': 0},  # Tension case
+        {'LC': 4, 'Pu': 580, 'Mux': 110, 'Muy': 0},
+        {'LC': 5, 'Pu': 490, 'Mux': 88, 'Muy': 0},
+    ]
+    
+    # Create member data
+    member1 = create_member_data(
+        member_no='B-101',
+        section_name='W14x22',
+        section_props=section_props,
+        member_type='Beam-Column',
+        length=4.0,
+        K=1.0,
+        KL=4.0,
+        Lb=2.0,
+        loads=loads,
+        classification='Compact'
+    )
+    
+    # Create tension member
+    tension_loads = [
+        {'LC': 1, 'Pu': -320, 'Mux': 0, 'Muy': 0},
+        {'LC': 2, 'Pu': -410, 'Mux': 0, 'Muy': 0},
+        {'LC': 3, 'Pu': -285, 'Mux': 0, 'Muy': 0},
+    ]
+    
+    member2 = create_member_data(
+        member_no='T-201',
+        section_name='W8x18',
+        section_props={
+            'Ag': 34.2, 'Ix': 3040, 'Iy': 310, 'Sx': 278, 'Zx': 316,
+            'rx': 9.42, 'ry': 3.00, 'Fy': 345, 'Fu': 450, 'Ae': 29.1
+        },
+        member_type='Tension Member',
+        length=6.0,
+        K=1.0,
+        KL=6.0,
+        Lb=6.0,
+        loads=tension_loads,
+        classification='Compact'
+    )
+    
+    # Generate report
+    generator = SteelDesignReportGenerator(
+        project_info={
+            'name': 'Sample Steel Building',
+            'engineer': 'Design Engineer'
+        }
+    )
+    
+    generator.add_member(member1)
+    generator.add_member(member2)
+    
+    return generator.generate_full_report()
+
+
+if __name__ == "__main__":
+    # Generate demo report and save
+    html_report = demo_report()
+    
+    with open('steel_design_report_demo.html', 'w', encoding='utf-8') as f:
+        f.write(html_report)
+    
+    print("Demo report generated: steel_design_report_demo.html")
 
 # ==================== AISC CLASSIFICATION FUNCTIONS ====================
 def classify_section_flexure(df, df_mat, section, material):
@@ -4255,6 +5409,600 @@ def generate_enhanced_excel_report(df, df_mat, section, material, analysis_resul
     buffer.seek(0)
     return buffer
 
+# Import the report generator (assumes it's in the same directory)
+from steel_design_report_generator import (
+    SteelDesignReportGenerator,
+    create_member_data,
+    calculate_flexural_strength,
+    calculate_compression_strength,
+    calculate_tension_strength,
+    calculate_interaction,
+    classify_section_flange,
+    classify_section_web,
+    get_overall_classification,
+    format_number
+)
+
+# ==================== CSS STYLES ====================
+
+def get_tab_styles():
+    """Return CSS styles for the Streamlit tab"""
+    return """
+    <style>
+        .report-preview {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: #fafafa;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .config-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .member-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+        }
+        .status-pass {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-fail {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .summary-metric {
+            text-align: center;
+            padding: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            margin: 5px;
+        }
+        .summary-metric h3 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .summary-metric p {
+            margin: 5px 0 0 0;
+            font-size: 12px;
+            opacity: 0.9;
+        }
+    </style>
+    """
+
+
+# ==================== HELPER FUNCTIONS ====================
+
+def get_section_properties_from_df(df_sections, df_materials, section_name, material_name):
+    """
+    Extract section properties from dataframes
+    
+    Parameters:
+    - df_sections: DataFrame with section properties
+    - df_materials: DataFrame with material properties
+    - section_name: Name/index of section
+    - material_name: Name/index of material
+    
+    Returns dict with section properties
+    """
+    try:
+        sec = df_sections.loc[section_name]
+        mat = df_materials.loc[material_name]
+        
+        # Map column names (adjust based on your actual column names)
+        props = {
+            'Ag': float(sec.get('A [cm2]', sec.get('Ag', 0))),
+            'Ix': float(sec.get('Ix [cm4]', sec.get('Ix', 0))),
+            'Iy': float(sec.get('Iy [cm4]', sec.get('Iy', 0))),
+            'Sx': float(sec.get('Sx [cm3]', sec.get('Sx', 0))),
+            'Zx': float(sec.get('Zx [cm3]', sec.get('Zx', 0))),
+            'Sy': float(sec.get('Sy [cm3]', sec.get('Sy', 0))),
+            'Zy': float(sec.get('Zy [cm3]', sec.get('Zy', 0))),
+            'rx': float(sec.get('rx [cm]', sec.get('rx', 0))),
+            'ry': float(sec.get('ry [cm]', sec.get('ry', 0))),
+            'J': float(sec.get('J [cm4]', sec.get('J', 1))),
+            'd': float(sec.get('d [mm]', sec.get('d', 0))) / 10,  # Convert mm to cm
+            'bf': float(sec.get('bf [mm]', sec.get('bf', 0))) / 10,
+            'tf': float(sec.get('tf [mm]', sec.get('tf', 0))) / 10,
+            'tw': float(sec.get('tw [mm]', sec.get('tw', 0))) / 10,
+            'Fy': float(mat.get('Yield Point (ksc)', mat.get('Fy', 2500))) / 10.197,  # ksc to MPa
+            'Fu': float(mat.get('Tensile Strength (ksc)', mat.get('Fu', 4000))) / 10.197,
+        }
+        
+        # Calculate derived properties if needed
+        if props['d'] > 0 and props['tf'] > 0:
+            props['ho'] = props['d'] - props['tf']
+        else:
+            props['ho'] = props['d'] * 0.9
+        
+        # Effective area for tension (assume 85% if not specified)
+        props['Ae'] = props['Ag'] * 0.85
+        
+        # rts approximation
+        props['rts'] = props['ry'] * 1.1 if props['ry'] > 0 else 1
+        
+        # Cw approximation
+        if props['Iy'] > 0 and props['d'] > 0:
+            props['Cw'] = props['Iy'] * (props['d'] - props['tf'])**2 / 4
+        else:
+            props['Cw'] = 1
+        
+        return props
+        
+    except Exception as e:
+        st.error(f"Error extracting section properties: {e}")
+        return None
+
+
+def get_html_download_link(html_content, filename="report.html"):
+    """Generate a download link for HTML content"""
+    b64 = base64.b64encode(html_content.encode()).decode()
+    href = f'<a href="data:text/html;base64,{b64}" download="{filename}" class="download-btn">📥 Download HTML Report</a>'
+    return href
+
+
+# ==================== MAIN TAB FUNCTION ====================
+
+def render_design_report_tab(df_sections, df_materials, loaded_data=None, member_groups=None, analysis_results=None):
+    """
+    Render the Steel Design Report tab in Streamlit
+    
+    Parameters:
+    - df_sections: DataFrame with available sections
+    - df_materials: DataFrame with available materials
+    - loaded_data: DataFrame with load data (optional, from Tab 5)
+    - member_groups: Dict with member configurations (optional, from Tab 5)
+    - analysis_results: Dict with analysis results (optional, from Tab 5)
+    """
+    
+    st.markdown(get_tab_styles(), unsafe_allow_html=True)
+    st.markdown("## 📄 Steel Design Report Generator")
+    st.markdown("Generate equation-based design reports per AISC 360-16")
+    
+    # Initialize session state
+    if 'report_members' not in st.session_state:
+        st.session_state.report_members = []
+    if 'generated_report' not in st.session_state:
+        st.session_state.generated_report = None
+    
+    # Create sub-tabs
+    subtab1, subtab2, subtab3 = st.tabs([
+        "📝 Configure Members",
+        "⚙️ Generate Report", 
+        "📊 Preview & Export"
+    ])
+    
+    # ==================== SUB-TAB 1: CONFIGURE MEMBERS ====================
+    with subtab1:
+        st.markdown("### Member Configuration")
+        
+        # Option to import from existing analysis
+        if analysis_results and len(analysis_results) > 0:
+            st.info(f"💡 Found {len(analysis_results)} analyzed members from Design Check tab")
+            
+            if st.button("📥 Import Analyzed Members", type="primary"):
+                imported_members = []
+                
+                for member_no, data in analysis_results.items():
+                    config = data.get('config', {})
+                    results_df = data.get('results', pd.DataFrame())
+                    
+                    # Get section properties
+                    section_name = config.get('section', list(df_sections.index)[0])
+                    material_name = config.get('material', list(df_materials.index)[0])
+                    
+                    section_props = get_section_properties_from_df(
+                        df_sections, df_materials, section_name, material_name
+                    )
+                    
+                    if section_props is None:
+                        continue
+                    
+                    # Convert loads
+                    loads = []
+                    for _, row in results_df.iterrows():
+                        # Convert from tons/t·m to kN/kN·m
+                        Pu_kN = float(row.get('Pu (tons)', 0)) * 9.81
+                        Mu_kNm = float(row.get('Mu (t·m)', 0)) * 9.81
+                        
+                        loads.append({
+                            'LC': int(row.get('LC', 1)),
+                            'Pu': Pu_kN,
+                            'Mux': Mu_kNm,
+                            'Muy': 0
+                        })
+                    
+                    # Determine member type
+                    member_type_raw = config.get('member_type', 'Beam-Column (Compression)')
+                    if 'Tension Member' in member_type_raw:
+                        member_type = 'Tension Member'
+                    elif 'Beam-Column' in member_type_raw:
+                        member_type = 'Beam-Column'
+                    elif 'Column' in member_type_raw:
+                        member_type = 'Column'
+                    else:
+                        member_type = 'Beam'
+                    
+                    # Create member data
+                    member = create_member_data(
+                        member_no=member_no,
+                        section_name=section_name,
+                        section_props=section_props,
+                        member_type=member_type,
+                        length=config.get('Lb', 3.0),
+                        K=1.0,
+                        KL=config.get('KL', 3.0),
+                        Lb=config.get('Lb', 3.0),
+                        loads=loads,
+                        classification='Compact'  # Assume compact for now
+                    )
+                    
+                    imported_members.append(member)
+                
+                st.session_state.report_members = imported_members
+                st.success(f"✅ Imported {len(imported_members)} members")
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Manual member entry
+        st.markdown("### ➕ Add Member Manually")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            new_member_no = st.text_input("Member No.", value="M-001", key="new_member_no")
+            new_section = st.selectbox("Section", list(df_sections.index), key="new_section")
+            new_material = st.selectbox("Material", list(df_materials.index), key="new_material")
+            new_type = st.selectbox("Member Type", 
+                                   ["Beam", "Column", "Beam-Column", "Tension Member"],
+                                   key="new_type")
+        
+        with col2:
+            new_length = st.number_input("Length (m)", 0.1, 30.0, 4.0, 0.1, key="new_length")
+            new_K = st.number_input("K Factor", 0.5, 2.0, 1.0, 0.05, key="new_K")
+            new_KL = st.number_input("KL (m)", 0.1, 30.0, 4.0, 0.1, key="new_KL")
+            new_Lb = st.number_input("Lb (m)", 0.1, 30.0, 2.0, 0.1, key="new_Lb")
+        
+        # Load entry
+        st.markdown("#### Load Combinations")
+        
+        load_input_method = st.radio("Load Input Method:", 
+                                     ["Manual Entry", "Paste from Excel/CSV"],
+                                     horizontal=True, key="load_input_method")
+        
+        if load_input_method == "Manual Entry":
+            num_loads = st.number_input("Number of Load Combinations", 1, 20, 3, key="num_loads")
+            
+            loads = []
+            cols = st.columns(4)
+            cols[0].markdown("**LC**")
+            cols[1].markdown("**Pu (kN)**")
+            cols[2].markdown("**Mux (kN·m)**")
+            cols[3].markdown("**Muy (kN·m)**")
+            
+            for i in range(int(num_loads)):
+                cols = st.columns(4)
+                lc = cols[0].number_input(f"LC{i+1}", value=i+1, key=f"lc_{i}", label_visibility="collapsed")
+                pu = cols[1].number_input(f"Pu{i+1}", value=0.0, key=f"pu_{i}", label_visibility="collapsed")
+                mux = cols[2].number_input(f"Mux{i+1}", value=0.0, key=f"mux_{i}", label_visibility="collapsed")
+                muy = cols[3].number_input(f"Muy{i+1}", value=0.0, key=f"muy_{i}", label_visibility="collapsed")
+                
+                loads.append({'LC': int(lc), 'Pu': pu, 'Mux': mux, 'Muy': muy})
+        else:
+            st.markdown("Paste data with columns: LC, Pu, Mux, Muy")
+            load_text = st.text_area("Paste Load Data:", height=150, key="load_paste")
+            
+            loads = []
+            if load_text:
+                try:
+                    lines = load_text.strip().split('\n')
+                    for line in lines:
+                        parts = line.replace(',', '\t').split('\t')
+                        if len(parts) >= 3:
+                            loads.append({
+                                'LC': int(float(parts[0])),
+                                'Pu': float(parts[1]),
+                                'Mux': float(parts[2]),
+                                'Muy': float(parts[3]) if len(parts) > 3 else 0
+                            })
+                    st.success(f"Parsed {len(loads)} load combinations")
+                except Exception as e:
+                    st.error(f"Error parsing: {e}")
+        
+        # Add member button
+        if st.button("➕ Add Member to Report", type="primary", key="add_member"):
+            if len(loads) == 0:
+                st.warning("Please enter at least one load combination")
+            else:
+                section_props = get_section_properties_from_df(
+                    df_sections, df_materials, new_section, new_material
+                )
+                
+                if section_props:
+                    member = create_member_data(
+                        member_no=new_member_no,
+                        section_name=new_section,
+                        section_props=section_props,
+                        member_type=new_type,
+                        length=new_length,
+                        K=new_K,
+                        KL=new_KL,
+                        Lb=new_Lb,
+                        loads=loads,
+                        classification='Compact'
+                    )
+                    
+                    st.session_state.report_members.append(member)
+                    st.success(f"✅ Added member {new_member_no}")
+                    st.rerun()
+        
+        # Display configured members
+        st.markdown("---")
+        st.markdown("### 📋 Configured Members")
+        
+        if len(st.session_state.report_members) == 0:
+            st.info("No members configured yet. Add members above or import from analysis.")
+        else:
+            for i, member in enumerate(st.session_state.report_members):
+                # Get governing ratio
+                interactions = member.get('interaction_results', [])
+                if interactions:
+                    max_ratio = max(inter.get('interaction_ratio', 0) for inter in interactions)
+                    status = "✓ PASS" if max_ratio <= 1.0 else "✗ FAIL"
+                    status_class = "status-pass" if max_ratio <= 1.0 else "status-fail"
+                else:
+                    max_ratio = 0
+                    status = "—"
+                    status_class = ""
+                
+                col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+                
+                with col1:
+                    st.markdown(f"**{member['member_no']}** | {member['section_name']}")
+                
+                with col2:
+                    st.markdown(f"{member['member_type']} | {len(member.get('loads', []))} LCs")
+                
+                with col3:
+                    st.markdown(f"<span class='{status_class}'>{status}</span> ({max_ratio:.3f})", 
+                               unsafe_allow_html=True)
+                
+                with col4:
+                    if st.button("🗑️", key=f"del_member_{i}"):
+                        st.session_state.report_members.pop(i)
+                        st.rerun()
+            
+            if st.button("🗑️ Clear All Members", type="secondary"):
+                st.session_state.report_members = []
+                st.rerun()
+    
+    # ==================== SUB-TAB 2: GENERATE REPORT ====================
+    with subtab2:
+        st.markdown("### Report Settings")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            project_name = st.text_input("Project Name", value="Steel Structure Project", key="proj_name")
+            engineer_name = st.text_input("Engineer Name", value="", key="eng_name")
+        
+        with col2:
+            report_date = st.date_input("Report Date", value=datetime.now(), key="report_date")
+            include_pm_diagram = st.checkbox("Include P-M Interaction Diagram", value=False, key="include_pm")
+        
+        st.markdown("---")
+        
+        # Summary of members
+        st.markdown("### Members to Include")
+        
+        if len(st.session_state.report_members) == 0:
+            st.warning("⚠️ No members configured. Go to 'Configure Members' tab.")
+        else:
+            # Summary metrics
+            total = len(st.session_state.report_members)
+            passing = sum(1 for m in st.session_state.report_members 
+                         if max((i.get('interaction_ratio', 0) for i in m.get('interaction_results', [{}])), default=0) <= 1.0)
+            failing = total - passing
+            
+            cols = st.columns(4)
+            
+            with cols[0]:
+                st.markdown(f"""
+                <div class="summary-metric">
+                    <h3>{total}</h3>
+                    <p>Total Members</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with cols[1]:
+                st.markdown(f"""
+                <div class="summary-metric" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%);">
+                    <h3>{passing}</h3>
+                    <p>Passing</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with cols[2]:
+                st.markdown(f"""
+                <div class="summary-metric" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+                    <h3>{failing}</h3>
+                    <p>Failing</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with cols[3]:
+                max_ratio_all = max(
+                    max((i.get('interaction_ratio', 0) for i in m.get('interaction_results', [{}])), default=0)
+                    for m in st.session_state.report_members
+                ) if st.session_state.report_members else 0
+                
+                st.markdown(f"""
+                <div class="summary-metric" style="background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);">
+                    <h3>{max_ratio_all:.3f}</h3>
+                    <p>Max Ratio</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Member list
+            st.markdown("#### Member Summary")
+            
+            summary_data = []
+            for m in st.session_state.report_members:
+                interactions = m.get('interaction_results', [])
+                max_ratio = max((i.get('interaction_ratio', 0) for i in interactions), default=0)
+                gov_lc = "—"
+                if interactions:
+                    max_idx = max(range(len(interactions)), 
+                                 key=lambda i: interactions[i].get('interaction_ratio', 0))
+                    gov_lc = interactions[max_idx].get('LC', '—')
+                
+                summary_data.append({
+                    'Member': m['member_no'],
+                    'Section': m['section_name'],
+                    'Type': m['member_type'],
+                    '# LCs': len(m.get('loads', [])),
+                    'Gov. LC': gov_lc,
+                    'Max Ratio': max_ratio,
+                    'Status': '✓ OK' if max_ratio <= 1.0 else '✗ NG'
+                })
+            
+            df_summary = pd.DataFrame(summary_data)
+            st.dataframe(df_summary, use_container_width=True)
+            
+            # Generate button
+            st.markdown("---")
+            
+            if st.button("🚀 Generate Report", type="primary", key="generate_report"):
+                with st.spinner("Generating report..."):
+                    # Create report generator
+                    generator = SteelDesignReportGenerator(
+                        project_info={
+                            'name': project_name,
+                            'engineer': engineer_name,
+                            'date': report_date.strftime("%Y-%m-%d")
+                        }
+                    )
+                    
+                    # Add members
+                    for member in st.session_state.report_members:
+                        generator.add_member(member)
+                    
+                    # Generate HTML
+                    html_report = generator.generate_full_report()
+                    st.session_state.generated_report = html_report
+                    
+                st.success("✅ Report generated successfully!")
+                st.info("Go to 'Preview & Export' tab to view and download")
+    
+    # ==================== SUB-TAB 3: PREVIEW & EXPORT ====================
+    with subtab3:
+        st.markdown("### Report Preview & Export")
+        
+        if st.session_state.generated_report is None:
+            st.warning("⚠️ No report generated yet. Go to 'Generate Report' tab.")
+        else:
+            # Export buttons
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # HTML download
+                b64 = base64.b64encode(st.session_state.generated_report.encode()).decode()
+                filename = f"Steel_Design_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                
+                st.download_button(
+                    label="📥 Download HTML",
+                    data=st.session_state.generated_report,
+                    file_name=filename,
+                    mime="text/html",
+                    key="download_html"
+                )
+            
+            with col2:
+                st.info("💡 Open HTML in browser, then Print to PDF")
+            
+            with col3:
+                if st.button("🔄 Regenerate", key="regenerate"):
+                    st.session_state.generated_report = None
+                    st.rerun()
+            
+            st.markdown("---")
+            
+            # Preview
+            st.markdown("### 📄 Report Preview")
+            
+            # Use iframe for preview
+            st.components.v1.html(
+                st.session_state.generated_report,
+                height=800,
+                scrolling=True
+            )
+
+
+# ==================== STANDALONE TAB CODE ====================
+# Copy this section into your main Streamlit app
+
+TAB_CODE = '''
+# ==================== TAB: DESIGN REPORT ====================
+# Add this to your main Streamlit application
+
+with tab_report:  # Change to your tab variable name
+    st.markdown('<h2 class="section-header">📄 Steel Design Report Generator</h2>', unsafe_allow_html=True)
+    
+    # Import the report tab renderer
+    from steel_design_report_streamlit import render_design_report_tab
+    
+    # Get analysis results from Tab 5 if available
+    loaded_data = st.session_state.get('loaded_data', None)
+    member_groups = st.session_state.get('member_groups', {})
+    analysis_results = st.session_state.get('analysis_results_tab5', {})
+    
+    # Render the report tab
+    render_design_report_tab(
+        df_sections=df,          # Your sections DataFrame
+        df_materials=df_mat,     # Your materials DataFrame
+        loaded_data=loaded_data,
+        member_groups=member_groups,
+        analysis_results=analysis_results
+    )
+'''
+
+if __name__ == "__main__":
+    # Demo/test mode
+    st.set_page_config(page_title="Steel Design Report Demo", layout="wide")
+    
+    # Create sample DataFrames for testing
+    df_sections = pd.DataFrame({
+        'A [cm2]': [41.8, 34.2, 78.5],
+        'Ix [cm4]': [8247, 3040, 15600],
+        'Iy [cm4]': [533, 310, 1200],
+        'Sx [cm3]': [467, 278, 820],
+        'Zx [cm3]': [524, 316, 920],
+        'rx [cm]': [14.0, 9.42, 12.5],
+        'ry [cm]': [3.57, 3.00, 4.20],
+        'J [cm4]': [16.4, 8.5, 35.0],
+        'd [mm]': [350, 200, 400],
+        'bf [mm]': [127, 134, 180],
+        'tf [mm]': [10.7, 8.4, 13.5],
+        'tw [mm]': [6.1, 5.8, 8.6]
+    }, index=['W14x22', 'W8x18', 'W16x36'])
+    
+    df_materials = pd.DataFrame({
+        'Yield Point (ksc)': [3515, 2530],  # 345 MPa, 248 MPa
+        'Tensile Strength (ksc)': [4588, 4078]  # 450 MPa, 400 MPa
+    }, index=['ASTM A992 Gr.50', 'ASTM A36'])
+    
+    render_design_report_tab(df_sections, df_materials)
+
+
 # ==================== EVALUATION FUNCTION ====================
 def evaluate_section_design(df, df_mat, section, material, design_loads, design_lengths):
     """Comprehensive section evaluation"""
@@ -5055,225 +6803,545 @@ with tab4:
         - Color-coded tables for easy reading
         - Can be edited and customized after export
         """)
+# ==================== ENHANCED TAB 5: LOAD IMPORT & MEMBER-BASED DESIGN CHECK ====================
+# Version: 2.0 - Improved Member Grouping, Multiple Member Types, Batch Analysis
+# Features: CSV/Excel Import, Member Groups, Section Assignment, Comprehensive Design Checks
 
-# ==================== TAB 5: LOAD IMPORT & MEMBER CHECK ====================
+"""
+INTEGRATION INSTRUCTIONS:
+Replace the entire Tab 5 section in your main AISC application with the code below.
+The code should replace everything between:
+    with tab5:
+        ...
+    (until the next tab or end of tabs)
+
+This enhanced Tab 5 includes:
+1. Sub-Tab 5.1: Data Import - Upload and preview load data
+2. Sub-Tab 5.2: Member Groups - Configure sections/materials for each member
+3. Sub-Tab 5.3: Design Check - Run analysis for all load combinations
+4. Sub-Tab 5.4: Summary Report - Export results and visualizations
+"""
+
+# ==================== TAB 5: LOAD IMPORT & MEMBER CHECK (ENHANCED) ====================
 with tab5:
     st.markdown('<h2 class="section-header">📦 Load Data Import & Member-Based Design Check</h2>', unsafe_allow_html=True)
     
-    # ==================== FILE UPLOAD SECTION ====================
-    st.markdown("### 📁 Upload Load Analysis Results")
+    # Initialize session state for Tab 5
+    if 'loaded_data' not in st.session_state:
+        st.session_state.loaded_data = None
+    if 'member_groups' not in st.session_state:
+        st.session_state.member_groups = {}
+    if 'analysis_results_tab5' not in st.session_state:
+        st.session_state.analysis_results_tab5 = {}
     
-    col_upload1, col_upload2 = st.columns([2, 1])
+    # Create sub-tabs for organization
+    subtab1, subtab2, subtab3, subtab4 = st.tabs([
+        "📁 Data Import",
+        "👥 Member Groups",
+        "🔍 Design Check",
+        "📊 Summary Report"
+    ])
     
-    with col_upload1:
-        uploaded_file = st.file_uploader(
-            "Upload CSV or Excel file with load data",
-            type=['csv', 'xlsx'],
-            help="File should contain columns: Member No., Load Combination, Mu, Pu"
-        )
-    
-    with col_upload2:
-        st.markdown("""
-        <div class="info-box">
-        <b>📋 Required Columns:</b><br>
-        • Member No.<br>
-        • Load Combination<br>
-        • Mu (t·m)<br>
-        • Pu (tons)
-        </div>
-        """, unsafe_allow_html=True)
+    # ==================== SUB-TAB 1: DATA IMPORT ====================
+    with subtab1:
+        st.markdown("### 📁 Upload Load Analysis Results")
         
-        # Download template button
+        col_upload1, col_upload2 = st.columns([2, 1])
+        
+        with col_upload1:
+            uploaded_file = st.file_uploader(
+                "Upload CSV or Excel file with load data",
+                type=['csv', 'xlsx', 'xls'],
+                help="File should contain columns: Member No., Load Combination, Mu, Pu",
+                key="tab5_file_uploader"
+            )
+        
+        with col_upload2:
+            st.markdown("""
+            <div class="info-box">
+            <b>📋 Required Columns:</b><br>
+            • Member No. (ID)<br>
+            • Load Combination<br>
+            • Mu (t·m) – Moment<br>
+            • Pu (tons) – Axial<br>
+            <small>+Pu = Compression<br>-Pu = Tension</small>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Download template
         template_data = """Member No.,Load Combination,Mu,Pu
-1234,1,45.5,120.3
-1234,2,52.8,135.7
-1234,3,38.2,98.5
-1234,4,61.3,145.2
-1234,5,55.0,128.0
-5678,1,32.1,85.4
-5678,2,28.9,92.1
-5678,3,41.5,78.3
-5678,4,35.7,88.9
-5678,5,39.2,81.2"""
+B101,1,45.5,120.3
+B101,2,52.8,135.7
+B101,3,38.2,-98.5
+B101,4,61.3,145.2
+B101,5,55.0,128.0
+B102,1,32.1,85.4
+B102,2,28.9,-92.1
+B102,3,41.5,78.3
+B102,4,35.7,88.9
+B102,5,39.2,81.2
+C201,1,12.5,250.3
+C201,2,15.8,285.7
+C201,3,8.2,198.5
+C201,4,18.3,315.2
+C201,5,14.0,268.0
+T301,1,0.0,-45.5
+T301,2,0.0,-52.8
+T301,3,0.0,-38.2
+T301,4,0.0,-61.3
+T301,5,0.0,-55.0"""
         
         st.download_button(
             label="📥 Download CSV Template",
             data=template_data,
             file_name="load_data_template.csv",
-            mime="text/csv"
+            mime="text/csv",
+            key="tab5_template_download"
         )
+        
+        # Process uploaded file
+        if uploaded_file is not None:
+            try:
+                # Read file based on type
+                if uploaded_file.name.endswith('.csv'):
+                    df_loads = pd.read_csv(uploaded_file)
+                else:
+                    df_loads = pd.read_excel(uploaded_file)
+                
+                # Validate required columns
+                required_cols = ['Member No.', 'Load Combination', 'Mu', 'Pu']
+                missing_cols = [col for col in required_cols if col not in df_loads.columns]
+                
+                if missing_cols:
+                    st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
+                    st.info("💡 Please ensure your file has columns: Member No., Load Combination, Mu, Pu")
+                else:
+                    # Clean and validate data
+                    df_loads = df_loads.dropna(subset=required_cols)
+                    df_loads['Member No.'] = df_loads['Member No.'].astype(str).str.strip()
+                    df_loads['Load Combination'] = pd.to_numeric(df_loads['Load Combination'], errors='coerce').astype(int)
+                    df_loads['Mu'] = pd.to_numeric(df_loads['Mu'], errors='coerce')
+                    df_loads['Pu'] = pd.to_numeric(df_loads['Pu'], errors='coerce')
+                    
+                    # Store in session state
+                    st.session_state.loaded_data = df_loads
+                    
+                    # Success message
+                    st.success(f"✅ Successfully loaded {len(df_loads)} load cases for {df_loads['Member No.'].nunique()} members")
+                    
+                    # Summary statistics
+                    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+                    with col_stat1:
+                        st.metric("Total Load Cases", len(df_loads))
+                    with col_stat2:
+                        st.metric("Unique Members", df_loads['Member No.'].nunique())
+                    with col_stat3:
+                        compression_count = len(df_loads[df_loads['Pu'] > 0])
+                        st.metric("Compression Cases", compression_count)
+                    with col_stat4:
+                        tension_count = len(df_loads[df_loads['Pu'] < 0])
+                        st.metric("Tension Cases", tension_count)
+                    
+                    # Preview data
+                    with st.expander("👁️ Preview Raw Load Data", expanded=True):
+                        st.dataframe(df_loads, use_container_width=True, height=300)
+                    
+                    # Member summary
+                    with st.expander("📊 Member Summary", expanded=True):
+                        member_summary = df_loads.groupby('Member No.').agg({
+                            'Load Combination': 'count',
+                            'Mu': ['min', 'max'],
+                            'Pu': ['min', 'max']
+                        }).round(2)
+                        member_summary.columns = ['# LCs', 'Mu_min', 'Mu_max', 'Pu_min', 'Pu_max']
+                        member_summary = member_summary.reset_index()
+                        
+                        # Add load type indicator
+                        member_summary['Load Type'] = member_summary.apply(
+                            lambda x: '🔴 Compression' if x['Pu_min'] >= 0 else ('🔵 Tension' if x['Pu_max'] <= 0 else '🟡 Mixed'),
+                            axis=1
+                        )
+                        
+                        st.dataframe(member_summary, use_container_width=True)
+                    
+                    # Auto-create member groups button
+                    if st.button("🔄 Auto-Create Member Groups", type="primary", key="auto_create_groups"):
+                        members = sorted(df_loads['Member No.'].unique())
+                        for member in members:
+                            if member not in st.session_state.member_groups:
+                                # Determine default member type based on load pattern
+                                member_data = df_loads[df_loads['Member No.'] == member]
+                                has_compression = (member_data['Pu'] > 0).any()
+                                has_tension = (member_data['Pu'] < 0).any()
+                                has_moment = (member_data['Mu'].abs() > 0.1).any()
+                                
+                                if not has_moment and has_tension and not has_compression:
+                                    default_type = "Tension Member"
+                                elif has_compression and has_moment:
+                                    default_type = "Beam-Column (Compression)"
+                                elif has_tension and has_moment:
+                                    default_type = "Beam-Column (Tension)"
+                                else:
+                                    default_type = "Beam (Flexure Only)"
+                                
+                                st.session_state.member_groups[member] = {
+                                    'section': list(df.index)[0] if len(df.index) > 0 else None,
+                                    'material': list(df_mat.index)[0] if len(df_mat.index) > 0 else None,
+                                    'member_type': default_type,
+                                    'Lb': 3.0,
+                                    'KL': 3.0,
+                                    'Cb': 1.0
+                                }
+                        st.success(f"✅ Created {len(members)} member groups. Go to 'Member Groups' tab to configure.")
+                        st.rerun()
+                    
+            except Exception as e:
+                st.error(f"❌ Error processing file: {str(e)}")
+                st.info("💡 Please ensure your file matches the required format")
+        
+        else:
+            st.info("📁 Upload a load data file to begin member-based design checks")
+            
+            # Show example format
+            with st.expander("📖 Example Input Format", expanded=True):
+                example_data = {
+                    'Member No.': ['B101', 'B101', 'B101', 'C201', 'C201', 'T301', 'T301'],
+                    'Load Combination': [1, 2, 3, 1, 2, 1, 2],
+                    'Mu': [45.5, 52.8, 38.2, 12.5, 15.8, 0.0, 0.0],
+                    'Pu': [120.3, 135.7, -98.5, 250.3, 285.7, -45.5, -52.8]
+                }
+                st.dataframe(pd.DataFrame(example_data), use_container_width=True)
+                
+                st.markdown("""
+                <div class="info-box">
+                <b>📋 Sign Convention:</b><br>
+                • <b>+Pu (Positive):</b> Compression<br>
+                • <b>-Pu (Negative):</b> Tension<br>
+                • <b>Mu:</b> Absolute value of bending moment
+                </div>
+                """, unsafe_allow_html=True)
     
-    # ==================== LOAD DATA PROCESSING ====================
-    if uploaded_file is not None:
-        try:
-            # Read file based on type
-            if uploaded_file.name.endswith('.csv'):
-                df_loads = pd.read_csv(uploaded_file)
-            else:
-                df_loads = pd.read_excel(uploaded_file)
+    # ==================== SUB-TAB 2: MEMBER GROUPS ====================
+    with subtab2:
+        st.markdown("### 👥 Member Groups Configuration")
+        
+        if st.session_state.loaded_data is None:
+            st.warning("⚠️ Please upload load data first in the 'Data Import' tab")
+        else:
+            df_loads = st.session_state.loaded_data
+            members = sorted(df_loads['Member No.'].unique())
             
-            # Validate columns
-            required_cols = ['Member No.', 'Load Combination', 'Mu', 'Pu']
-            missing_cols = [col for col in required_cols if col not in df_loads.columns]
-            
-            if missing_cols:
-                st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
-                st.stop()
-            
-            # Clean data
-            df_loads = df_loads.dropna(subset=required_cols)
-            df_loads['Member No.'] = df_loads['Member No.'].astype(str)
-            df_loads['Load Combination'] = df_loads['Load Combination'].astype(int)
-            df_loads['Mu'] = pd.to_numeric(df_loads['Mu'], errors='coerce')
-            df_loads['Pu'] = pd.to_numeric(df_loads['Pu'], errors='coerce')
-            
-            st.success(f"✅ Successfully loaded {len(df_loads)} load cases for {df_loads['Member No.'].nunique()} members")
-            
-            # Show preview
-            with st.expander("👁️ Preview Raw Load Data", expanded=False):
-                st.dataframe(df_loads.head(20), use_container_width=True)
+            # Batch configuration
+            st.markdown("#### 🔧 Batch Configuration")
+            with st.expander("Apply Settings to Multiple Members", expanded=False):
+                col_batch1, col_batch2 = st.columns(2)
+                
+                with col_batch1:
+                    selected_members_batch = st.multiselect(
+                        "Select Members:",
+                        members,
+                        default=[],
+                        key="batch_member_select"
+                    )
+                    
+                    batch_section = st.selectbox(
+                        "Section:",
+                        list(df.index),
+                        index=0,
+                        key="batch_section"
+                    )
+                    
+                    batch_material = st.selectbox(
+                        "Material:",
+                        list(df_mat.index),
+                        index=0,
+                        key="batch_material"
+                    )
+                
+                with col_batch2:
+                    batch_type = st.selectbox(
+                        "Member Type:",
+                        ["Beam-Column (Compression)", "Beam-Column (Tension)", 
+                         "Beam (Flexure Only)", "Tension Member"],
+                        key="batch_type"
+                    )
+                    
+                    batch_Lb = st.number_input("Lb (m):", 0.1, 20.0, 3.0, 0.1, key="batch_lb")
+                    batch_KL = st.number_input("KL (m):", 0.1, 20.0, 3.0, 0.1, key="batch_kl")
+                    batch_Cb = st.number_input("Cb:", 1.0, 3.0, 1.0, 0.1, key="batch_cb")
+                
+                if st.button("✅ Apply to Selected Members", key="apply_batch"):
+                    for member in selected_members_batch:
+                        st.session_state.member_groups[member] = {
+                            'section': batch_section,
+                            'material': batch_material,
+                            'member_type': batch_type,
+                            'Lb': batch_Lb,
+                            'KL': batch_KL,
+                            'Cb': batch_Cb
+                        }
+                    st.success(f"✅ Applied settings to {len(selected_members_batch)} members")
+                    st.rerun()
             
             st.markdown("---")
             
-            # ==================== MEMBER-BASED ANALYSIS ====================
-            st.markdown("### 🔍 Member-Based Design Check")
+            # Individual member configuration
+            st.markdown("#### 📝 Individual Member Editor")
             
-            # Get unique members
-            members = sorted(df_loads['Member No.'].unique())
+            if len(st.session_state.member_groups) == 0:
+                st.info("💡 No member groups configured yet. Click 'Auto-Create Member Groups' in the Data Import tab or add members below.")
             
-            col_member, col_material, col_section = st.columns(3)
+            # Member editor
+            selected_member_edit = st.selectbox(
+                "Select Member to Edit:",
+                members,
+                key="member_edit_select"
+            )
             
-            with col_member:
-                selected_member = st.selectbox(
-                    "Select Member:",
-                    members,
-                    key="member_selector"
-                )
-            
-            with col_material:
-                member_material = st.selectbox(
-                    "Steel Grade:",
-                    list(df_mat.index),
-                    index=0,
-                    key="member_material"
-                )
-            
-            with col_section:
-                trial_section = st.selectbox(
-                    "Trial Section:",
-                    list(df.index),
-                    key="trial_section"
-                )
-            
-            # Design parameters
-            col_param1, col_param2, col_param3 = st.columns(3)
-            
-            with col_param1:
-                member_type = st.selectbox(
-                    "Member Type:",
-                    ["Beam-Column (Compression)", "Beam-Column (Tension)", "Beam (Flexure Only)", "Tension Member"],
-                    key="member_type"
-                )
-            
-            with col_param2:
-                member_Lb = st.number_input("Unbraced Length Lb (m):", 0.1, 20.0, 3.0, 0.1, key="member_lb")
-            
-            with col_param3:
-                member_KL = st.number_input("Effective Length KL (m):", 0.1, 20.0, 3.0, 0.1, key="member_kl")
-            
-            if st.button("🔍 Analyze All Load Combinations", type="primary"):
-                # Get load cases for selected member
-                member_loads = df_loads[df_loads['Member No.'] == selected_member].copy()
+            if selected_member_edit:
+                # Get current config or create default
+                current_config = st.session_state.member_groups.get(selected_member_edit, {
+                    'section': list(df.index)[0],
+                    'material': list(df_mat.index)[0],
+                    'member_type': "Beam-Column (Compression)",
+                    'Lb': 3.0,
+                    'KL': 3.0,
+                    'Cb': 1.0
+                })
                 
-                if len(member_loads) == 0:
-                    st.warning(f"⚠️ No load data found for Member {selected_member}")
+                col_edit1, col_edit2, col_edit3 = st.columns(3)
+                
+                with col_edit1:
+                    edit_section = st.selectbox(
+                        "Section:",
+                        list(df.index),
+                        index=list(df.index).index(current_config['section']) if current_config['section'] in df.index else 0,
+                        key="edit_section"
+                    )
+                    
+                    edit_material = st.selectbox(
+                        "Material:",
+                        list(df_mat.index),
+                        index=list(df_mat.index).index(current_config['material']) if current_config['material'] in df_mat.index else 0,
+                        key="edit_material"
+                    )
+                
+                with col_edit2:
+                    type_options = ["Beam-Column (Compression)", "Beam-Column (Tension)", 
+                                   "Beam (Flexure Only)", "Tension Member"]
+                    edit_type = st.selectbox(
+                        "Member Type:",
+                        type_options,
+                        index=type_options.index(current_config['member_type']) if current_config['member_type'] in type_options else 0,
+                        key="edit_type"
+                    )
+                    
+                    edit_Lb = st.number_input("Lb (m):", 0.1, 20.0, current_config['Lb'], 0.1, key="edit_lb")
+                
+                with col_edit3:
+                    edit_KL = st.number_input("KL (m):", 0.1, 20.0, current_config['KL'], 0.1, key="edit_kl")
+                    edit_Cb = st.number_input("Cb:", 1.0, 3.0, current_config['Cb'], 0.1, key="edit_cb")
+                
+                if st.button("💾 Save Member Configuration", key="save_member_config"):
+                    st.session_state.member_groups[selected_member_edit] = {
+                        'section': edit_section,
+                        'material': edit_material,
+                        'member_type': edit_type,
+                        'Lb': edit_Lb,
+                        'KL': edit_KL,
+                        'Cb': edit_Cb
+                    }
+                    st.success(f"✅ Saved configuration for Member {selected_member_edit}")
+                
+                # Show member load data
+                with st.expander(f"📊 Load Data for Member {selected_member_edit}", expanded=True):
+                    member_data = df_loads[df_loads['Member No.'] == selected_member_edit]
+                    st.dataframe(member_data, use_container_width=True)
+            
+            # Member groups summary table
+            st.markdown("---")
+            st.markdown("#### 📋 Member Groups Summary")
+            
+            if len(st.session_state.member_groups) > 0:
+                summary_data = []
+                for member, config in st.session_state.member_groups.items():
+                    member_loads = df_loads[df_loads['Member No.'] == member]
+                    summary_data.append({
+                        'Member': member,
+                        'Section': config['section'],
+                        'Material': config['material'],
+                        'Type': config['member_type'].split('(')[0].strip(),
+                        'Lb (m)': config['Lb'],
+                        'KL (m)': config['KL'],
+                        '# LCs': len(member_loads),
+                        'Max |Mu|': member_loads['Mu'].abs().max(),
+                        'Max Pu': member_loads['Pu'].max(),
+                        'Min Pu': member_loads['Pu'].min()
+                    })
+                
+                df_summary = pd.DataFrame(summary_data)
+                st.dataframe(df_summary.style.format({
+                    'Lb (m)': '{:.2f}',
+                    'KL (m)': '{:.2f}',
+                    'Max |Mu|': '{:.2f}',
+                    'Max Pu': '{:.2f}',
+                    'Min Pu': '{:.2f}'
+                }), use_container_width=True, height=400)
+            else:
+                st.info("No member groups configured yet.")
+    
+    # ==================== SUB-TAB 3: DESIGN CHECK ====================
+    with subtab3:
+        st.markdown("### 🔍 Design Check Analysis")
+        
+        if st.session_state.loaded_data is None:
+            st.warning("⚠️ Please upload load data first in the 'Data Import' tab")
+        elif len(st.session_state.member_groups) == 0:
+            st.warning("⚠️ Please configure member groups first in the 'Member Groups' tab")
+        else:
+            df_loads = st.session_state.loaded_data
+            
+            # Analysis options
+            col_opt1, col_opt2 = st.columns(2)
+            
+            with col_opt1:
+                analysis_scope = st.radio(
+                    "Analysis Scope:",
+                    ["Single Member", "All Configured Members"],
+                    horizontal=True
+                )
+            
+            with col_opt2:
+                if analysis_scope == "Single Member":
+                    configured_members = list(st.session_state.member_groups.keys())
+                    if configured_members:
+                        selected_analysis_member = st.selectbox(
+                            "Select Member:",
+                            configured_members,
+                            key="analysis_member_select"
+                        )
+                    else:
+                        st.warning("No members configured")
+                        selected_analysis_member = None
+            
+            # Run Analysis Button
+            if st.button("🚀 Run Design Analysis", type="primary", key="run_analysis"):
+                
+                # Determine which members to analyze
+                if analysis_scope == "Single Member":
+                    members_to_analyze = [selected_analysis_member] if selected_analysis_member else []
                 else:
-                    st.markdown(f"### 📊 Analysis Results for Member {selected_member}")
-                    st.markdown(f"**Section:** {trial_section} | **Material:** {member_material}")
+                    members_to_analyze = list(st.session_state.member_groups.keys())
+                
+                if len(members_to_analyze) == 0:
+                    st.warning("⚠️ No members to analyze")
+                else:
+                    # Progress bar
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
                     
-                    # Perform analysis for each load combination
-                    results = []
+                    all_results = {}
                     
-                    with st.spinner(f'Analyzing {len(member_loads)} load combinations...'):
+                    for i, member in enumerate(members_to_analyze):
+                        status_text.text(f"Analyzing Member {member}... ({i+1}/{len(members_to_analyze)})")
+                        
+                        config = st.session_state.member_groups[member]
+                        member_loads = df_loads[df_loads['Member No.'] == member].copy()
+                        
+                        section = config['section']
+                        material = config['material']
+                        member_type = config['member_type']
+                        Lb = config['Lb']
+                        KL = config['KL']
+                        Cb = config['Cb']
+                        
+                        results = []
+                        
                         for idx, row in member_loads.iterrows():
                             lc = int(row['Load Combination'])
                             Mu = float(row['Mu'])
                             Pu = float(row['Pu'])
                             
                             try:
+                                # Get material and section properties
+                                Fy = safe_scalar(df_mat.loc[material, "Yield Point (ksc)"])
+                                Ag = safe_scalar(df.loc[section, 'A [cm2]'])
+                                Zx = safe_scalar(df.loc[section, 'Zx [cm3]'])
+                                Zy = safe_scalar(df.loc[section, 'Zy [cm3]'])
+                                
+                                # Initialize results
+                                phi_Pn = None
+                                phi_Mn = None
+                                ratio = None
+                                status = None
+                                equation = None
+                                mode = None
+                                
+                                # ==================== TENSION MEMBER ====================
                                 if member_type == "Tension Member":
-                                    # Tension member check
-                                    Fy = safe_scalar(df_mat.loc[member_material, "Yield Point (ksc)"])
-                                    Ag = safe_scalar(df.loc[trial_section, 'A [cm2]'])
+                                    # Tension capacity: φPn = φ × Fy × Ag
                                     phi_Pn = 0.9 * Fy * Ag / 1000.0  # Convert to tons
+                                    phi_Mn = 0.0
                                     
                                     if Pu >= 0:
-                                        ratio = 999.0  # Compression force on tension member
-                                        status = "N/A - COMPRESSION"
+                                        # Compression force on tension member - not allowed
+                                        ratio = 999.0
+                                        status = "⚠️ COMPRESSION"
+                                        equation = "N/A"
+                                        mode = "Invalid Load"
                                     else:
+                                        # Tension check
                                         ratio = abs(Pu) / phi_Pn
                                         status = "✓ OK" if ratio <= 1.0 else "✗ NG"
-                                    
-                                    results.append({
-                                        'LC': lc,
-                                        'Mu (t·m)': Mu,
-                                        'Pu (tons)': Pu,
-                                        'φPn (tons)': phi_Pn,
-                                        'φMn (t·m)': '-',
-                                        'Ratio': ratio,
-                                        'Status': status,
-                                        'Type': 'Tension'
-                                    })
+                                        equation = "Pu/φPn"
+                                        mode = "Tension Yielding"
                                 
+                                # ==================== BEAM (FLEXURE ONLY) ====================
                                 elif member_type == "Beam (Flexure Only)":
-                                    # Flexure only check
                                     flex_result = aisc_360_16_f2_flexural_design(
-                                        df, df_mat, trial_section, member_material, member_Lb
+                                        df, df_mat, section, material, Lb, Cb
                                     )
                                     
                                     if flex_result:
                                         phi_Mn = 0.9 * flex_result['Mn']
+                                        phi_Pn = 0.0
+                                        
                                         ratio = abs(Mu) / phi_Mn if phi_Mn > 0 else 999
                                         status = "✓ OK" if ratio <= 1.0 else "✗ NG"
-                                        
-                                        results.append({
-                                            'LC': lc,
-                                            'Mu (t·m)': Mu,
-                                            'Pu (tons)': Pu,
-                                            'φPn (tons)': '-',
-                                            'φMn (t·m)': phi_Mn,
-                                            'Ratio': ratio,
-                                            'Status': status,
-                                            'Type': 'Flexure'
-                                        })
+                                        equation = "Mu/φMn"
+                                        mode = flex_result['Case'].split('-')[1].strip() if '-' in flex_result['Case'] else flex_result['Case']
+                                    else:
+                                        ratio = 999
+                                        status = "ERROR"
+                                        equation = "N/A"
+                                        mode = "Calc Error"
                                 
-                                else:
-                                    # Beam-column check (H1 interaction)
+                                # ==================== BEAM-COLUMN (COMPRESSION) ====================
+                                elif member_type == "Beam-Column (Compression)":
                                     comp_result = aisc_360_16_e3_compression_design(
-                                        df, df_mat, trial_section, member_material, member_KL, member_KL
+                                        df, df_mat, section, material, KL, KL
                                     )
                                     flex_result = aisc_360_16_f2_flexural_design(
-                                        df, df_mat, trial_section, member_material, member_Lb
+                                        df, df_mat, section, material, Lb, Cb
                                     )
                                     
                                     if comp_result and flex_result:
                                         phi_Pn = comp_result['phi_Pn']
                                         phi_Mnx = 0.9 * flex_result['Mn']
+                                        phi_Mny = 0.9 * 0.9 * Fy * Zy / 100000.0  # Minor axis
+                                        phi_Mn = phi_Mnx
                                         
-                                        Zy = safe_scalar(df.loc[trial_section, 'Zy [cm3]'])
-                                        Fy = safe_scalar(df_mat.loc[member_material, "Yield Point (ksc)"])
-                                        phi_Mny = 0.9 * 0.9 * Fy * Zy / 100000.0
-                                        
-                                        # Handle tension vs compression
-                                        if member_type == "Beam-Column (Tension)" and Pu < 0:
-                                            # For tension beam-columns, use simplified check
-                                            tension_capacity = 0.9 * Fy * safe_scalar(df.loc[trial_section, 'A [cm2]']) / 1000.0
+                                        if Pu < 0:
+                                            # Tension case - use simplified linear interaction
+                                            tension_capacity = 0.9 * Fy * Ag / 1000.0
                                             axial_ratio = abs(Pu) / tension_capacity
                                             moment_ratio = abs(Mu) / phi_Mnx
                                             ratio = axial_ratio + moment_ratio
                                             status = "✓ OK" if ratio <= 1.0 else "✗ NG"
+                                            equation = "Tu/φTn + Mu/φMn"
+                                            mode = "Tension+Flexure"
                                         else:
-                                            # Compression beam-column
+                                            # Compression case - AISC H1 interaction
                                             interaction_result = aisc_360_16_h1_interaction(
                                                 abs(Pu), phi_Pn, abs(Mu), phi_Mnx, 0, phi_Mny
                                             )
@@ -5281,55 +7349,160 @@ with tab5:
                                             if interaction_result:
                                                 ratio = interaction_result['interaction_ratio']
                                                 status = "✓ OK" if interaction_result['design_ok'] else "✗ NG"
+                                                equation = interaction_result['equation']
+                                                mode = f"Comp+Flex ({comp_result['buckling_mode']})"
                                             else:
                                                 ratio = 999
                                                 status = "ERROR"
+                                                equation = "N/A"
+                                                mode = "Calc Error"
+                                    else:
+                                        ratio = 999
+                                        status = "ERROR"
+                                        equation = "N/A"
+                                        mode = "Calc Error"
+                                
+                                # ==================== BEAM-COLUMN (TENSION) ====================
+                                elif member_type == "Beam-Column (Tension)":
+                                    flex_result = aisc_360_16_f2_flexural_design(
+                                        df, df_mat, section, material, Lb, Cb
+                                    )
+                                    
+                                    if flex_result:
+                                        phi_Mn = 0.9 * flex_result['Mn']
+                                        tension_capacity = 0.9 * Fy * Ag / 1000.0
+                                        phi_Pn = tension_capacity
                                         
-                                        results.append({
-                                            'LC': lc,
-                                            'Mu (t·m)': Mu,
-                                            'Pu (tons)': Pu,
-                                            'φPn (tons)': phi_Pn,
-                                            'φMn (t·m)': phi_Mnx,
-                                            'Ratio': ratio,
-                                            'Status': status,
-                                            'Type': 'Combined'
-                                        })
-                            
+                                        if Pu >= 0:
+                                            # Compression case - need compression check
+                                            comp_result = aisc_360_16_e3_compression_design(
+                                                df, df_mat, section, material, KL, KL
+                                            )
+                                            if comp_result:
+                                                phi_Pn_comp = comp_result['phi_Pn']
+                                                phi_Mny = 0.9 * 0.9 * Fy * Zy / 100000.0
+                                                
+                                                interaction_result = aisc_360_16_h1_interaction(
+                                                    Pu, phi_Pn_comp, abs(Mu), phi_Mn, 0, phi_Mny
+                                                )
+                                                
+                                                if interaction_result:
+                                                    ratio = interaction_result['interaction_ratio']
+                                                    status = "✓ OK" if interaction_result['design_ok'] else "✗ NG"
+                                                    equation = interaction_result['equation']
+                                                    mode = "Comp+Flex (Reversed)"
+                                                    phi_Pn = phi_Pn_comp
+                                                else:
+                                                    ratio = 999
+                                                    status = "ERROR"
+                                                    equation = "N/A"
+                                                    mode = "Calc Error"
+                                            else:
+                                                ratio = 999
+                                                status = "ERROR"
+                                                equation = "N/A"
+                                                mode = "Calc Error"
+                                        else:
+                                            # Tension case - linear interaction
+                                            axial_ratio = abs(Pu) / tension_capacity
+                                            moment_ratio = abs(Mu) / phi_Mn
+                                            ratio = axial_ratio + moment_ratio
+                                            status = "✓ OK" if ratio <= 1.0 else "✗ NG"
+                                            equation = "Tu/φTn + Mu/φMn"
+                                            mode = "Tension+Flexure"
+                                    else:
+                                        ratio = 999
+                                        status = "ERROR"
+                                        equation = "N/A"
+                                        mode = "Calc Error"
+                                
+                                results.append({
+                                    'LC': lc,
+                                    'Mu (t·m)': Mu,
+                                    'Pu (tons)': Pu,
+                                    'φPn (tons)': phi_Pn if phi_Pn else 0,
+                                    'φMn (t·m)': phi_Mn if phi_Mn else 0,
+                                    'Ratio': ratio if ratio else 999,
+                                    'Status': status if status else "ERROR",
+                                    'Equation': equation if equation else "N/A",
+                                    'Mode': mode if mode else "Unknown"
+                                })
+                                
                             except Exception as e:
                                 results.append({
                                     'LC': lc,
                                     'Mu (t·m)': Mu,
                                     'Pu (tons)': Pu,
-                                    'φPn (tons)': '-',
-                                    'φMn (t·m)': '-',
+                                    'φPn (tons)': 0,
+                                    'φMn (t·m)': 0,
                                     'Ratio': 999,
-                                    'Status': f"ERROR: {str(e)[:20]}",
-                                    'Type': 'Error'
+                                    'Status': f"ERROR",
+                                    'Equation': "N/A",
+                                    'Mode': str(e)[:30]
                                 })
+                        
+                        # Store results
+                        df_results = pd.DataFrame(results)
+                        all_results[member] = {
+                            'results': df_results,
+                            'config': config
+                        }
+                        
+                        progress_bar.progress((i + 1) / len(members_to_analyze))
                     
-                    # Create results dataframe
-                    df_results = pd.DataFrame(results)
+                    status_text.text("✅ Analysis Complete!")
+                    st.session_state.analysis_results_tab5 = all_results
+                    st.success(f"✅ Completed analysis for {len(all_results)} members")
+            
+            # Display Results
+            st.markdown("---")
+            st.markdown("### 📊 Analysis Results")
+            
+            if len(st.session_state.analysis_results_tab5) > 0:
+                # Results selector
+                analyzed_members = list(st.session_state.analysis_results_tab5.keys())
+                selected_result_member = st.selectbox(
+                    "Select Member to View:",
+                    analyzed_members,
+                    key="result_member_select"
+                )
+                
+                if selected_result_member:
+                    member_result = st.session_state.analysis_results_tab5[selected_result_member]
+                    df_result = member_result['results']
+                    config = member_result['config']
                     
-                    # Find governing (worst) load combination
-                    governing_idx = df_results['Ratio'].idxmax()
-                    governing_lc = df_results.loc[governing_idx, 'LC']
-                    governing_ratio = df_results.loc[governing_idx, 'Ratio']
+                    # Member info card
+                    st.markdown(f"""
+                    <div class="metric-card">
+                    <h4>Member: {selected_result_member}</h4>
+                    <p><b>Section:</b> {config['section']} | <b>Material:</b> {config['material']} | <b>Type:</b> {config['member_type']}</p>
+                    <p><b>Lb:</b> {config['Lb']:.2f}m | <b>KL:</b> {config['KL']:.2f}m | <b>Cb:</b> {config['Cb']:.2f}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    # Summary statistics
-                    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+                    # Summary metrics
+                    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                     
-                    with col_stat1:
-                        st.metric("Total Load Cases", len(df_results))
+                    # Find governing case
+                    valid_results = df_result[df_result['Ratio'] < 900]
+                    if len(valid_results) > 0:
+                        governing_idx = valid_results['Ratio'].idxmax()
+                        governing_lc = df_result.loc[governing_idx, 'LC']
+                        governing_ratio = df_result.loc[governing_idx, 'Ratio']
+                    else:
+                        governing_lc = "N/A"
+                        governing_ratio = 999
                     
-                    with col_stat2:
-                        passing = len(df_results[df_results['Status'].str.contains('✓')])
-                        st.metric("Passing Cases", passing, delta=f"{passing/len(df_results)*100:.1f}%")
+                    passing = len(df_result[df_result['Status'].str.contains('✓', na=False)])
                     
-                    with col_stat3:
-                        st.metric("Governing LC", int(governing_lc))
-                    
-                    with col_stat4:
+                    with col_m1:
+                        st.metric("Total LCs", len(df_result))
+                    with col_m2:
+                        st.metric("Passing", passing, delta=f"{passing/len(df_result)*100:.0f}%")
+                    with col_m3:
+                        st.metric("Governing LC", int(governing_lc) if governing_lc != "N/A" else "N/A")
+                    with col_m4:
                         st.metric("Max Ratio", f"{governing_ratio:.3f}",
                                  delta="✓ OK" if governing_ratio <= 1.0 else "✗ NG")
                     
@@ -5338,150 +7511,298 @@ with tab5:
                         st.markdown(f"""
                         <div class="success-box">
                         <h3>✅ SECTION ADEQUATE FOR ALL LOAD COMBINATIONS</h3>
-                        <p><b>Maximum Strength Ratio:</b> {governing_ratio:.3f} (LC {int(governing_lc)})</p>
+                        <p><b>Maximum Strength Ratio:</b> {governing_ratio:.3f} (LC {int(governing_lc) if governing_lc != 'N/A' else 'N/A'})</p>
                         </div>
                         """, unsafe_allow_html=True)
                     else:
                         st.markdown(f"""
                         <div class="error-box">
                         <h3>❌ SECTION INADEQUATE</h3>
-                        <p><b>Governing Load Combination:</b> LC {int(governing_lc)} with ratio {governing_ratio:.3f}</p>
+                        <p><b>Governing Load Combination:</b> LC {int(governing_lc) if governing_lc != 'N/A' else 'N/A'} with ratio {governing_ratio:.3f}</p>
                         <p><b>Recommendation:</b> Increase section size or check design assumptions</p>
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    # Detailed results table
-                    st.markdown("### 📋 Detailed Results by Load Combination")
+                    # Results table with styling
+                    st.markdown("#### 📋 Detailed Results by Load Combination")
                     
-                    # Style the dataframe
-                    def highlight_status(val):
+                    def style_status(val):
                         if '✓' in str(val):
                             return 'background-color: #C8E6C9; color: #2E7D32; font-weight: bold'
                         elif '✗' in str(val):
                             return 'background-color: #FFCDD2; color: #C62828; font-weight: bold'
-                        else:
-                            return ''
+                        elif '⚠️' in str(val):
+                            return 'background-color: #FFF9C4; color: #F57C00; font-weight: bold'
+                        return ''
                     
-                    def highlight_ratio(val):
+                    def style_ratio(val):
                         try:
                             if float(val) <= 1.0:
                                 return 'background-color: #E8F5E9'
-                            else:
+                            elif float(val) < 900:
                                 return 'background-color: #FFEBEE'
+                            else:
+                                return 'background-color: #FFF9C4'
                         except:
                             return ''
                     
-                    styled_results = df_results.style.format({
+                    styled_results = df_result.style.format({
                         'Mu (t·m)': '{:.2f}',
                         'Pu (tons)': '{:.2f}',
-                        'φPn (tons)': lambda x: '{:.2f}'.format(x) if isinstance(x, (int, float)) else x,
-                        'φMn (t·m)': lambda x: '{:.2f}'.format(x) if isinstance(x, (int, float)) else x,
+                        'φPn (tons)': '{:.2f}',
+                        'φMn (t·m)': '{:.2f}',
                         'Ratio': '{:.3f}'
-                    }).applymap(highlight_status, subset=['Status'])\
-                      .applymap(highlight_ratio, subset=['Ratio'])
+                    }).applymap(style_status, subset=['Status'])\
+                      .applymap(style_ratio, subset=['Ratio'])
                     
-                    st.dataframe(styled_results, use_container_width=True, height=400)
+                    st.dataframe(styled_results, use_container_width=True, height=350)
                     
-                    # Chart: Strength Ratio by Load Combination
-                    st.markdown("### 📊 Strength Ratio Chart")
+                    # Strength ratio chart
+                    st.markdown("#### 📊 Strength Ratio Chart")
                     
                     fig = go.Figure()
                     
-                    # Bar chart for ratios
-                    colors = ['#4CAF50' if r <= 1.0 else '#F44336' for r in df_results['Ratio']]
+                    # Filter valid ratios for chart
+                    valid_for_chart = df_result[df_result['Ratio'] < 900].copy()
                     
-                    fig.add_trace(go.Bar(
-                        x=df_results['LC'],
-                        y=df_results['Ratio'],
+                    if len(valid_for_chart) > 0:
+                        colors = ['#4CAF50' if r <= 1.0 else '#F44336' for r in valid_for_chart['Ratio']]
+                        
+                        fig.add_trace(go.Bar(
+                            x=valid_for_chart['LC'],
+                            y=valid_for_chart['Ratio'],
+                            marker_color=colors,
+                            text=valid_for_chart['Ratio'].apply(lambda x: f'{x:.3f}'),
+                            textposition='outside',
+                            name='Strength Ratio',
+                            hovertemplate='<b>LC %{x}</b><br>Ratio: %{y:.3f}<br>%{customdata}<extra></extra>',
+                            customdata=valid_for_chart['Mode']
+                        ))
+                        
+                        # Unity line
+                        fig.add_hline(y=1.0, line_dash="dash", line_color='#FF9800', line_width=2,
+                                     annotation_text="Unity (Ratio = 1.0)")
+                        
+                        layout = get_enhanced_plotly_layout()
+                        layout['title'] = f"Strength Ratio - Member {selected_result_member} ({config['section']})"
+                        layout['xaxis']['title'] = "Load Combination"
+                        layout['yaxis']['title'] = "Strength Ratio"
+                        layout['height'] = 450
+                        
+                        fig.update_layout(layout)
+                        st.plotly_chart(fig, use_container_width=True, config=create_enhanced_plotly_config())
+            else:
+                st.info("💡 Run the design analysis to see results")
+    
+    # ==================== SUB-TAB 4: SUMMARY REPORT ====================
+    with subtab4:
+        st.markdown("### 📊 Summary Report & Export")
+        
+        if len(st.session_state.analysis_results_tab5) == 0:
+            st.warning("⚠️ Please run design analysis first in the 'Design Check' tab")
+        else:
+            all_results = st.session_state.analysis_results_tab5
+            
+            # Overall summary
+            st.markdown("#### 📋 Overall Design Summary")
+            
+            summary_rows = []
+            for member, data in all_results.items():
+                df_result = data['results']
+                config = data['config']
+                
+                valid_results = df_result[df_result['Ratio'] < 900]
+                if len(valid_results) > 0:
+                    max_ratio = valid_results['Ratio'].max()
+                    governing_idx = valid_results['Ratio'].idxmax()
+                    governing_lc = df_result.loc[governing_idx, 'LC']
+                    governing_mode = df_result.loc[governing_idx, 'Mode']
+                else:
+                    max_ratio = 999
+                    governing_lc = "N/A"
+                    governing_mode = "Error"
+                
+                passing = len(df_result[df_result['Status'].str.contains('✓', na=False)])
+                
+                summary_rows.append({
+                    'Member': member,
+                    'Section': config['section'],
+                    'Type': config['member_type'].split('(')[0].strip(),
+                    '# LCs': len(df_result),
+                    'Passing': passing,
+                    'Gov. LC': governing_lc,
+                    'Max Ratio': max_ratio,
+                    'Mode': governing_mode,
+                    'Status': '✓ OK' if max_ratio <= 1.0 else '✗ NG'
+                })
+            
+            df_summary = pd.DataFrame(summary_rows)
+            
+            # Statistics
+            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+            
+            total_members = len(df_summary)
+            passing_members = len(df_summary[df_summary['Max Ratio'] <= 1.0])
+            failing_members = total_members - passing_members
+            max_overall_ratio = df_summary['Max Ratio'].max()
+            
+            with col_s1:
+                st.metric("Total Members", total_members)
+            with col_s2:
+                st.metric("Passing", passing_members, delta=f"{passing_members/total_members*100:.0f}%")
+            with col_s3:
+                st.metric("Failing", failing_members)
+            with col_s4:
+                st.metric("Max Ratio", f"{max_overall_ratio:.3f}" if max_overall_ratio < 900 else "N/A")
+            
+            # Summary table
+            def style_summary_status(val):
+                if '✓' in str(val):
+                    return 'background-color: #C8E6C9; color: #2E7D32; font-weight: bold'
+                elif '✗' in str(val):
+                    return 'background-color: #FFCDD2; color: #C62828; font-weight: bold'
+                return ''
+            
+            styled_summary = df_summary.style.format({
+                'Max Ratio': '{:.3f}'
+            }).applymap(style_summary_status, subset=['Status'])
+            
+            st.dataframe(styled_summary, use_container_width=True, height=400)
+            
+            # Visualization
+            st.markdown("#### 📊 Summary Visualization")
+            
+            col_chart1, col_chart2 = st.columns(2)
+            
+            with col_chart1:
+                # Bar chart of max ratios
+                valid_summary = df_summary[df_summary['Max Ratio'] < 900]
+                
+                if len(valid_summary) > 0:
+                    colors = ['#4CAF50' if r <= 1.0 else '#F44336' for r in valid_summary['Max Ratio']]
+                    
+                    fig_bar = go.Figure()
+                    fig_bar.add_trace(go.Bar(
+                        x=valid_summary['Member'],
+                        y=valid_summary['Max Ratio'],
                         marker_color=colors,
-                        text=df_results['Ratio'].apply(lambda x: f'{x:.3f}'),
-                        textposition='outside',
-                        name='Strength Ratio',
-                        hovertemplate='<b>LC %{x}</b><br>Ratio: %{y:.3f}<extra></extra>'
+                        text=valid_summary['Max Ratio'].apply(lambda x: f'{x:.2f}'),
+                        textposition='outside'
                     ))
                     
-                    # Add unity line
-                    fig.add_hline(y=1.0, line_dash="dash", line_color='#FF9800', line_width=2,
-                                 annotation_text="Unity (Ratio = 1.0)")
+                    fig_bar.add_hline(y=1.0, line_dash="dash", line_color='#FF9800', line_width=2)
                     
-                    layout = get_enhanced_plotly_layout()
-                    layout['title'] = f"Strength Ratio for Member {selected_member} - {trial_section}"
-                    layout['xaxis']['title'] = "Load Combination"
-                    layout['yaxis']['title'] = "Strength Ratio"
-                    layout['height'] = 500
+                    fig_bar.update_layout(
+                        title="Maximum Strength Ratio by Member",
+                        xaxis_title="Member",
+                        yaxis_title="Max Ratio",
+                        height=400,
+                        template='plotly_white'
+                    )
                     
-                    fig.update_layout(layout)
-                    st.plotly_chart(fig, use_container_width=True, config=create_enhanced_plotly_config())
-                    
-                    # Export results
-                    st.markdown("### 💾 Export Results")
-                    
-                    col_exp1, col_exp2 = st.columns(2)
-                    
-                    with col_exp1:
-                        # CSV export
-                        csv_export = df_results.to_csv(index=False)
-                        st.download_button(
-                            label="📥 Download Results (CSV)",
-                            data=csv_export,
-                            file_name=f"Member_{selected_member}_Results_{datetime.now().strftime('%Y%m%d')}.csv",
-                            mime="text/csv"
-                        )
-                    
-                    with col_exp2:
-                        # Excel export with formatting
-                        if EXCEL_AVAILABLE:
-                            buffer = BytesIO()
-                            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                                df_results.to_excel(writer, sheet_name='Results', index=False)
-                                
-                                # Format the worksheet
-                                wb = writer.book
-                                ws = writer.sheets['Results']
-                                
-                                # Header formatting
-                                for cell in ws[1]:
-                                    cell.font = Font(bold=True, color="FFFFFF")
-                                    cell.fill = PatternFill(start_color="667EEA", end_color="667EEA", fill_type="solid")
-                                    cell.alignment = Alignment(horizontal="center", vertical="center")
-                                
-                                # Auto-adjust column widths
-                                for column in ws.columns:
-                                    max_length = 0
-                                    column_letter = get_column_letter(column[0].column)
-                                    for cell in column:
-                                        try:
-                                            if len(str(cell.value)) > max_length:
-                                                max_length = len(str(cell.value))
-                                        except:
-                                            pass
-                                    adjusted_width = min(max_length + 2, 30)
-                                    ws.column_dimensions[column_letter].width = adjusted_width
+                    st.plotly_chart(fig_bar, use_container_width=True)
+            
+            with col_chart2:
+                # Pie chart of pass/fail
+                fig_pie = go.Figure()
+                fig_pie.add_trace(go.Pie(
+                    values=[passing_members, failing_members],
+                    labels=['Passing', 'Failing'],
+                    marker_colors=['#4CAF50', '#F44336'],
+                    hole=0.4
+                ))
+                
+                fig_pie.update_layout(
+                    title="Pass/Fail Distribution",
+                    height=400
+                )
+                
+                st.plotly_chart(fig_pie, use_container_width=True)
+            
+            # Export options
+            st.markdown("---")
+            st.markdown("#### 💾 Export Results")
+            
+            col_exp1, col_exp2, col_exp3 = st.columns(3)
+            
+            with col_exp1:
+                # Summary CSV
+                csv_summary = df_summary.to_csv(index=False)
+                st.download_button(
+                    label="📥 Summary (CSV)",
+                    data=csv_summary,
+                    file_name=f"Design_Summary_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    key="export_summary_csv"
+                )
+            
+            with col_exp2:
+                # Detailed CSV (all load combinations)
+                all_detailed = []
+                for member, data in all_results.items():
+                    df_result = data['results'].copy()
+                    df_result['Member'] = member
+                    df_result['Section'] = data['config']['section']
+                    df_result['Material'] = data['config']['material']
+                    df_result['Type'] = data['config']['member_type']
+                    all_detailed.append(df_result)
+                
+                df_all_detailed = pd.concat(all_detailed, ignore_index=True)
+                csv_detailed = df_all_detailed.to_csv(index=False)
+                
+                st.download_button(
+                    label="📥 Detailed (CSV)",
+                    data=csv_detailed,
+                    file_name=f"Design_Detailed_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    key="export_detailed_csv"
+                )
+            
+            with col_exp3:
+                # Excel export
+                if EXCEL_AVAILABLE:
+                    buffer = BytesIO()
+                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                        # Summary sheet
+                        df_summary.to_excel(writer, sheet_name='Summary', index=False)
+                        
+                        # Individual member sheets
+                        for member, data in all_results.items():
+                            sheet_name = str(member)[:31]  # Excel limit
+                            data['results'].to_excel(writer, sheet_name=sheet_name, index=False)
+                        
+                        # Format sheets
+                        wb = writer.book
+                        for ws_name in wb.sheetnames:
+                            ws = wb[ws_name]
+                            # Header formatting
+                            for cell in ws[1]:
+                                cell.font = Font(bold=True, color="FFFFFF")
+                                cell.fill = PatternFill(start_color="667EEA", end_color="667EEA", fill_type="solid")
+                                cell.alignment = Alignment(horizontal="center", vertical="center")
                             
-                            buffer.seek(0)
-                            st.download_button(
-                                label="📥 Download Results (Excel)",
-                                data=buffer,
-                                file_name=f"Member_{selected_member}_Results_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-        
-        except Exception as e:
-            st.error(f"❌ Error processing file: {str(e)}")
-            st.info("💡 Please ensure your file matches the required format")
-    
-    else:
-        st.info("📁 Upload a load data file to begin member-based design checks")
-        
-        # Show example
-        with st.expander("📖 Example Format", expanded=True):
-            example_data = {
-                'Member No.': ['1234', '1234', '1234', '5678', '5678'],
-                'Load Combination': [1, 2, 3, 1, 2],
-                'Mu': [45.5, 52.8, 38.2, 32.1, 28.9],
-                'Pu': [120.3, 135.7, 98.5, 85.4, 92.1]
-            }
-            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
+                            # Auto-width
+                            for column in ws.columns:
+                                max_length = 0
+                                column_letter = get_column_letter(column[0].column)
+                                for cell in column:
+                                    try:
+                                        if cell.value:
+                                            max_length = max(max_length, len(str(cell.value)))
+                                    except:
+                                        pass
+                                ws.column_dimensions[column_letter].width = min(max_length + 2, 30)
+                    
+                    buffer.seek(0)
+                    st.download_button(
+                        label="📥 Full Report (Excel)",
+                        data=buffer,
+                        file_name=f"Design_Report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="export_excel"
+                    )
+                else:
+                    st.warning("⚠️ Excel export requires openpyxl")
 
 # ==================== PROFESSIONAL FOOTER ====================
 st.markdown("---")
