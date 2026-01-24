@@ -6122,18 +6122,22 @@ with st.sidebar:
     if st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0] if material_list else None
 
-    # Get index
-    material_index = material_list.index(st.session_state.selected_material) if st.session_state.selected_material in material_list else 0
+    # Calculate index
+    try:
+        material_index = material_list.index(st.session_state.selected_material)
+    except (ValueError, TypeError):
+        material_index = 0
+        st.session_state.selected_material = material_list[0] if material_list else None
 
-    # Standard st.selectbox
+    # Selectbox - using index to show current selection
     selected_material = st.selectbox(
-        "⚙️ Steel Grade:",
+        label="⚙️ Steel Grade:",
         options=material_list,
         index=material_index,
         help="Select steel material grade per AISC 360-16"
     )
 
-    # Update session state
+    # Always update session state
     st.session_state.selected_material = selected_material
 
     if selected_material:
@@ -6160,18 +6164,22 @@ with st.sidebar:
     if st.session_state.selected_section not in section_list:
         st.session_state.selected_section = section_list[0] if section_list else None
 
-    # Get index
-    section_index = section_list.index(st.session_state.selected_section) if st.session_state.selected_section in section_list else 0
+    # Calculate index
+    try:
+        section_index = section_list.index(st.session_state.selected_section)
+    except (ValueError, TypeError):
+        section_index = 0
+        st.session_state.selected_section = section_list[0] if section_list else None
 
-    # Standard st.selectbox
+    # Selectbox - using index to show current selection
     selected_section = st.selectbox(
-        "🔩 Select Section:",
+        label="🔩 Select Section:",
         options=section_list,
         index=section_index,
         help="Select steel section from database"
     )
 
-    # Update session state
+    # Always update session state
     st.session_state.selected_section = selected_section
 
     # ========== SECTION PREVIEW CARD ==========
