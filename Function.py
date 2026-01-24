@@ -6116,36 +6116,31 @@ with st.sidebar:
     st.markdown("---")
 
     # ========== MATERIAL SELECTION ==========
-    material_list = list(df_mat.index)
+    # Clean the material list - strip whitespace and convert to strings
+    material_list = [str(x).strip() for x in df_mat.index.tolist()]
 
-    # Debug: Show what we're working with
-    # st.write(f"DEBUG: material_list length: {len(material_list)}")
-    # st.write(f"DEBUG: session_state.selected_material: {st.session_state.selected_material}")
+    # Ensure selected_material is valid and clean
+    if st.session_state.selected_material:
+        st.session_state.selected_material = str(st.session_state.selected_material).strip()
 
-    # Ensure selected_material is valid
     if st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0] if material_list else None
 
-    # Calculate index
+    # Calculate index with cleaned data
     try:
         material_index = material_list.index(st.session_state.selected_material)
     except (ValueError, TypeError):
         material_index = 0
-        st.session_state.selected_material = material_list[0] if material_list else None
+        st.session_state.selected_material = material_list[0]
 
-    # st.write(f"DEBUG: Calculated material_index: {material_index}")
-    # st.write(f"DEBUG: Value at that index: {material_list[material_index] if material_index < len(material_list) else 'OUT OF RANGE'}")
-
-    # Selectbox
+    # Selectbox with cleaned options
     selected_material = st.selectbox(
         label="⚙️ Steel Grade:",
         options=material_list,
         index=material_index,
-        format_func=lambda x: str(x),
+        key="material_select_widget",
         help="Select steel material grade per AISC 360-16"
     )
-
-    # st.write(f"DEBUG: Selectbox returned: {selected_material}")
 
     # Always update session state
     st.session_state.selected_material = selected_material
@@ -6168,36 +6163,31 @@ with st.sidebar:
     st.markdown("### 📐 Section Selection")
 
     # ========== SECTION SELECTION ==========
-    section_list = list(df.index)
+    # Clean the section list - strip whitespace and convert to strings
+    section_list = [str(x).strip() for x in df.index.tolist()]
 
-    # Debug: Show what we're working with
-    # st.write(f"DEBUG: section_list length: {len(section_list)}")
-    # st.write(f"DEBUG: session_state.selected_section: {st.session_state.selected_section}")
+    # Ensure selected_section is valid and clean
+    if st.session_state.selected_section:
+        st.session_state.selected_section = str(st.session_state.selected_section).strip()
 
-    # Ensure selected_section is valid
     if st.session_state.selected_section not in section_list:
         st.session_state.selected_section = section_list[0] if section_list else None
 
-    # Calculate index
+    # Calculate index with cleaned data
     try:
         section_index = section_list.index(st.session_state.selected_section)
     except (ValueError, TypeError):
         section_index = 0
-        st.session_state.selected_section = section_list[0] if section_list else None
+        st.session_state.selected_section = section_list[0]
 
-    # st.write(f"DEBUG: Calculated section_index: {section_index}")
-    # st.write(f"DEBUG: Value at that index: {section_list[section_index] if section_index < len(section_list) else 'OUT OF RANGE'}")
-
-    # Selectbox
+    # Selectbox with cleaned options
     selected_section = st.selectbox(
         label="🔩 Select Section:",
         options=section_list,
         index=section_index,
-        format_func=lambda x: str(x),
+        key="section_select_widget",
         help="Select steel section from database"
     )
-
-    # st.write(f"DEBUG: Selectbox returned: {selected_section}")
 
     # Always update session state
     st.session_state.selected_section = selected_section
