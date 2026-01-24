@@ -3420,27 +3420,6 @@ def create_compression_capacity_chart(E, Fy, Ag, lambda_c, lambda_limit, comp_re
 file_path = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
 file_path_mat = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
 
-# ==================== SESSION STATE INITIALIZATION ====================
-if 'selected_section' not in st.session_state:
-    st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
-if 'selected_material' not in st.session_state:
-    st.session_state.selected_material = list(df_mat.index)[0] if len(df_mat.index) > 0 else None
-if 'selected_sections' not in st.session_state:
-    st.session_state.selected_sections = []
-if 'calculation_report' not in st.session_state:
-    st.session_state.calculation_report = ""
-if 'evaluation_results' not in st.session_state:
-    st.session_state.evaluation_results = None
-if 'project_info' not in st.session_state:
-    st.session_state.project_info = {
-        'project_name': '',
-        'project_no': '',
-        'designer': '',
-        'checker': '',
-        'date': datetime.now().strftime('%Y-%m-%d'),
-        'revision': '0'
-    }
-
 # ==================== HELPER FUNCTIONS ====================
 @st.cache_data
 def load_data():
