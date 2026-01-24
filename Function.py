@@ -1,12 +1,12 @@
 # ==================== ENHANCED AISC 360-16 STEEL DESIGN WEB APP ====================
-# Version: 7.0 - Professional UI/UX with Advanced Export Capabilities
+# Version: 7.0 - UI/UX with Advanced Export Capabilities
 # New Features: PDF/Excel Export, Modern UI, Enhanced Visualizations
 
 import streamlit as st
 
 # ==================== PAGE CONFIGURATION - MUST BE FIRST ====================
 st.set_page_config(
-    page_title="AISC 360-16 Steel Design Professional",
+    page_title="AISC 360-16 Steel Design",
     page_icon="🏗️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -38,7 +38,7 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 
-# ==================== PROFESSIONAL PDF GENERATION WITH FIXED FORMATTING ====================
+# ==================== PDF GENERATION WITH FIXED FORMATTING ====================
 from reportlab.platypus import PageTemplate, Frame, BaseDocTemplate, KeepTogether
 from reportlab.lib.units import inch, cm
 from reportlab.pdfgen import canvas
@@ -1916,14 +1916,14 @@ def generate_excel_report(df, df_mat, section, material, analysis_results, desig
     wb.save(buffer)
     buffer.seek(0)
     return buffer
-def generate_professional_calculation_report(df, df_mat, section, material, analysis_results, design_params, project_info):
+def generate_calculation_report(df, df_mat, section, material, analysis_results, design_params, project_info):
     """
-    Generate professional engineering calculation report with:
+    Generate engineering calculation report with:
     - Project information header
     - Hand calculation style (detailed step-by-step)
     - Summary tables
     - Graphs/Charts
-    - Professional formatting
+    - formatting
     """
     if not PDF_AVAILABLE:
         return None
@@ -2054,7 +2054,7 @@ def generate_professional_calculation_report(df, df_mat, section, material, anal
     # ==================== PROJECT HEADER TABLE ====================
     story.append(Spacer(1, 0.1*inch))
     
-    # Project info table (professional engineering header)
+    # Project info table (engineering header)
     header_data = [
         [Paragraph('<b>STRUCTURAL CALCULATION SHEET</b>', 
                   ParagraphStyle('header', fontSize=14, alignment=TA_CENTER, textColor=rl_colors.white)),
@@ -2911,10 +2911,10 @@ def generate_professional_calculation_report(df, df_mat, section, material, anal
     buffer.seek(0)
     return buffer
 
-# ==================== PROFESSIONAL ENHANCED CSS ====================
+# ==================== ENHANCED CSS ====================
 st.markdown("""
 <style>
-    /* Import Professional Font */
+    /* Import Font */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
     /* Global Styling */
@@ -2959,7 +2959,7 @@ st.markdown("""
         box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
     }
     
-    /* Professional Headers */
+    /* Headers */
     .main-header {
         font-size: 2.8rem;
         font-weight: 800;
@@ -3104,7 +3104,7 @@ st.markdown("""
         overflow-y: auto;
     }
     
-    /* Professional Data Tables */
+    /* Data Tables */
     .dataframe {
         font-size: 14px !important;
         border-radius: 10px;
@@ -3684,8 +3684,8 @@ def get_enhanced_plotly_layout():
         'paper_bgcolor': 'white'
     }
 
-def generate_professional_pdf_report(df, df_mat, section, material, analysis_results, design_params):
-    """Generate professional PDF report with perfect formatting - NO OVERLAP"""
+def generate_pdf_report(df, df_mat, section, material, analysis_results, design_params):
+    """Generate PDF report with perfect formatting - NO OVERLAP"""
     if not PDF_AVAILABLE:
         return None
     
@@ -4316,10 +4316,10 @@ def generate_professional_pdf_report(df, df_mat, section, material, analysis_res
     story.append(Spacer(1, 2*inch))
     footer_text = """
     <para align=center>
-    <b>AISC 360-16 Steel Design Professional v7.0</b><br/>
+    <b>AISC 360-16 Steel Design v7.0</b><br/>
     All calculations comply with AISC 360-16 specifications.<br/>
     <br/>
-    © 2024 - Professional Structural Engineering Tool
+    © 2024 - Structural Engineering Tool
     </para>
     """
     story.append(Paragraph(footer_text, body_style))
@@ -6107,10 +6107,10 @@ if not EXCEL_AVAILABLE:
     st.sidebar.warning("⚠️ Excel export unavailable. Install: `pip install openpyxl`")
 
 # ==================== MAIN HEADER ====================
-st.markdown('<h1 class="main-header">AISC 360-16 Steel Design Professional v7.0</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">Professional UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">AISC 360-16 Steel Design v7.0</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== IMPROVED PROFESSIONAL SIDEBAR ====================
+# ==================== IMPROVED SIDEBAR ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
@@ -6641,7 +6641,7 @@ with tab2:
 
 # ==================== TAB 3: DESIGN EVALUATION & EXPORT ====================
 with tab3:
-    st.markdown('<h2 class="section-header">📋 Design Evaluation & Professional Export</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">📋 Design Evaluation & Export</h2>', unsafe_allow_html=True)
     
     if st.session_state.selected_section and selected_material:
         section = st.session_state.selected_section
@@ -6713,7 +6713,7 @@ with tab3:
         
         with col_export1:
             if PDF_AVAILABLE:
-                if st.button("📄 Generate Professional Calculation Report", type="primary"):
+                if st.button("📄 Generate Calculation Report", type="primary"):
                     design_params = {
                         'Mu': Mu_eval, 'Pu': Pu_eval,
                         'Lb': Lb_eval, 'KL': KL_eval,
@@ -6730,8 +6730,8 @@ with tab3:
                         'revision': '0'
                     })
                     
-                    with st.spinner('Generating professional calculation report...'):
-                        pdf_buffer = generate_professional_calculation_report(
+                    with st.spinner('Generating calculation report...'):
+                        pdf_buffer = generate_calculation_report(
                             df, df_mat, section, selected_material, 
                             st.session_state.evaluation_results, design_params, project_info
                         )
@@ -6747,7 +6747,7 @@ with tab3:
                             file_name=filename,
                             mime="application/pdf"
                         )
-                        st.success("✅ Professional calculation report generated!")
+                        st.success("✅ calculation report generated!")
             else:
                 st.warning("⚠️ PDF export requires reportlab library")
                 st.code("pip install reportlab")
@@ -6788,16 +6788,16 @@ with tab4:
     
     with st.expander("🎯 Application Features", expanded=True):
         st.markdown("""
-        ### Professional UI/UX Enhancements v7.0
+        ### UI/UX Enhancements v7.0
         
         **Visual Improvements:**
-        - 🎨 Modern gradient color scheme with professional typography
+        - 🎨 Modern gradient color scheme with typography
         - 📊 Enhanced data tables with improved readability and alignment
         - 📈 Optimized charts with proper margins and label placement
         - 🎯 Clean, intuitive layout with logical information flow
         
         **Export Capabilities:**
-        - 📄 **PDF Export:** Comprehensive calculation reports with professional formatting
+        - 📄 **PDF Export:** Comprehensive calculation reports with formatting
         - 📊 **Excel Export:** Detailed analysis with formatted tables and styling
         - 📋 Both formats include input parameters, step-by-step calculations, and results
         
@@ -6840,7 +6840,7 @@ with tab4:
         ### Export Instructions
         
         **PDF Reports:**
-        - Professional formatting with AISC compliance
+        - formatting with AISC compliance
         - Includes material properties, section properties, and analysis results
         - Download directly from the browser
         
@@ -7850,16 +7850,16 @@ T301,5,0.0,-55.0"""
                 else:
                     st.warning("⚠️ Excel export requires openpyxl")
 
-# ==================== PROFESSIONAL FOOTER ====================
+# ==================== FOOTER ====================
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; padding: 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             color: white; border-radius: 15px; margin-top: 2rem;'>
-    <h3 style='margin: 0; font-weight: 700;'>AISC 360-16 Steel Design Professional v7.0</h3>
-    <p style='margin: 0.5rem 0; font-size: 1.1rem;'>🎯 Professional UI/UX | 📊 Advanced Export | 📈 Enhanced Visualizations</p>
+    <h3 style='margin: 0; font-weight: 700;'>AISC 360-16 Steel Design v7.0</h3>
+    <p style='margin: 0.5rem 0; font-size: 1.1rem;'>🎯 UI/UX | 📊 Advanced Export | 📈 Enhanced Visualizations</p>
     <p style='margin: 0.5rem 0;'>📐 Full AISC Compliance: F2 Flexural | E3 Compression | H1 Combined Forces</p>
     <p style='margin: 0.5rem 0; font-size: 0.9rem; opacity: 0.9;'>
-        <i>© 2024 - Professional Structural Engineering Tool</i>
+        <i>© 2024 - Structural Engineering Tool</i>
     </p>
 </div>
 """, unsafe_allow_html=True)
