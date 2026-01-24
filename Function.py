@@ -6136,11 +6136,15 @@ with st.sidebar:
             material_index = i
             break
 
+    # Debug display
+    st.caption(f"Current: {st.session_state.selected_material} | Index: {material_index}")
+
     # Selectbox
     selected_material = st.selectbox(
         "⚙️ Steel Grade:",
         material_list,
-        index=material_index
+        index=material_index,
+        placeholder="Choose a steel grade..."
     )
 
     # Update state
@@ -6184,11 +6188,15 @@ with st.sidebar:
             section_index = i
             break
 
+    # Debug display
+    st.caption(f"Current: {st.session_state.selected_section} | Index: {section_index}")
+
     # Selectbox
     selected_section = st.selectbox(
         "🔩 Select Section:",
         section_list,
-        index=section_index
+        index=section_index,
+        placeholder="Choose a section..."
     )
 
     # Update state
