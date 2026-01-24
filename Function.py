@@ -6152,7 +6152,8 @@ with st.sidebar:
     """
     selected_material_new = components.html(material_html, height=50)
 
-    if selected_material_new:
+    # Only update and rerun if value actually changed
+    if selected_material_new and selected_material_new != st.session_state.selected_material:
         st.session_state.selected_material = selected_material_new
         st.rerun()
 
@@ -6212,7 +6213,8 @@ with st.sidebar:
     """
     selected_section_new = components.html(section_html, height=50)
 
-    if selected_section_new:
+    # Only update and rerun if value actually changed
+    if selected_section_new and selected_section_new != st.session_state.selected_section:
         st.session_state.selected_section = selected_section_new
         st.rerun()
 
