@@ -6116,33 +6116,34 @@ with st.sidebar:
     st.markdown("---")
 
     # ========== MATERIAL SELECTION ==========
-    # Clean the material list - strip whitespace and convert to strings
     material_list = [str(x).strip() for x in df_mat.index.tolist()]
 
-    # Ensure selected_material is valid and clean
-    if st.session_state.selected_material:
-        st.session_state.selected_material = str(st.session_state.selected_material).strip()
-
-    if st.session_state.selected_material not in material_list:
-        st.session_state.selected_material = material_list[0] if material_list else None
-
-    # Calculate index with cleaned data
-    try:
-        material_index = material_list.index(st.session_state.selected_material)
-    except (ValueError, TypeError):
-        material_index = 0
+    # Initialize with first value if not set
+    if 'selected_material' not in st.session_state or not st.session_state.selected_material:
         st.session_state.selected_material = material_list[0]
 
-    # Selectbox with cleaned options
+    # Clean session state value
+    st.session_state.selected_material = str(st.session_state.selected_material).strip()
+
+    # Validate
+    if st.session_state.selected_material not in material_list:
+        st.session_state.selected_material = material_list[0]
+
+    # Find index
+    material_index = 0
+    for i, mat in enumerate(material_list):
+        if mat == st.session_state.selected_material:
+            material_index = i
+            break
+
+    # Selectbox
     selected_material = st.selectbox(
-        label="⚙️ Steel Grade:",
-        options=material_list,
-        index=material_index,
-        key="material_select_widget",
-        help="Select steel material grade per AISC 360-16"
+        "⚙️ Steel Grade:",
+        material_list,
+        index=material_index
     )
 
-    # Always update session state
+    # Update state
     st.session_state.selected_material = selected_material
 
     if selected_material:
@@ -6163,33 +6164,34 @@ with st.sidebar:
     st.markdown("### 📐 Section Selection")
 
     # ========== SECTION SELECTION ==========
-    # Clean the section list - strip whitespace and convert to strings
     section_list = [str(x).strip() for x in df.index.tolist()]
 
-    # Ensure selected_section is valid and clean
-    if st.session_state.selected_section:
-        st.session_state.selected_section = str(st.session_state.selected_section).strip()
-
-    if st.session_state.selected_section not in section_list:
-        st.session_state.selected_section = section_list[0] if section_list else None
-
-    # Calculate index with cleaned data
-    try:
-        section_index = section_list.index(st.session_state.selected_section)
-    except (ValueError, TypeError):
-        section_index = 0
+    # Initialize with first value if not set
+    if 'selected_section' not in st.session_state or not st.session_state.selected_section:
         st.session_state.selected_section = section_list[0]
 
-    # Selectbox with cleaned options
+    # Clean session state value
+    st.session_state.selected_section = str(st.session_state.selected_section).strip()
+
+    # Validate
+    if st.session_state.selected_section not in section_list:
+        st.session_state.selected_section = section_list[0]
+
+    # Find index
+    section_index = 0
+    for i, sec in enumerate(section_list):
+        if sec == st.session_state.selected_section:
+            section_index = i
+            break
+
+    # Selectbox
     selected_section = st.selectbox(
-        label="🔩 Select Section:",
-        options=section_list,
-        index=section_index,
-        key="section_select_widget",
-        help="Select steel section from database"
+        "🔩 Select Section:",
+        section_list,
+        index=section_index
     )
 
-    # Always update session state
+    # Update state
     st.session_state.selected_section = selected_section
 
     # ========== SECTION PREVIEW CARD ==========
