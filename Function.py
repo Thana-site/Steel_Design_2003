@@ -6123,20 +6123,19 @@ with st.sidebar:
     
     # ========== MATERIAL SELECTION ==========
     material_list = list(df_mat.index)
-    
-    # Calculate material default index
-    material_default_index = 0
-    if st.session_state.selected_material in material_list:
-        material_default_index = material_list.index(st.session_state.selected_material)
-    
+
+    # Ensure selected_material is in the list
+    if st.session_state.selected_material not in material_list and len(material_list) > 0:
+        st.session_state.selected_material = material_list[0]
+
     selected_material = st.selectbox(
         "⚙️ Steel Grade:",
         material_list,
-        index=material_default_index,
+        index=material_list.index(st.session_state.selected_material) if st.session_state.selected_material in material_list else 0,
+        key="selected_material",
         help="Select steel material grade per AISC 360-16"
     )
-    st.session_state.selected_material = selected_material
-    
+
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
         Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
@@ -6154,23 +6153,20 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📐 Section Selection")
     
-    # ========== SECTION SELECTION - FIXED ==========
+    # ========== SECTION SELECTION ==========
     section_list = list(df.index)
-    
-    # Calculate section default index
-    section_default_index = 0
-    if st.session_state.selected_section in section_list:
-        section_default_index = section_list.index(st.session_state.selected_section)
-    
+
+    # Ensure selected_section is in the list
+    if st.session_state.selected_section not in section_list and len(section_list) > 0:
+        st.session_state.selected_section = section_list[0]
+
     selected_section = st.selectbox(
         "🔩 Select Section:",
         section_list,
-        index=section_default_index,
+        index=section_list.index(st.session_state.selected_section) if st.session_state.selected_section in section_list else 0,
+        key="selected_section",
         help="Select steel section from database"
     )
-    
-    # Update session state
-    st.session_state.selected_section = selected_section
     
     # ========== SECTION PREVIEW CARD ==========
     if selected_section:
