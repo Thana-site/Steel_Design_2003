@@ -232,7 +232,7 @@ def create_dropdown(label, options, default_index=0, key=None, on_change=None, h
     except (ValueError, IndexError):
         current_index = default_index
 
-    # Create the dropdown
+    # Create the dropdown - Streamlit automatically manages session state
     selected = st.selectbox(
         label=label,
         options=options,
@@ -241,9 +241,6 @@ def create_dropdown(label, options, default_index=0, key=None, on_change=None, h
         help=help_text,
         on_change=on_change
     )
-
-    # Update session state
-    st.session_state[key] = selected
 
     return selected
 
