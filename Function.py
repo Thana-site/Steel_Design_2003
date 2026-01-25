@@ -6126,21 +6126,27 @@ with st.sidebar:
     st.markdown("---")
 
     # ========== MATERIAL SELECTION (CALLBACK PATTERN) ==========
-    material_options = [str(x).strip() for x in df_mat.index.tolist()]
+    # Clean material list - nuclear option to remove duplicates and hidden chars
+    material_options = df_mat.index.astype(str).str.strip().unique().tolist()
+    material_options = sorted(list(set(material_options)))
 
-    # Initialize the stored value if it doesn't exist
+    # Initialize BOTH states to the same value
     if 'selected_material' not in st.session_state:
         st.session_state.selected_material = material_options[0]
 
-    # Selectbox with callback - decouples widget state from data state
+    # Initialize widget key to match data state
+    if 'material_widget_key' not in st.session_state:
+        st.session_state.material_widget_key = st.session_state.selected_material
+
+    # Selectbox with callback - NO variable assignment
     st.selectbox(
         "⚙️ Steel Grade:",
         options=material_options,
-        key="material_widget_key",   # Internal widget state
-        on_change=update_material     # Callback runs immediately on change
+        key="material_widget_key",
+        on_change=update_material
     )
 
-    # Use the stored value for calculations
+    # Use the data state for calculations
     selected_material = st.session_state.selected_material
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
@@ -6160,21 +6166,27 @@ with st.sidebar:
     st.markdown("### 📐 Section Selection")
 
     # ========== SECTION SELECTION (CALLBACK PATTERN) ==========
-    section_options = [str(x).strip() for x in df.index.tolist()]
+    # Clean section list - nuclear option to remove duplicates and hidden chars
+    section_options = df.index.astype(str).str.strip().unique().tolist()
+    section_options = sorted(list(set(section_options)))
 
-    # Initialize the stored value if it doesn't exist
+    # Initialize BOTH states to the same value
     if 'selected_section' not in st.session_state:
         st.session_state.selected_section = section_options[0]
 
-    # Selectbox with callback - decouples widget state from data state
+    # Initialize widget key to match data state
+    if 'section_widget_key' not in st.session_state:
+        st.session_state.section_widget_key = st.session_state.selected_section
+
+    # Selectbox with callback - NO variable assignment
     st.selectbox(
         "🔩 Select Section:",
         options=section_options,
-        key="section_widget_key",    # Internal widget state
-        on_change=update_section      # Callback runs immediately on change
+        key="section_widget_key",
+        on_change=update_section
     )
 
-    # Use the stored value
+    # Use the data state
     selected_section = st.session_state.selected_section
 
     # ========== SECTION PREVIEW CARD ==========
