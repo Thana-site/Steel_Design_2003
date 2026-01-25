@@ -6109,7 +6109,16 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== IMPROVED SIDEBAR (SIMPLIFIED VERSION) ====================
+# ==================== CALLBACK FUNCTIONS ====================
+def update_material():
+    """Callback to sync widget state to data state"""
+    st.session_state.selected_material = st.session_state.material_widget
+
+def update_section():
+    """Callback to sync widget state to data state"""
+    st.session_state.selected_section = st.session_state.section_widget
+
+# ==================== IMPROVED SIDEBAR (SOLUTION 3 PATTERN) ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
@@ -6119,19 +6128,20 @@ with st.sidebar:
     material_options = df_mat.index.astype(str).str.strip().unique().tolist()
     material_options = sorted(list(set(material_options)))
 
-    # Initialize if missing (Prevents the 'None' blank bug)
+    # Initialize data state if missing
     if 'selected_material' not in st.session_state:
         st.session_state.selected_material = material_options[0]
 
-    # Create dropdown with index to maintain selected value
+    # Create dropdown with separate widget key and callback
     st.selectbox(
         "⚙️ Steel Grade:",
         options=material_options,
         index=material_options.index(st.session_state.selected_material) if st.session_state.selected_material in material_options else 0,
-        key="selected_material"
+        key="material_widget",
+        on_change=update_material
     )
 
-    # Access the value directly from state
+    # Access the value from data state
     selected_material = st.session_state.selected_material
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
@@ -6155,19 +6165,20 @@ with st.sidebar:
     section_options = df.index.astype(str).str.strip().unique().tolist()
     section_options = sorted(list(set(section_options)))
 
-    # Initialize if missing (Prevents the 'None' blank bug)
+    # Initialize data state if missing
     if 'selected_section' not in st.session_state:
         st.session_state.selected_section = section_options[0]
 
-    # Create dropdown with index to maintain selected value
+    # Create dropdown with separate widget key and callback
     st.selectbox(
         "🔩 Select Section:",
         options=section_options,
         index=section_options.index(st.session_state.selected_section) if st.session_state.selected_section in section_options else 0,
-        key="selected_section"
+        key="section_widget",
+        on_change=update_section
     )
 
-    # Access the value directly from state
+    # Access the value from data state
     selected_section = st.session_state.selected_section
 
     # ========== SECTION PREVIEW CARD ==========
