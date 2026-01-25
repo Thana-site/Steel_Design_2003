@@ -6248,8 +6248,8 @@ with st.sidebar:
         """, unsafe_allow_html=True)
 
 # Create local variables for compatibility with tab code
-selected_material = st.session_state.selected_material
-selected_section = st.session_state.selected_section
+selected_material = st.session_state.material_selectbox
+selected_section = st.session_state.section_selectbox
 
 # ==================== ENHANCED TABS WITH TAB 5 ====================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -6264,8 +6264,8 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 with tab1:
     st.markdown('<h2 class="section-header">📊 Comprehensive Design Analysis</h2>', unsafe_allow_html=True)
     
-    if st.session_state.selected_section and selected_material:
-        section = st.session_state.selected_section
+    if selected_section and selected_material:
+        section = selected_section
         
         # Analysis Type Selection
         analysis_type = st.radio(
@@ -6621,8 +6621,8 @@ with tab2:
 with tab3:
     st.markdown('<h2 class="section-header">📋 Design Evaluation & Export</h2>', unsafe_allow_html=True)
     
-    if st.session_state.selected_section and selected_material:
-        section = st.session_state.selected_section
+    if selected_section and selected_material:
+        section = selected_section
         
         col1, col2 = st.columns(2)
         
