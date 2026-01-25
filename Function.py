@@ -6119,14 +6119,15 @@ with st.sidebar:
     material_options = df_mat.index.astype(str).str.strip().unique().tolist()
     material_options = sorted(list(set(material_options)))
 
-    # Force initialization if missing or invalid (Prevents the 'None' blank bug)
-    if 'selected_material' not in st.session_state or st.session_state.selected_material not in material_options:
+    # Initialize if missing (Prevents the 'None' blank bug)
+    if 'selected_material' not in st.session_state:
         st.session_state.selected_material = material_options[0]
 
-    # Use the key as the variable - simple and direct
+    # Create dropdown with index to maintain selected value
     st.selectbox(
         "⚙️ Steel Grade:",
         options=material_options,
+        index=material_options.index(st.session_state.selected_material) if st.session_state.selected_material in material_options else 0,
         key="selected_material"
     )
 
@@ -6154,14 +6155,15 @@ with st.sidebar:
     section_options = df.index.astype(str).str.strip().unique().tolist()
     section_options = sorted(list(set(section_options)))
 
-    # Force initialization if missing or invalid (Prevents the 'None' blank bug)
-    if 'selected_section' not in st.session_state or st.session_state.selected_section not in section_options:
+    # Initialize if missing (Prevents the 'None' blank bug)
+    if 'selected_section' not in st.session_state:
         st.session_state.selected_section = section_options[0]
 
-    # Use the key as the variable - simple and direct
+    # Create dropdown with index to maintain selected value
     st.selectbox(
         "🔩 Select Section:",
         options=section_options,
+        index=section_options.index(st.session_state.selected_section) if st.session_state.selected_section in section_options else 0,
         key="selected_section"
     )
 
