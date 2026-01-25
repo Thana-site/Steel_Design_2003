@@ -6060,8 +6060,12 @@ if not data_loaded:
     st.stop()
 
 # ==================== NOW SAFE TO INITIALIZE SESSION STATE ====================
-# Note: selected_section and selected_material are now managed by widget keys
-# (material_selectbox and section_selectbox) - no manual initialization needed
+# Initialize selected_material and selected_section
+if 'selected_material' not in st.session_state:
+    st.session_state.selected_material = list(df_mat.index)[0] if len(df_mat.index) > 0 else None
+
+if 'selected_section' not in st.session_state:
+    st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
 
 if 'selected_sections' not in st.session_state:
     st.session_state.selected_sections = []
@@ -6107,27 +6111,37 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
+# ==================== CALLBACK FUNCTIONS FOR SELECTBOXES ====================
+def update_material():
+    """Callback function to update material selection"""
+    st.session_state.selected_material = st.session_state.material_widget_key
+
+def update_section():
+    """Callback function to update section selection"""
+    st.session_state.selected_section = st.session_state.section_widget_key
+
 # ==================== IMPROVED SIDEBAR ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
 
-    # ========== MATERIAL SELECTION (FIXED) ==========
-    material_list = [str(x).strip() for x in df_mat.index.tolist()]
+    # ========== MATERIAL SELECTION (CALLBACK PATTERN) ==========
+    material_options = [str(x).strip() for x in df_mat.index.tolist()]
 
-    # Initialize the KEY directly if it doesn't exist
-    if "material_selectbox" not in st.session_state:
-        st.session_state.material_selectbox = material_list[0]
+    # Initialize the stored value if it doesn't exist
+    if 'selected_material' not in st.session_state:
+        st.session_state.selected_material = material_options[0]
 
-    # Create selectbox WITHOUT index parameter
-    # The widget automatically uses the value in st.session_state.material_selectbox
-    selected_material = st.selectbox(
+    # Selectbox with callback - decouples widget state from data state
+    st.selectbox(
         "⚙️ Steel Grade:",
-        options=material_list,
-        key="material_selectbox"
+        options=material_options,
+        key="material_widget_key",   # Internal widget state
+        on_change=update_material     # Callback runs immediately on change
     )
 
-    # Use the value for calculations
+    # Use the stored value for calculations
+    selected_material = st.session_state.selected_material
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
         Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
@@ -6145,20 +6159,23 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📐 Section Selection")
 
-    # ========== SECTION SELECTION (FIXED) ==========
-    section_list = [str(x).strip() for x in df.index.tolist()]
+    # ========== SECTION SELECTION (CALLBACK PATTERN) ==========
+    section_options = [str(x).strip() for x in df.index.tolist()]
 
-    # Initialize the KEY directly if it doesn't exist
-    if "section_selectbox" not in st.session_state:
-        st.session_state.section_selectbox = section_list[0]
+    # Initialize the stored value if it doesn't exist
+    if 'selected_section' not in st.session_state:
+        st.session_state.selected_section = section_options[0]
 
-    # Create selectbox WITHOUT index parameter
-    # The widget automatically uses the value in st.session_state.section_selectbox
-    selected_section = st.selectbox(
+    # Selectbox with callback - decouples widget state from data state
+    st.selectbox(
         "🔩 Select Section:",
-        options=section_list,
-        key="section_selectbox"
+        options=section_options,
+        key="section_widget_key",    # Internal widget state
+        on_change=update_section      # Callback runs immediately on change
     )
+
+    # Use the stored value
+    selected_section = st.session_state.selected_section
 
     # ========== SECTION PREVIEW CARD ==========
     if selected_section:
@@ -6248,8 +6265,8 @@ with st.sidebar:
         """, unsafe_allow_html=True)
 
 # Create local variables for compatibility with tab code
-selected_material = st.session_state.material_selectbox
-selected_section = st.session_state.section_selectbox
+selected_material = st.session_state.selected_material
+selected_section = st.session_state.selected_section
 
 # ==================== ENHANCED TABS WITH TAB 5 ====================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
