@@ -172,12 +172,21 @@ class NumberedCanvas(canvas.Canvas):
 # ==================== HELPER FUNCTIONS ====================
 
 def safe_scalar(value):
-    """Convert pandas Series or array to scalar value"""
-    if hasattr(value, 'iloc'):
-        return float(value.iloc[0])
-    elif hasattr(value, '__len__') and not isinstance(value, str):
-        return float(value[0])
-    return float(value)
+    """
+    Standardized helper to extract a single float from pandas Series,
+    numpy arrays, or lists.
+    """
+    try:
+        if hasattr(value, 'iloc'):  # Handle Pandas Series
+            return float(value.iloc[0])
+        elif hasattr(value, 'item'):  # Handle Numpy scalars
+            return float(value.item())
+        elif hasattr(value, '__iter__') and not isinstance(value, (str, bytes)):
+            return float(value[0])
+        else:
+            return float(value)
+    except (ValueError, TypeError, IndexError):
+        return 0.0
 
 def format_number(value, decimals=2):
     """Format number with specified decimals"""
@@ -3432,18 +3441,6 @@ def load_data():
         st.error(f"❌ Error loading data: {e}")
         return pd.DataFrame(), pd.DataFrame(), False
 
-def safe_scalar(value):
-    """Safely convert numpy array or other type to scalar float"""
-    try:
-        if hasattr(value, 'item'):
-            return float(value.item())
-        elif hasattr(value, '__iter__') and not isinstance(value, str):
-            return float(value[0]) if len(value) > 0 else 0.0
-        else:
-            return float(value)
-    except:
-        return 0.0
-
 def safe_sqrt(value):
     """Safe square root that ensures non-negative input"""
     val = safe_scalar(value)
@@ -6061,11 +6058,12 @@ if not data_loaded:
 
 # ==================== NOW SAFE TO INITIALIZE SESSION STATE ====================
 # Initialize selected_material and selected_section
+# Note: Removed 'else None' - if data is missing, app should fail early
 if 'selected_material' not in st.session_state:
-    st.session_state.selected_material = list(df_mat.index)[0] if len(df_mat.index) > 0 else None
+    st.session_state.selected_material = list(df_mat.index)[0]
 
 if 'selected_section' not in st.session_state:
-    st.session_state.selected_section = list(df.index)[0] if len(df.index) > 0 else None
+    st.session_state.selected_section = list(df.index)[0]
 
 if 'selected_sections' not in st.session_state:
     st.session_state.selected_sections = []
@@ -6111,42 +6109,28 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== CALLBACK FUNCTIONS FOR SELECTBOXES ====================
-def update_material():
-    """Callback function to update material selection"""
-    st.session_state.selected_material = st.session_state.material_widget_key
-
-def update_section():
-    """Callback function to update section selection"""
-    st.session_state.selected_section = st.session_state.section_widget_key
-
-# ==================== IMPROVED SIDEBAR ====================
+# ==================== IMPROVED SIDEBAR (SIMPLIFIED VERSION) ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
 
-    # ========== MATERIAL SELECTION (CALLBACK PATTERN) ==========
+    # ========== MATERIAL SELECTION ==========
     # Clean material list - nuclear option to remove duplicates and hidden chars
     material_options = df_mat.index.astype(str).str.strip().unique().tolist()
     material_options = sorted(list(set(material_options)))
 
-    # CRITICAL FIX: Find the correct index for the dropdown to display
-    try:
-        # We look at the value currently in session_state and find its position in the list
-        mat_index = material_options.index(st.session_state.selected_material)
-    except (ValueError, KeyError):
-        mat_index = 0
+    # Force initialization if missing or invalid (Prevents the 'None' blank bug)
+    if 'selected_material' not in st.session_state or st.session_state.selected_material not in material_options:
+        st.session_state.selected_material = material_options[0]
 
-    # The Selectbox must use the 'index' to force the UI to stay in sync
+    # Use the key as the variable - simple and direct
     st.selectbox(
         "⚙️ Steel Grade:",
         options=material_options,
-        index=mat_index,              # ← THIS keeps the UI value updated
-        key="material_widget_key",
-        on_change=update_material
+        key="selected_material"
     )
 
-    # Use the data state for calculations
+    # Access the value directly from state
     selected_material = st.session_state.selected_material
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
@@ -6165,28 +6149,23 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📐 Section Selection")
 
-    # ========== SECTION SELECTION (CALLBACK PATTERN) ==========
+    # ========== SECTION SELECTION ==========
     # Clean section list - nuclear option to remove duplicates and hidden chars
     section_options = df.index.astype(str).str.strip().unique().tolist()
     section_options = sorted(list(set(section_options)))
 
-    # CRITICAL FIX: Find the correct index for the dropdown to display
-    try:
-        # We look at the value currently in session_state and find its position in the list
-        sec_index = section_options.index(st.session_state.selected_section)
-    except (ValueError, KeyError):
-        sec_index = 0
+    # Force initialization if missing or invalid (Prevents the 'None' blank bug)
+    if 'selected_section' not in st.session_state or st.session_state.selected_section not in section_options:
+        st.session_state.selected_section = section_options[0]
 
-    # The Selectbox must use the 'index' to force the UI to stay in sync
+    # Use the key as the variable - simple and direct
     st.selectbox(
         "🔩 Select Section:",
         options=section_options,
-        index=sec_index,              # ← THIS keeps the UI value updated
-        key="section_widget_key",
-        on_change=update_section
+        key="selected_section"
     )
 
-    # Use the data state
+    # Access the value directly from state
     selected_section = st.session_state.selected_section
 
     # ========== SECTION PREVIEW CARD ==========
