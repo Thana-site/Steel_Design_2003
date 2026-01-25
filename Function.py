@@ -25,6 +25,7 @@ from datetime import datetime
 import io
 import base64
 from io import BytesIO
+import streamlit.components.v1 as components
 
 # Add these imports at the top with other imports
 from reportlab.lib.pagesizes import letter, A4
@@ -6129,23 +6130,34 @@ with st.sidebar:
     if st.session_state.selected_material not in material_list:
         st.session_state.selected_material = material_list[0]
 
-    # Get current index for selectbox
-    try:
-        current_index = material_list.index(st.session_state.selected_material)
-    except (ValueError, IndexError):
-        current_index = 0
-        st.session_state.selected_material = material_list[0]
+    # Build HTML options for dropdown
+    st.markdown("**⚙️ Steel Grade:**")
+    material_options = ""
+    for mat in material_list:
+        selected_attr = 'selected="selected"' if mat == st.session_state.selected_material else ''
+        material_options += f'<option value="{mat}" {selected_attr}>{mat}</option>\n'
 
-    # Material selectbox
-    selected_material = st.selectbox(
-        "⚙️ Steel Grade:",
-        options=material_list,
-        index=current_index,
-        key="material_selectbox"
-    )
+    # Custom HTML dropdown
+    material_html = f"""
+    <select id="material_dropdown"
+            style="width: 100%; padding: 10px; font-size: 16px; border: 1px solid #ddd;
+                   border-radius: 4px; background: white; cursor: pointer;"
+            onchange="window.parent.postMessage({{type: 'streamlit:setComponentValue', value: this.value}}, '*')">
+        {material_options}
+    </select>
+    <script>
+        document.getElementById('material_dropdown').value = '{st.session_state.selected_material}';
+    </script>
+    """
 
-    # Update session state
-    st.session_state.selected_material = selected_material
+    selected_material_new = components.html(material_html, height=60)
+
+    # Only update if value changed (prevent infinite rerun)
+    if selected_material_new and selected_material_new != st.session_state.selected_material:
+        st.session_state.selected_material = selected_material_new
+        st.rerun()
+
+    selected_material = st.session_state.selected_material
 
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
@@ -6178,23 +6190,34 @@ with st.sidebar:
     if st.session_state.selected_section not in section_list:
         st.session_state.selected_section = section_list[0]
 
-    # Get current index for selectbox
-    try:
-        current_index = section_list.index(st.session_state.selected_section)
-    except (ValueError, IndexError):
-        current_index = 0
-        st.session_state.selected_section = section_list[0]
+    # Build HTML options for dropdown
+    st.markdown("**🔩 Select Section:**")
+    section_options = ""
+    for sec in section_list:
+        selected_attr = 'selected="selected"' if sec == st.session_state.selected_section else ''
+        section_options += f'<option value="{sec}" {selected_attr}>{sec}</option>\n'
 
-    # Section selectbox
-    selected_section = st.selectbox(
-        "🔩 Select Section:",
-        options=section_list,
-        index=current_index,
-        key="section_selectbox"
-    )
+    # Custom HTML dropdown
+    section_html = f"""
+    <select id="section_dropdown"
+            style="width: 100%; padding: 10px; font-size: 16px; border: 1px solid #ddd;
+                   border-radius: 4px; background: white; cursor: pointer;"
+            onchange="window.parent.postMessage({{type: 'streamlit:setComponentValue', value: this.value}}, '*')">
+        {section_options}
+    </select>
+    <script>
+        document.getElementById('section_dropdown').value = '{st.session_state.selected_section}';
+    </script>
+    """
 
-    # Update session state
-    st.session_state.selected_section = selected_section
+    selected_section_new = components.html(section_html, height=60)
+
+    # Only update if value changed (prevent infinite rerun)
+    if selected_section_new and selected_section_new != st.session_state.selected_section:
+        st.session_state.selected_section = selected_section_new
+        st.rerun()
+
+    selected_section = st.session_state.selected_section
 
     # ========== SECTION PREVIEW CARD ==========
     if selected_section:
