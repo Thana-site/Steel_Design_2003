@@ -201,54 +201,49 @@ def format_equation_result(value, decimals=2, unit=""):
         return f"{formatted} {unit}"
     return formatted
 
-def create_dropdown_with_memory(label, options, initial_value=None, key=None, **kwargs):
+def create_dropdown(label, options, default_index=0, key=None, on_change=None, help_text=None):
     """
-    Create a dropdown with proper state management and memory.
+    Creates a dropdown with proper state management.
 
     Args:
         label: Dropdown label
         options: List of options
-        initial_value: Initial selected value (optional)
+        default_index: Default selected index
         key: Unique key for state management
-        **kwargs: Additional arguments for st.selectbox
+        on_change: Callback function when selection changes
+        help_text: Help text to display
 
     Returns:
         Selected value
     """
     if key is None:
-        raise ValueError("A unique key must be provided")
+        raise ValueError("A unique key must be provided for the dropdown")
 
-    # Initialize session state if missing
+    # Initialize session state for this dropdown
     if key not in st.session_state:
-        if initial_value and initial_value in options:
-            st.session_state[key] = initial_value
-        elif options:
-            st.session_state[key] = options[0]
-        else:
-            st.session_state[key] = None
+        st.session_state[key] = options[default_index] if options else None
 
-    # Get current value
-    current_value = st.session_state[key]
+    # Get current selection from session state
+    current_selection = st.session_state[key]
 
-    # Find index - handle case where current value not in options
-    if current_value in options:
-        index = options.index(current_value)
-    else:
-        index = 0
-        st.session_state[key] = options[0] if options else None
+    # Find index of current selection
+    try:
+        current_index = options.index(current_selection) if current_selection in options else default_index
+    except (ValueError, IndexError):
+        current_index = default_index
 
-    # Create dropdown with separate widget key to avoid conflicts
+    # Create the dropdown
     selected = st.selectbox(
         label=label,
         options=options,
-        index=index,
-        key=f"{key}_widget",
-        **kwargs
+        index=current_index,
+        key=key,
+        help=help_text,
+        on_change=on_change
     )
 
-    # Update state if changed
-    if selected != st.session_state[key]:
-        st.session_state[key] = selected
+    # Update session state
+    st.session_state[key] = selected
 
     return selected
 
@@ -6170,11 +6165,11 @@ with st.sidebar:
     material_options = df_mat.index.astype(str).str.strip().unique().tolist()
     material_options = sorted(list(set(material_options)))
 
-    # Use reusable dropdown component with memory
-    selected_material = create_dropdown_with_memory(
+    # Use reusable dropdown component
+    selected_material = create_dropdown(
         label="⚙️ Steel Grade:",
         options=material_options,
-        initial_value=st.session_state.get('selected_material'),
+        default_index=0,
         key="selected_material"
     )
     if selected_material:
@@ -6199,11 +6194,11 @@ with st.sidebar:
     section_options = df.index.astype(str).str.strip().unique().tolist()
     section_options = sorted(list(set(section_options)))
 
-    # Use reusable dropdown component with memory
-    selected_section = create_dropdown_with_memory(
+    # Use reusable dropdown component
+    selected_section = create_dropdown(
         label="🔩 Select Section:",
         options=section_options,
-        initial_value=st.session_state.get('selected_section'),
+        default_index=0,
         key="selected_section"
     )
 
