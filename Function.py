@@ -6130,18 +6130,18 @@ with st.sidebar:
     material_options = df_mat.index.astype(str).str.strip().unique().tolist()
     material_options = sorted(list(set(material_options)))
 
-    # Initialize BOTH states to the same value
-    if 'selected_material' not in st.session_state:
-        st.session_state.selected_material = material_options[0]
+    # CRITICAL FIX: Find the correct index for the dropdown to display
+    try:
+        # We look at the value currently in session_state and find its position in the list
+        mat_index = material_options.index(st.session_state.selected_material)
+    except (ValueError, KeyError):
+        mat_index = 0
 
-    # Initialize widget key to match data state
-    if 'material_widget_key' not in st.session_state:
-        st.session_state.material_widget_key = st.session_state.selected_material
-
-    # Selectbox with callback - NO variable assignment
+    # The Selectbox must use the 'index' to force the UI to stay in sync
     st.selectbox(
         "⚙️ Steel Grade:",
         options=material_options,
+        index=mat_index,              # ← THIS keeps the UI value updated
         key="material_widget_key",
         on_change=update_material
     )
@@ -6170,18 +6170,18 @@ with st.sidebar:
     section_options = df.index.astype(str).str.strip().unique().tolist()
     section_options = sorted(list(set(section_options)))
 
-    # Initialize BOTH states to the same value
-    if 'selected_section' not in st.session_state:
-        st.session_state.selected_section = section_options[0]
+    # CRITICAL FIX: Find the correct index for the dropdown to display
+    try:
+        # We look at the value currently in session_state and find its position in the list
+        sec_index = section_options.index(st.session_state.selected_section)
+    except (ValueError, KeyError):
+        sec_index = 0
 
-    # Initialize widget key to match data state
-    if 'section_widget_key' not in st.session_state:
-        st.session_state.section_widget_key = st.session_state.selected_section
-
-    # Selectbox with callback - NO variable assignment
+    # The Selectbox must use the 'index' to force the UI to stay in sync
     st.selectbox(
         "🔩 Select Section:",
         options=section_options,
+        index=sec_index,              # ← THIS keeps the UI value updated
         key="section_widget_key",
         on_change=update_section
     )
