@@ -201,6 +201,52 @@ def format_equation_result(value, decimals=2, unit=""):
         return f"{formatted} {unit}"
     return formatted
 
+def create_dropdown(label, options, default_index=0, key=None, on_change=None, help_text=None):
+    """
+    Creates a dropdown with proper state management.
+
+    Args:
+        label: Dropdown label
+        options: List of options
+        default_index: Default selected index
+        key: Unique key for state management
+        on_change: Callback function when selection changes
+        help_text: Help text to display
+
+    Returns:
+        Selected value
+    """
+    if key is None:
+        raise ValueError("A unique key must be provided for the dropdown")
+
+    # Initialize session state for this dropdown
+    if key not in st.session_state:
+        st.session_state[key] = options[default_index] if options else None
+
+    # Get current selection from session state
+    current_selection = st.session_state[key]
+
+    # Find index of current selection
+    try:
+        current_index = options.index(current_selection) if current_selection in options else default_index
+    except (ValueError, IndexError):
+        current_index = default_index
+
+    # Create the dropdown
+    selected = st.selectbox(
+        label=label,
+        options=options,
+        index=current_index,
+        key=key,
+        help=help_text,
+        on_change=on_change
+    )
+
+    # Update session state
+    st.session_state[key] = selected
+
+    return selected
+
 # ==================== SECTION CLASSIFICATION ====================
 
 def classify_section_flange(bf, tf, tw, d, Fy, E=200000):
@@ -6109,7 +6155,7 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== IMPROVED SIDEBAR (SIMPLIFIED VERSION) ====================
+# ==================== IMPROVED SIDEBAR (REUSABLE COMPONENT PATTERN) ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
@@ -6119,20 +6165,13 @@ with st.sidebar:
     material_options = df_mat.index.astype(str).str.strip().unique().tolist()
     material_options = sorted(list(set(material_options)))
 
-    # Initialize if missing (Prevents the 'None' blank bug)
-    if 'selected_material' not in st.session_state:
-        st.session_state.selected_material = material_options[0]
-
-    # Create dropdown with index to maintain selected value
-    st.selectbox(
-        "⚙️ Steel Grade:",
+    # Use reusable dropdown component
+    selected_material = create_dropdown(
+        label="⚙️ Steel Grade:",
         options=material_options,
-        index=material_options.index(st.session_state.selected_material) if st.session_state.selected_material in material_options else 0,
+        default_index=0,
         key="selected_material"
     )
-
-    # Access the value directly from state
-    selected_material = st.session_state.selected_material
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
         Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
@@ -6155,20 +6194,13 @@ with st.sidebar:
     section_options = df.index.astype(str).str.strip().unique().tolist()
     section_options = sorted(list(set(section_options)))
 
-    # Initialize if missing (Prevents the 'None' blank bug)
-    if 'selected_section' not in st.session_state:
-        st.session_state.selected_section = section_options[0]
-
-    # Create dropdown with index to maintain selected value
-    st.selectbox(
-        "🔩 Select Section:",
+    # Use reusable dropdown component
+    selected_section = create_dropdown(
+        label="🔩 Select Section:",
         options=section_options,
-        index=section_options.index(st.session_state.selected_section) if st.session_state.selected_section in section_options else 0,
+        default_index=0,
         key="selected_section"
     )
-
-    # Access the value directly from state
-    selected_section = st.session_state.selected_section
 
     # ========== SECTION PREVIEW CARD ==========
     if selected_section:
