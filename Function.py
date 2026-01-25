@@ -7230,7 +7230,7 @@ T301,5,0.0,-55.0"""
                         'Member': member,
                         'Section': config['section'],
                         'Material': config['material'],
-                        'Type': config['member_type'].split('(')[0].strip(),
+                        'Type': config['member_type'],
                         'Lb (m)': config['Lb'],
                         'KL (m)': config['KL'],
                         '# LCs': len(member_loads),
