@@ -201,6 +201,57 @@ def format_equation_result(value, decimals=2, unit=""):
         return f"{formatted} {unit}"
     return formatted
 
+def create_dropdown_with_memory(label, options, initial_value=None, key=None, **kwargs):
+    """
+    Create a dropdown with proper state management and memory.
+
+    Args:
+        label: Dropdown label
+        options: List of options
+        initial_value: Initial selected value (optional)
+        key: Unique key for state management
+        **kwargs: Additional arguments for st.selectbox
+
+    Returns:
+        Selected value
+    """
+    if key is None:
+        raise ValueError("A unique key must be provided")
+
+    # Initialize session state if missing
+    if key not in st.session_state:
+        if initial_value and initial_value in options:
+            st.session_state[key] = initial_value
+        elif options:
+            st.session_state[key] = options[0]
+        else:
+            st.session_state[key] = None
+
+    # Get current value
+    current_value = st.session_state[key]
+
+    # Find index - handle case where current value not in options
+    if current_value in options:
+        index = options.index(current_value)
+    else:
+        index = 0
+        st.session_state[key] = options[0] if options else None
+
+    # Create dropdown with separate widget key to avoid conflicts
+    selected = st.selectbox(
+        label=label,
+        options=options,
+        index=index,
+        key=f"{key}_widget",
+        **kwargs
+    )
+
+    # Update state if changed
+    if selected != st.session_state[key]:
+        st.session_state[key] = selected
+
+    return selected
+
 # ==================== SECTION CLASSIFICATION ====================
 
 def classify_section_flange(bf, tf, tw, d, Fy, E=200000):
@@ -6109,16 +6160,7 @@ if not EXCEL_AVAILABLE:
 st.markdown('<h1 class="main-header">AISC 360-16 Steel Design v7.0</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 1.1rem; font-weight: 500;">UI/UX | Advanced Export Capabilities | Enhanced Visualizations</p>', unsafe_allow_html=True)
 
-# ==================== CALLBACK FUNCTIONS ====================
-def update_material():
-    """Callback to sync widget state to data state"""
-    st.session_state.selected_material = st.session_state.material_widget
-
-def update_section():
-    """Callback to sync widget state to data state"""
-    st.session_state.selected_section = st.session_state.section_widget
-
-# ==================== IMPROVED SIDEBAR (SOLUTION 3 PATTERN) ====================
+# ==================== IMPROVED SIDEBAR (REUSABLE COMPONENT PATTERN) ====================
 with st.sidebar:
     st.markdown("### 🔧 Design Configuration")
     st.markdown("---")
@@ -6128,21 +6170,13 @@ with st.sidebar:
     material_options = df_mat.index.astype(str).str.strip().unique().tolist()
     material_options = sorted(list(set(material_options)))
 
-    # Initialize data state if missing
-    if 'selected_material' not in st.session_state:
-        st.session_state.selected_material = material_options[0]
-
-    # Create dropdown with separate widget key and callback
-    st.selectbox(
-        "⚙️ Steel Grade:",
+    # Use reusable dropdown component with memory
+    selected_material = create_dropdown_with_memory(
+        label="⚙️ Steel Grade:",
         options=material_options,
-        index=material_options.index(st.session_state.selected_material) if st.session_state.selected_material in material_options else 0,
-        key="material_widget",
-        on_change=update_material
+        initial_value=st.session_state.get('selected_material'),
+        key="selected_material"
     )
-
-    # Access the value from data state
-    selected_material = st.session_state.selected_material
     if selected_material:
         Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
         Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
@@ -6165,21 +6199,13 @@ with st.sidebar:
     section_options = df.index.astype(str).str.strip().unique().tolist()
     section_options = sorted(list(set(section_options)))
 
-    # Initialize data state if missing
-    if 'selected_section' not in st.session_state:
-        st.session_state.selected_section = section_options[0]
-
-    # Create dropdown with separate widget key and callback
-    st.selectbox(
-        "🔩 Select Section:",
+    # Use reusable dropdown component with memory
+    selected_section = create_dropdown_with_memory(
+        label="🔩 Select Section:",
         options=section_options,
-        index=section_options.index(st.session_state.selected_section) if st.session_state.selected_section in section_options else 0,
-        key="section_widget",
-        on_change=update_section
+        initial_value=st.session_state.get('selected_section'),
+        key="selected_section"
     )
-
-    # Access the value from data state
-    selected_section = st.session_state.selected_section
 
     # ========== SECTION PREVIEW CARD ==========
     if selected_section:
