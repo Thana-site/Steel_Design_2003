@@ -566,6 +566,21 @@ def calculate_interaction(Pu, phi_Pn, Mux, phi_Mnx, Muy=0, phi_Mny=None, is_tens
 
 # ==================== HTML REPORT GENERATOR ====================
 
+from datetime import datetime
+
+def format_number(value, decimals=2):
+    """Format number with specified decimal places"""
+    if value is None:
+        return "—"
+    try:
+        if decimals == 0:
+            return f"{int(round(value)):,}"
+        else:
+            return f"{value:,.{decimals}f}"
+    except (ValueError, TypeError):
+        return str(value)
+
+
 class SteelDesignReportGenerator:
     """Generate steel member design reports in HTML format"""
     
@@ -579,160 +594,493 @@ class SteelDesignReportGenerator:
         self.members.append(member_data)
     
     def _get_css_styles(self):
-        """Return CSS styles for the report"""
+        """Return CSS styles for the report - optimized to prevent overlap"""
         return """
         <style>
-            * { box-sizing: border-box; }
+            /* ===== RESET & BASE ===== */
+            * { 
+                box-sizing: border-box; 
+                margin: 0;
+                padding: 0;
+            }
+            
             body { 
-                font-family: 'Segoe UI', Arial, sans-serif; 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
                 font-size: 10pt; 
-                line-height: 1.4;
+                line-height: 1.5;
                 color: #333;
                 max-width: 210mm;
                 margin: 0 auto;
                 padding: 15mm;
+                background: #fff;
             }
+            
+            /* ===== REPORT HEADER ===== */
             .report-header {
                 text-align: center;
-                border-bottom: 2px solid #2c3e50;
-                padding-bottom: 10px;
-                margin-bottom: 20px;
+                border-bottom: 3px solid #2c3e50;
+                padding-bottom: 15px;
+                margin-bottom: 25px;
             }
+            
             .report-title { 
-                font-size: 16pt; 
+                font-size: 18pt; 
                 font-weight: bold; 
                 color: #2c3e50;
-                margin: 0;
+                margin: 0 0 5px 0;
+                letter-spacing: 1px;
             }
+            
             .report-subtitle {
-                font-size: 11pt;
+                font-size: 10pt;
                 color: #666;
                 margin: 5px 0;
             }
+            
+            .report-code {
+                font-size: 9pt;
+                color: #888;
+                font-style: italic;
+            }
+            
+            /* ===== MEMBER SECTION ===== */
             .member-section {
-                page-break-inside: avoid;
-                margin-bottom: 25px;
+                margin-bottom: 30px;
                 border: 1px solid #ddd;
-                border-radius: 5px;
-                padding: 15px;
+                border-radius: 8px;
+                padding: 0;
                 background: #fafafa;
+                overflow: hidden;
+                page-break-inside: avoid;
+                break-inside: avoid;
             }
+            
             .member-header {
-                background: #2c3e50;
+                background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
                 color: white;
-                padding: 8px 12px;
-                margin: -15px -15px 15px -15px;
-                border-radius: 5px 5px 0 0;
-                font-size: 12pt;
+                padding: 12px 15px;
+                font-size: 11pt;
                 font-weight: bold;
+                display: flex;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 10px;
             }
+            
+            .member-header-item {
+                display: inline-block;
+            }
+            
+            .member-content {
+                padding: 15px;
+            }
+            
+            /* ===== SECTION TITLES ===== */
             .section-title {
                 font-size: 11pt;
                 font-weight: bold;
                 color: #2c3e50;
-                border-bottom: 1px solid #2c3e50;
-                padding-bottom: 3px;
-                margin: 15px 0 10px 0;
+                border-bottom: 2px solid #3498db;
+                padding-bottom: 5px;
+                margin: 20px 0 12px 0;
+                display: flex;
+                align-items: center;
+                gap: 8px;
             }
+            
+            .section-title:first-child {
+                margin-top: 0;
+            }
+            
+            .section-number {
+                background: #3498db;
+                color: white;
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 9pt;
+                flex-shrink: 0;
+            }
+            
+            /* ===== TABLES - FIXED LAYOUT TO PREVENT OVERLAP ===== */
             table {
                 width: 100%;
                 border-collapse: collapse;
                 margin: 10px 0;
                 font-size: 9pt;
+                table-layout: fixed;  /* KEY: Prevents content from expanding columns */
             }
+            
             th, td {
                 border: 1px solid #ccc;
-                padding: 6px 8px;
+                padding: 8px 10px;
                 text-align: left;
                 vertical-align: middle;
+                /* Prevent text overflow */
+                overflow: hidden;
+                text-overflow: ellipsis;
+                overflow-wrap: break-word;
+                word-wrap: break-word;
+                word-break: break-word;
+                hyphens: auto;
             }
+            
             th {
-                background: #ecf0f1;
-                font-weight: bold;
+                background: linear-gradient(180deg, #ecf0f1 0%, #e0e5e8 100%);
+                font-weight: 600;
                 color: #2c3e50;
+                font-size: 8.5pt;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
             }
-            .calc-table th:first-child { width: 25%; }
-            .calc-table th:nth-child(2) { width: 30%; }
-            .calc-table th:nth-child(3) { width: 25%; }
-            .calc-table th:nth-child(4) { width: 20%; }
+            
+            /* ===== SUMMARY TABLE (2x2 layout) ===== */
+            .summary-table {
+                table-layout: fixed;
+            }
+            
+            .summary-table th:nth-child(1),
+            .summary-table td:nth-child(1),
+            .summary-table th:nth-child(3),
+            .summary-table td:nth-child(3) { 
+                width: 25%; 
+                background: #f8f9fa;
+                font-weight: 600;
+            }
+            
+            .summary-table th:nth-child(2),
+            .summary-table td:nth-child(2),
+            .summary-table th:nth-child(4),
+            .summary-table td:nth-child(4) { 
+                width: 25%; 
+            }
+            
+            /* ===== CALCULATION TABLE ===== */
+            .calc-table { 
+                table-layout: fixed; 
+            }
+            
+            .calc-table th:nth-child(1),
+            .calc-table td:nth-child(1) { 
+                width: 20%; 
+            }
+            
+            .calc-table th:nth-child(2),
+            .calc-table td:nth-child(2) { 
+                width: 25%; 
+            }
+            
+            .calc-table th:nth-child(3),
+            .calc-table td:nth-child(3) { 
+                width: 35%; 
+                font-size: 8pt;  /* Smaller font for long substitutions */
+            }
+            
+            .calc-table th:nth-child(4),
+            .calc-table td:nth-child(4) { 
+                width: 20%; 
+                text-align: right;
+            }
+            
+            /* ===== INTERACTION TABLE ===== */
+            .interaction-table {
+                table-layout: fixed;
+            }
+            
+            .interaction-table th:nth-child(1),
+            .interaction-table td:nth-child(1) { width: 10%; }
+            
+            .interaction-table th:nth-child(2),
+            .interaction-table td:nth-child(2) { width: 18%; }
+            
+            .interaction-table th:nth-child(3),
+            .interaction-table td:nth-child(3) { 
+                width: 40%; 
+                font-size: 8pt;
+            }
+            
+            .interaction-table th:nth-child(4),
+            .interaction-table td:nth-child(4) { 
+                width: 17%; 
+                text-align: center;
+            }
+            
+            .interaction-table th:nth-child(5),
+            .interaction-table td:nth-child(5) { 
+                width: 15%; 
+                text-align: center;
+            }
+            
+            /* ===== LOAD TABLE ===== */
+            .load-table {
+                table-layout: fixed;
+            }
+            
+            .load-table th,
+            .load-table td {
+                text-align: center;
+            }
+            
+            .load-table th:nth-child(1),
+            .load-table td:nth-child(1) { width: 20%; text-align: left; }
+            
+            /* ===== TEXT STYLES ===== */
             .equation { 
-                font-family: 'Cambria Math', 'Times New Roman', serif;
+                font-family: 'Cambria Math', 'Times New Roman', Georgia, serif;
                 font-style: italic;
+                font-size: 8.5pt;
+                line-height: 1.4;
+                color: #444;
             }
+            
             .result { 
                 font-weight: bold; 
                 color: #2c3e50;
             }
+            
+            .result-highlight {
+                font-weight: bold;
+                color: #2c3e50;
+                background: #e8f4f8;
+                padding: 2px 5px;
+                border-radius: 3px;
+            }
+            
+            /* ===== STATUS CLASSES ===== */
             .pass { 
-                background: #d4edda; 
-                color: #155724;
+                background: #d4edda !important; 
+                color: #155724 !important;
                 font-weight: bold;
             }
+            
             .fail { 
-                background: #f8d7da; 
-                color: #721c24;
+                background: #f8d7da !important; 
+                color: #721c24 !important;
                 font-weight: bold;
             }
+            
             .warning {
-                background: #fff3cd;
-                color: #856404;
+                background: #fff3cd !important;
+                color: #856404 !important;
                 font-weight: bold;
             }
+            
             .governing {
-                background: #cce5ff;
+                background: #cce5ff !important;
                 font-weight: bold;
             }
+            
+            .governing td {
+                background: #cce5ff !important;
+            }
+            
+            /* ===== CONCLUSION BOX ===== */
             .conclusion-box {
                 border: 2px solid #2c3e50;
-                border-radius: 5px;
-                padding: 12px;
+                border-radius: 8px;
+                padding: 15px;
                 margin-top: 15px;
+                background: #f8f9fa;
             }
+            
             .conclusion-pass {
                 border-color: #28a745;
-                background: #d4edda;
+                background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
             }
+            
             .conclusion-fail {
                 border-color: #dc3545;
-                background: #f8d7da;
+                background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
             }
+            
+            .conclusion-table {
+                table-layout: fixed;
+                border: none;
+                background: transparent;
+            }
+            
+            .conclusion-table th,
+            .conclusion-table td {
+                border: none;
+                padding: 8px 12px;
+                background: transparent;
+            }
+            
+            .conclusion-table th {
+                width: 50%;
+                text-align: right;
+                padding-right: 20px;
+                background: transparent;
+            }
+            
+            .conclusion-table td {
+                width: 50%;
+                text-align: left;
+            }
+            
+            .status-badge {
+                display: inline-block;
+                padding: 5px 15px;
+                border-radius: 20px;
+                font-size: 12pt;
+                font-weight: bold;
+                letter-spacing: 1px;
+            }
+            
+            .status-pass {
+                background: #28a745;
+                color: white;
+            }
+            
+            .status-fail {
+                background: #dc3545;
+                color: white;
+            }
+            
+            /* ===== UTILITY CLASSES ===== */
             .unit { 
                 font-size: 8pt; 
-                color: #666; 
+                color: #666;
+                font-weight: normal;
             }
+            
             .note {
                 font-size: 8pt;
                 color: #666;
                 font-style: italic;
-                margin: 5px 0;
+                margin: 8px 0;
+                padding: 5px 10px;
+                background: #f0f0f0;
+                border-left: 3px solid #3498db;
+                border-radius: 0 4px 4px 0;
             }
+            
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .text-bold { font-weight: bold; }
+            .text-small { font-size: 8pt; }
+            
+            .nowrap {
+                white-space: nowrap;
+            }
+            
+            /* ===== ALTERNATING ROW COLORS ===== */
+            tbody tr:nth-child(even) {
+                background: #f8f9fa;
+            }
+            
+            tbody tr:hover {
+                background: #e9ecef;
+            }
+            
+            /* ===== PRINT STYLES ===== */
             @media print {
-                body { padding: 10mm; }
-                .member-section { page-break-inside: avoid; }
+                body { 
+                    padding: 10mm;
+                    font-size: 9pt;
+                    background: white;
+                }
+                
+                .member-section { 
+                    page-break-inside: avoid;
+                    break-inside: avoid;
+                    margin-bottom: 20px;
+                    box-shadow: none;
+                    border: 1px solid #999;
+                }
+                
+                .section-title {
+                    page-break-after: avoid;
+                }
+                
+                table { 
+                    font-size: 8pt;
+                    page-break-inside: avoid;
+                }
+                
+                .calc-table td:nth-child(3) {
+                    font-size: 7pt;
+                }
+                
+                .interaction-table td:nth-child(3) {
+                    font-size: 7pt;
+                }
+                
+                .member-header {
+                    background: #2c3e50 !important;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                
+                .pass, .fail, .warning, .governing {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                
+                tbody tr:nth-child(even) {
+                    background: #f5f5f5 !important;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+            }
+            
+            /* ===== RESPONSIVE (for screen viewing) ===== */
+            @media screen and (max-width: 800px) {
+                body {
+                    padding: 10px;
+                    font-size: 9pt;
+                }
+                
+                table {
+                    font-size: 8pt;
+                }
+                
+                .calc-table td:nth-child(3) {
+                    font-size: 7pt;
+                }
+                
+                th, td {
+                    padding: 5px 6px;
+                }
             }
         </style>
         """
     
+    def _format_substitution(self, text, max_length=50):
+        """Format long substitution text with line breaks"""
+        if not text or len(str(text)) <= max_length:
+            return text
+        # Add soft line breaks at operators for better display
+        text = str(text)
+        text = text.replace(' × ', ' ×<wbr>')
+        text = text.replace(' + ', ' +<wbr>')
+        text = text.replace(' / ', ' /<wbr>')
+        text = text.replace(' - ', ' -<wbr>')
+        return text
+    
     def _generate_member_geometry_table(self, member):
         """Generate Member & Geometry Summary table"""
         html = """
-        <div class="section-title">1. Member & Geometry Summary</div>
-        <table>
-            <tr>
-                <th>Parameter</th>
-                <th>Value</th>
-                <th>Parameter</th>
-                <th>Value</th>
-            </tr>
+        <div class="section-title">
+            <span class="section-number">1</span>
+            Member & Geometry Summary
+        </div>
+        <table class="summary-table">
+            <tbody>
         """
         
         params = [
             ('Member No.', member.get('member_no', '—')),
             ('Member Type', member.get('member_type', '—')),
-            ('Length (m)', format_number(member.get('length', 0), 2)),
+            ('Length', f"{format_number(member.get('length', 0), 2)} m"),
             ('K Factor', format_number(member.get('K', 1.0), 2)),
-            ('KL (m)', format_number(member.get('KL', 0), 2)),
-            ('Lb (m)', format_number(member.get('Lb', 0), 2)),
+            ('KL', f"{format_number(member.get('KL', 0), 2)} m"),
+            ('Lb (Unbraced)', f"{format_number(member.get('Lb', 0), 2)} m"),
+            ('Cb', format_number(member.get('Cb', 1.0), 2)),
+            ('Bracing', member.get('bracing_condition', 'Unbraced')),
         ]
         
         for i in range(0, len(params), 2):
@@ -740,14 +1088,14 @@ class SteelDesignReportGenerator:
             p2 = params[i+1] if i+1 < len(params) else ('', '')
             html += f"""
             <tr>
-                <td><b>{p1[0]}</b></td>
+                <td><strong>{p1[0]}</strong></td>
                 <td>{p1[1]}</td>
-                <td><b>{p2[0]}</b></td>
+                <td><strong>{p2[0]}</strong></td>
                 <td>{p2[1]}</td>
             </tr>
             """
         
-        html += "</table>"
+        html += "</tbody></table>"
         return html
     
     def _generate_section_properties_table(self, member):
@@ -755,30 +1103,39 @@ class SteelDesignReportGenerator:
         section = member.get('section_props', {})
         classification = member.get('classification', 'Compact')
         
-        html = """
-        <div class="section-title">2. Section Properties & Classification</div>
-        <table>
-            <tr>
-                <th>Property</th>
-                <th>Value</th>
-                <th>Property</th>
-                <th>Value</th>
-            </tr>
+        # Classification badge color
+        class_color = {
+            'Compact': '#28a745',
+            'Noncompact': '#ffc107', 
+            'Slender': '#dc3545'
+        }.get(classification, '#6c757d')
+        
+        html = f"""
+        <div class="section-title">
+            <span class="section-number">2</span>
+            Section Properties & Classification
+        </div>
+        <table class="summary-table">
+            <tbody>
         """
         
         props = [
             ('Section', member.get('section_name', '—')),
-            ('Ag (cm²)', format_number(section.get('Ag', 0), 2)),
-            ('Ix (cm⁴)', format_number(section.get('Ix', 0), 1)),
-            ('Iy (cm⁴)', format_number(section.get('Iy', 0), 1)),
-            ('Sx (cm³)', format_number(section.get('Sx', 0), 1)),
-            ('Zx (cm³)', format_number(section.get('Zx', 0), 1)),
-            ('rx (cm)', format_number(section.get('rx', 0), 2)),
-            ('ry (cm)', format_number(section.get('ry', 0), 2)),
-            ('Fy (MPa)', format_number(section.get('Fy', 0), 0)),
-            ('E (MPa)', '200,000'),
-            ('Classification', f"<b>{classification}</b>"),
-            ('', ''),
+            ('Classification', f'<span style="background:{class_color};color:white;padding:2px 8px;border-radius:3px;font-weight:bold;">{classification}</span>'),
+            ('Ag', f"{format_number(section.get('Ag', 0), 2)} cm²"),
+            ('Fy', f"{format_number(section.get('Fy', 0), 0)} MPa"),
+            ('Ix', f"{format_number(section.get('Ix', 0), 1)} cm⁴"),
+            ('Iy', f"{format_number(section.get('Iy', 0), 1)} cm⁴"),
+            ('Sx', f"{format_number(section.get('Sx', 0), 1)} cm³"),
+            ('Sy', f"{format_number(section.get('Sy', 0), 1)} cm³"),
+            ('Zx', f"{format_number(section.get('Zx', 0), 1)} cm³"),
+            ('Zy', f"{format_number(section.get('Zy', 0), 1)} cm³"),
+            ('rx', f"{format_number(section.get('rx', 0), 2)} cm"),
+            ('ry', f"{format_number(section.get('ry', 0), 2)} cm"),
+            ('J', f"{format_number(section.get('J', 0), 1)} cm⁴"),
+            ('Cw', f"{format_number(section.get('Cw', 0), 0)} cm⁶"),
+            ('E', '200,000 MPa'),
+            ('G', '77,200 MPa'),
         ]
         
         for i in range(0, len(props), 2):
@@ -786,14 +1143,14 @@ class SteelDesignReportGenerator:
             p2 = props[i+1] if i+1 < len(props) else ('', '')
             html += f"""
             <tr>
-                <td><b>{p1[0]}</b></td>
+                <td><strong>{p1[0]}</strong></td>
                 <td>{p1[1]}</td>
-                <td><b>{p2[0]}</b></td>
+                <td><strong>{p2[0]}</strong></td>
                 <td>{p2[1]}</td>
             </tr>
             """
         
-        html += "</table>"
+        html += "</tbody></table>"
         return html
     
     def _generate_flexural_strength_table(self, member):
@@ -807,54 +1164,91 @@ class SteelDesignReportGenerator:
         S_used = section.get('Zx', 0) if use_Zx else section.get('Sx', 0)
         S_label = 'Zx' if use_Zx else 'Sx'
         
+        Lb = member.get('Lb', 0)
+        Lp = flex.get('Lp', 0)
+        Lr = flex.get('Lr', 0)
+        
+        # Determine limit state description
+        if Lb <= Lp:
+            limit_state = "Yielding (Lb ≤ Lp)"
+            case = "F2-1"
+        elif Lb <= Lr:
+            limit_state = "Inelastic LTB (Lp < Lb ≤ Lr)"
+            case = "F2-2"
+        else:
+            limit_state = "Elastic LTB (Lb > Lr)"
+            case = "F2-3"
+        
         html = f"""
-        <div class="section-title">3. Flexural Strength Calculation (AISC F2)</div>
-        <p class="note">Limit State: {flex.get('limit_state', '—')} | Equation: {flex.get('case', '—')}</p>
+        <div class="section-title">
+            <span class="section-number">3</span>
+            Flexural Strength Calculation (AISC 360-16 Chapter F)
+        </div>
+        <div class="note">
+            <strong>Limit State:</strong> {flex.get('limit_state', limit_state)} &nbsp;|&nbsp; 
+            <strong>Equation:</strong> {flex.get('case', case)} &nbsp;|&nbsp;
+            <strong>Section Modulus:</strong> {S_label} ({'Compact section' if use_Zx else 'Noncompact/Slender section'})
+        </div>
         <table class="calc-table">
-            <tr>
-                <th>Item</th>
-                <th>Expression</th>
-                <th>Substitution</th>
-                <th>Result</th>
-            </tr>
-            <tr>
-                <td>Limiting Length Lp</td>
-                <td class="equation">Lp = 1.76·ry·√(E/Fy)</td>
-                <td>1.76 × {format_number(section.get('ry', 0)*10, 1)} × √(200000/{format_number(section.get('Fy', 0), 0)})</td>
-                <td class="result">{format_number(flex.get('Lp', 0), 3)} m</td>
-            </tr>
-            <tr>
-                <td>Limiting Length Lr</td>
-                <td class="equation">Lr (per AISC F2-6)</td>
-                <td>—</td>
-                <td class="result">{format_number(flex.get('Lr', 0), 3)} m</td>
-            </tr>
-            <tr>
-                <td>Plastic Moment Mp</td>
-                <td class="equation">Mp = Fy·Zx</td>
-                <td>{format_number(section.get('Fy', 0), 0)} × {format_number(section.get('Zx', 0)*1000, 0)} / 10⁶</td>
-                <td class="result">{format_number(flex.get('Mp', 0), 2)} kN·m</td>
-            </tr>
-            <tr>
-                <td>Nominal Moment Mn</td>
-                <td class="equation">Mn = Fy·{S_label} (or LTB)</td>
-                <td>Per {flex.get('case', 'F2-1')}</td>
-                <td class="result">{format_number(flex.get('Mn', 0), 2)} kN·m</td>
-            </tr>
-            <tr>
-                <td>Resistance Factor</td>
-                <td class="equation">φb = 0.90</td>
-                <td>—</td>
-                <td class="result">0.90</td>
-            </tr>
-            <tr>
-                <td><b>Design Strength φMn</b></td>
-                <td class="equation">φMn = φb × Mn</td>
-                <td>0.90 × {format_number(flex.get('Mn', 0), 2)}</td>
-                <td class="result"><b>{format_number(flex.get('phi_Mn', 0), 2)} kN·m</b></td>
-            </tr>
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Expression</th>
+                    <th>Substitution</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Limiting Length Lp</td>
+                    <td class="equation">Lp = 1.76·ry·√(E/Fy)</td>
+                    <td>{self._format_substitution(f"1.76 × {format_number(section.get('ry', 0)*10, 1)} × √(200000/{format_number(section.get('Fy', 0), 0)})")}</td>
+                    <td class="result">{format_number(flex.get('Lp', 0), 3)} m</td>
+                </tr>
+                <tr>
+                    <td>Limiting Length Lr</td>
+                    <td class="equation">Lr (per AISC F2-6)</td>
+                    <td>See AISC 360-16 Eq. F2-6</td>
+                    <td class="result">{format_number(flex.get('Lr', 0), 3)} m</td>
+                </tr>
+                <tr>
+                    <td>Unbraced Length Lb</td>
+                    <td class="equation">Lb (given)</td>
+                    <td>—</td>
+                    <td class="result">{format_number(member.get('Lb', 0), 3)} m</td>
+                </tr>
+                <tr>
+                    <td>Length Check</td>
+                    <td class="equation">Lb vs Lp, Lr</td>
+                    <td>{format_number(Lb, 3)} vs {format_number(Lp, 3)}, {format_number(Lr, 3)}</td>
+                    <td class="result">{limit_state.split('(')[0].strip()}</td>
+                </tr>
+                <tr>
+                    <td>Plastic Moment Mp</td>
+                    <td class="equation">Mp = Fy × Zx</td>
+                    <td>{self._format_substitution(f"{format_number(section.get('Fy', 0), 0)} × {format_number(section.get('Zx', 0)*1000, 0)} / 10⁶")}</td>
+                    <td class="result">{format_number(flex.get('Mp', 0), 2)} kN·m</td>
+                </tr>
+                <tr>
+                    <td>Nominal Moment Mn</td>
+                    <td class="equation">Per Eq. {flex.get('case', case)}</td>
+                    <td>Governed by {limit_state.split('(')[0].strip()}</td>
+                    <td class="result">{format_number(flex.get('Mn', 0), 2)} kN·m</td>
+                </tr>
+                <tr>
+                    <td>Resistance Factor φb</td>
+                    <td class="equation">φb = 0.90</td>
+                    <td>AISC 360-16 F1(1)</td>
+                    <td class="result">0.90</td>
+                </tr>
+                <tr style="background: #e8f4f8;">
+                    <td><strong>Design Strength φMn</strong></td>
+                    <td class="equation"><strong>φMn = φb × Mn</strong></td>
+                    <td><strong>0.90 × {format_number(flex.get('Mn', 0), 2)}</strong></td>
+                    <td class="result-highlight"><strong>{format_number(flex.get('phi_Mn', 0), 2)} kN·m</strong></td>
+                </tr>
+            </tbody>
         </table>
-        <p class="note">Note: {'Using Zx for compact section' if use_Zx else 'Using Sx for noncompact/slender section per F2'}</p>
         """
         return html
     
@@ -863,64 +1257,86 @@ class SteelDesignReportGenerator:
         comp = member.get('compression_results', {})
         section = member.get('section_props', {})
         
+        lambda_x = comp.get('lambda_x', 0)
+        lambda_y = comp.get('lambda_y', 0)
+        lambda_gov = comp.get('lambda_governing', max(lambda_x, lambda_y))
+        gov_axis = 'y-axis' if lambda_y >= lambda_x else 'x-axis'
+        
         html = f"""
-        <div class="section-title">4. Compression Strength Calculation (AISC E3)</div>
-        <p class="note">Buckling Mode: {comp.get('buckling_mode', '—')} | Equation: {comp.get('equation', '—')} | Governing Axis: {comp.get('governing_axis', '—')}</p>
+        <div class="section-title">
+            <span class="section-number">4</span>
+            Compression Strength Calculation (AISC 360-16 Chapter E)
+        </div>
+        <div class="note">
+            <strong>Buckling Mode:</strong> {comp.get('buckling_mode', 'Flexural Buckling')} &nbsp;|&nbsp; 
+            <strong>Equation:</strong> {comp.get('equation', 'E3-2 or E3-3')} &nbsp;|&nbsp;
+            <strong>Governing Axis:</strong> {comp.get('governing_axis', gov_axis)}
+        </div>
         <table class="calc-table">
-            <tr>
-                <th>Item</th>
-                <th>Expression</th>
-                <th>Substitution</th>
-                <th>Result</th>
-            </tr>
-            <tr>
-                <td>Slenderness (x-axis)</td>
-                <td class="equation">λx = KLx / rx</td>
-                <td>{format_number(member.get('KL', 0)*1000, 0)} / {format_number(section.get('rx', 0)*10, 1)}</td>
-                <td class="result">{format_number(comp.get('lambda_x', 0), 1)}</td>
-            </tr>
-            <tr>
-                <td>Slenderness (y-axis)</td>
-                <td class="equation">λy = KLy / ry</td>
-                <td>{format_number(member.get('KL', 0)*1000, 0)} / {format_number(section.get('ry', 0)*10, 1)}</td>
-                <td class="result">{format_number(comp.get('lambda_y', 0), 1)}</td>
-            </tr>
-            <tr>
-                <td>Limiting Slenderness</td>
-                <td class="equation">4.71·√(E/Fy)</td>
-                <td>4.71 × √(200000/{format_number(section.get('Fy', 0), 0)})</td>
-                <td class="result">{format_number(comp.get('lambda_limit', 0), 1)}</td>
-            </tr>
-            <tr>
-                <td>Euler Stress Fe</td>
-                <td class="equation">Fe = π²E / λ²</td>
-                <td>π² × 200000 / {format_number(comp.get('lambda_governing', 0), 1)}²</td>
-                <td class="result">{format_number(comp.get('Fe', 0), 1)} MPa</td>
-            </tr>
-            <tr>
-                <td>Critical Stress Fcr</td>
-                <td class="equation">{comp.get('equation', 'E3-2/E3-3')}</td>
-                <td>Per AISC E3</td>
-                <td class="result">{format_number(comp.get('Fcr', 0), 1)} MPa</td>
-            </tr>
-            <tr>
-                <td>Nominal Strength Pn</td>
-                <td class="equation">Pn = Fcr × Ag</td>
-                <td>{format_number(comp.get('Fcr', 0), 1)} × {format_number(section.get('Ag', 0)*100, 0)} / 1000</td>
-                <td class="result">{format_number(comp.get('Pn', 0), 1)} kN</td>
-            </tr>
-            <tr>
-                <td>Resistance Factor</td>
-                <td class="equation">φc = 0.90</td>
-                <td>—</td>
-                <td class="result">0.90</td>
-            </tr>
-            <tr>
-                <td><b>Design Strength φPn</b></td>
-                <td class="equation">φPn = φc × Pn</td>
-                <td>0.90 × {format_number(comp.get('Pn', 0), 1)}</td>
-                <td class="result"><b>{format_number(comp.get('phi_Pn', 0), 1)} kN</b></td>
-            </tr>
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Expression</th>
+                    <th>Substitution</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Slenderness (x-axis)</td>
+                    <td class="equation">λx = KLx / rx</td>
+                    <td>{self._format_substitution(f"{format_number(member.get('KL', 0)*1000, 0)} / {format_number(section.get('rx', 0)*10, 1)}")}</td>
+                    <td class="result">{format_number(lambda_x, 1)}</td>
+                </tr>
+                <tr>
+                    <td>Slenderness (y-axis)</td>
+                    <td class="equation">λy = KLy / ry</td>
+                    <td>{self._format_substitution(f"{format_number(member.get('KL', 0)*1000, 0)} / {format_number(section.get('ry', 0)*10, 1)}")}</td>
+                    <td class="result">{format_number(lambda_y, 1)}</td>
+                </tr>
+                <tr>
+                    <td>Governing Slenderness</td>
+                    <td class="equation">λ = max(λx, λy)</td>
+                    <td>max({format_number(lambda_x, 1)}, {format_number(lambda_y, 1)})</td>
+                    <td class="result">{format_number(lambda_gov, 1)} ({gov_axis})</td>
+                </tr>
+                <tr>
+                    <td>Limiting Slenderness</td>
+                    <td class="equation">4.71·√(E/Fy)</td>
+                    <td>{self._format_substitution(f"4.71 × √(200000/{format_number(section.get('Fy', 0), 0)})")}</td>
+                    <td class="result">{format_number(comp.get('lambda_limit', 0), 1)}</td>
+                </tr>
+                <tr>
+                    <td>Euler Stress Fe</td>
+                    <td class="equation">Fe = π²E / λ²</td>
+                    <td>{self._format_substitution(f"π² × 200000 / {format_number(lambda_gov, 1)}²")}</td>
+                    <td class="result">{format_number(comp.get('Fe', 0), 1)} MPa</td>
+                </tr>
+                <tr>
+                    <td>Critical Stress Fcr</td>
+                    <td class="equation">{comp.get('equation', 'E3-2 or E3-3')}</td>
+                    <td>Per AISC 360-16 Chapter E3</td>
+                    <td class="result">{format_number(comp.get('Fcr', 0), 1)} MPa</td>
+                </tr>
+                <tr>
+                    <td>Nominal Strength Pn</td>
+                    <td class="equation">Pn = Fcr × Ag</td>
+                    <td>{self._format_substitution(f"{format_number(comp.get('Fcr', 0), 1)} × {format_number(section.get('Ag', 0)*100, 0)} / 1000")}</td>
+                    <td class="result">{format_number(comp.get('Pn', 0), 1)} kN</td>
+                </tr>
+                <tr>
+                    <td>Resistance Factor φc</td>
+                    <td class="equation">φc = 0.90</td>
+                    <td>AISC 360-16 E1(1)</td>
+                    <td class="result">0.90</td>
+                </tr>
+                <tr style="background: #e8f4f8;">
+                    <td><strong>Design Strength φPn</strong></td>
+                    <td class="equation"><strong>φPn = φc × Pn</strong></td>
+                    <td><strong>0.90 × {format_number(comp.get('Pn', 0), 1)}</strong></td>
+                    <td class="result-highlight"><strong>{format_number(comp.get('phi_Pn', 0), 1)} kN</strong></td>
+                </tr>
+            </tbody>
         </table>
         """
         return html
@@ -931,45 +1347,124 @@ class SteelDesignReportGenerator:
         section = member.get('section_props', {})
         
         html = f"""
-        <div class="section-title">4. Tension Strength Calculation (AISC D2)</div>
-        <p class="note">Governing Limit State: {tens.get('governing', '—')}</p>
+        <div class="section-title">
+            <span class="section-number">4</span>
+            Tension Strength Calculation (AISC 360-16 Chapter D)
+        </div>
+        <div class="note">
+            <strong>Governing Limit State:</strong> {tens.get('governing', 'Yielding on Gross Section')}
+        </div>
         <table class="calc-table">
-            <tr>
-                <th>Item</th>
-                <th>Expression</th>
-                <th>Substitution</th>
-                <th>Result</th>
-            </tr>
-            <tr>
-                <td>Yielding on Gross Section</td>
-                <td class="equation">Pn = Fy × Ag</td>
-                <td>{format_number(section.get('Fy', 0), 0)} × {format_number(section.get('Ag', 0)*100, 0)} / 1000</td>
-                <td class="result">{format_number(tens.get('Pn_yield', 0), 1)} kN</td>
-            </tr>
-            <tr>
-                <td>Design Strength (Yield)</td>
-                <td class="equation">φPn = 0.90 × Pn</td>
-                <td>0.90 × {format_number(tens.get('Pn_yield', 0), 1)}</td>
-                <td class="result">{format_number(tens.get('phi_Pn_yield', 0), 1)} kN</td>
-            </tr>
-            <tr>
-                <td>Rupture on Net Section</td>
-                <td class="equation">Pn = Fu × Ae</td>
-                <td>{format_number(tens.get('Fu', 0), 0)} × {format_number(tens.get('Ae', 0)*100, 0)} / 1000</td>
-                <td class="result">{format_number(tens.get('Pn_rupture', 0), 1)} kN</td>
-            </tr>
-            <tr>
-                <td>Design Strength (Rupture)</td>
-                <td class="equation">φPn = 0.75 × Pn</td>
-                <td>0.75 × {format_number(tens.get('Pn_rupture', 0), 1)}</td>
-                <td class="result">{format_number(tens.get('phi_Pn_rupture', 0), 1)} kN</td>
-            </tr>
-            <tr>
-                <td><b>Design Strength φPn</b></td>
-                <td class="equation">Min(φPn_yield, φPn_rupture)</td>
-                <td>Governing: {tens.get('governing', '—')}</td>
-                <td class="result"><b>{format_number(tens.get('phi_Pn', 0), 1)} kN</b></td>
-            </tr>
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Expression</th>
+                    <th>Substitution</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Gross Area Ag</td>
+                    <td class="equation">Ag (from section)</td>
+                    <td>—</td>
+                    <td class="result">{format_number(section.get('Ag', 0), 2)} cm²</td>
+                </tr>
+                <tr>
+                    <td>Effective Net Area Ae</td>
+                    <td class="equation">Ae = U × An</td>
+                    <td>U = {format_number(tens.get('U', 1.0), 2)}</td>
+                    <td class="result">{format_number(tens.get('Ae', section.get('Ag', 0)), 2)} cm²</td>
+                </tr>
+                <tr>
+                    <td>Yielding Strength</td>
+                    <td class="equation">Pn = Fy × Ag</td>
+                    <td>{self._format_substitution(f"{format_number(section.get('Fy', 0), 0)} × {format_number(section.get('Ag', 0)*100, 0)} / 1000")}</td>
+                    <td class="result">{format_number(tens.get('Pn_yield', 0), 1)} kN</td>
+                </tr>
+                <tr>
+                    <td>Design Strength (Yield)</td>
+                    <td class="equation">φPn = 0.90 × Pn</td>
+                    <td>0.90 × {format_number(tens.get('Pn_yield', 0), 1)}</td>
+                    <td class="result">{format_number(tens.get('phi_Pn_yield', 0), 1)} kN</td>
+                </tr>
+                <tr>
+                    <td>Rupture Strength</td>
+                    <td class="equation">Pn = Fu × Ae</td>
+                    <td>{self._format_substitution(f"{format_number(tens.get('Fu', 400), 0)} × {format_number(tens.get('Ae', 0)*100, 0)} / 1000")}</td>
+                    <td class="result">{format_number(tens.get('Pn_rupture', 0), 1)} kN</td>
+                </tr>
+                <tr>
+                    <td>Design Strength (Rupture)</td>
+                    <td class="equation">φPn = 0.75 × Pn</td>
+                    <td>0.75 × {format_number(tens.get('Pn_rupture', 0), 1)}</td>
+                    <td class="result">{format_number(tens.get('phi_Pn_rupture', 0), 1)} kN</td>
+                </tr>
+                <tr style="background: #e8f4f8;">
+                    <td><strong>Design Strength φPn</strong></td>
+                    <td class="equation"><strong>min(φPn_y, φPn_r)</strong></td>
+                    <td><strong>Governs: {tens.get('governing', 'Yielding')}</strong></td>
+                    <td class="result-highlight"><strong>{format_number(tens.get('phi_Pn', 0), 1)} kN</strong></td>
+                </tr>
+            </tbody>
+        </table>
+        """
+        return html
+    
+    def _generate_shear_strength_table(self, member):
+        """Generate Shear Strength Calculation table"""
+        shear = member.get('shear_results', {})
+        section = member.get('section_props', {})
+        
+        if not shear:
+            return ""
+        
+        html = f"""
+        <div class="section-title">
+            <span class="section-number">5</span>
+            Shear Strength Calculation (AISC 360-16 Chapter G)
+        </div>
+        <table class="calc-table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Expression</th>
+                    <th>Substitution</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Web Area Aw</td>
+                    <td class="equation">Aw = d × tw</td>
+                    <td>{format_number(section.get('d', 0), 1)} × {format_number(section.get('tw', 0), 2)}</td>
+                    <td class="result">{format_number(shear.get('Aw', 0), 2)} cm²</td>
+                </tr>
+                <tr>
+                    <td>Shear Coefficient Cv1</td>
+                    <td class="equation">Cv1 (per G2.1)</td>
+                    <td>—</td>
+                    <td class="result">{format_number(shear.get('Cv1', 1.0), 3)}</td>
+                </tr>
+                <tr>
+                    <td>Nominal Shear Vn</td>
+                    <td class="equation">Vn = 0.6 × Fy × Aw × Cv1</td>
+                    <td>{self._format_substitution(f"0.6 × {format_number(section.get('Fy', 0), 0)} × {format_number(shear.get('Aw', 0), 2)} × {format_number(shear.get('Cv1', 1.0), 3)}")}</td>
+                    <td class="result">{format_number(shear.get('Vn', 0), 1)} kN</td>
+                </tr>
+                <tr>
+                    <td>Resistance Factor φv</td>
+                    <td class="equation">φv = {format_number(shear.get('phi_v', 1.0), 2)}</td>
+                    <td>AISC 360-16 G1</td>
+                    <td class="result">{format_number(shear.get('phi_v', 1.0), 2)}</td>
+                </tr>
+                <tr style="background: #e8f4f8;">
+                    <td><strong>Design Strength φVn</strong></td>
+                    <td class="equation"><strong>φVn = φv × Vn</strong></td>
+                    <td><strong>{format_number(shear.get('phi_v', 1.0), 2)} × {format_number(shear.get('Vn', 0), 1)}</strong></td>
+                    <td class="result-highlight"><strong>{format_number(shear.get('phi_Vn', 0), 1)} kN</strong></td>
+                </tr>
+            </tbody>
         </table>
         """
         return html
@@ -978,32 +1473,51 @@ class SteelDesignReportGenerator:
         """Generate Load Combination Summary table"""
         loads = member.get('loads', [])
         
+        if not loads:
+            return ""
+        
         html = """
-        <div class="section-title">5. Load Combination Summary</div>
-        <table>
-            <tr>
-                <th>Load Comb.</th>
-                <th>Pu (kN)</th>
-                <th>Mux (kN·m)</th>
-                <th>Muy (kN·m)</th>
-                <th>Load Type</th>
-            </tr>
+        <div class="section-title">
+            <span class="section-number">5</span>
+            Load Combination Summary
+        </div>
+        <table class="load-table">
+            <thead>
+                <tr>
+                    <th>Load Comb.</th>
+                    <th>Pu (kN)</th>
+                    <th>Mux (kN·m)</th>
+                    <th>Muy (kN·m)</th>
+                    <th>Vux (kN)</th>
+                    <th>Vuy (kN)</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody>
         """
         
         for load in loads:
             Pu = load.get('Pu', 0)
-            load_type = "Compression" if Pu > 0 else ("Tension" if Pu < 0 else "—")
+            if Pu > 0:
+                load_type = '<span style="color:#dc3545;">Compression</span>'
+            elif Pu < 0:
+                load_type = '<span style="color:#28a745;">Tension</span>'
+            else:
+                load_type = '—'
+            
             html += f"""
             <tr>
-                <td>{load.get('LC', '—')}</td>
+                <td style="text-align:left;"><strong>{load.get('LC', '—')}</strong></td>
                 <td>{format_number(Pu, 1)}</td>
                 <td>{format_number(load.get('Mux', 0), 2)}</td>
                 <td>{format_number(load.get('Muy', 0), 2)}</td>
+                <td>{format_number(load.get('Vux', 0), 1)}</td>
+                <td>{format_number(load.get('Vuy', 0), 1)}</td>
                 <td>{load_type}</td>
             </tr>
             """
         
-        html += "</table>"
+        html += "</tbody></table>"
         return html
     
     def _generate_interaction_table(self, member):
@@ -1014,179 +1528,30 @@ class SteelDesignReportGenerator:
             return ""
         
         html = """
-        <div class="section-title">6. Combined Force Check (AISC H1)</div>
-        <table>
-            <tr>
-                <th>LC</th>
-                <th>Equation</th>
-                <th>Substitution</th>
-                <th>Ratio</th>
-                <th>Status</th>
-            </tr>
+        <div class="section-title">
+            <span class="section-number">6</span>
+            Combined Force Check (AISC 360-16 Chapter H)
+        </div>
+        <table class="interaction-table">
+            <thead>
+                <tr>
+                    <th>LC</th>
+                    <th>Equation</th>
+                    <th>Calculation</th>
+                    <th>Ratio</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
         """
         
         # Find governing (max ratio)
-        max_ratio = max(i.get('interaction_ratio', 0) for i in interactions)
+        max_ratio = max((i.get('interaction_ratio', 0) for i in interactions), default=0)
         
         for inter in interactions:
             ratio = inter.get('interaction_ratio', 0)
-            is_governing = (ratio == max_ratio)
-            status_class = 'pass' if ratio <= 1.0 else 'fail'
-            row_class = 'governing' if is_governing else ''
-            status = "OK" if ratio <= 1.0 else "NG"
-            
-            # Build substitution string
-            Pu = inter.get('Pu', 0)
-            phi_Pn = inter.get('phi_Pn', 1)
-            Mux = inter.get('Mux', 0)
-            phi_Mnx = inter.get('phi_Mnx', 1)
-            
-            if inter.get('is_tension', False):
-                subst = f"|{format_number(Pu, 1)}|/{format_number(phi_Pn, 1)} + {format_number(Mux, 2)}/{format_number(phi_Mnx, 2)}"
-            else:
-                axial_ratio = abs(Pu) / phi_Pn if phi_Pn > 0 else 0
-                if axial_ratio >= 0.2:
-                    subst = f"{format_number(abs(Pu), 1)}/{format_number(phi_Pn, 1)} + (8/9)({format_number(Mux, 2)}/{format_number(phi_Mnx, 2)})"
-                else:
-                    subst = f"{format_number(abs(Pu), 1)}/(2×{format_number(phi_Pn, 1)}) + {format_number(Mux, 2)}/{format_number(phi_Mnx, 2)}"
-            
-            gov_marker = " ★" if is_governing else ""
-            
-            html += f"""
-            <tr class="{row_class}">
-                <td>{inter.get('LC', '—')}{gov_marker}</td>
-                <td class="equation">{inter.get('equation_used', '—')}</td>
-                <td>{subst}</td>
-                <td class="result">{format_number(ratio, 3)}</td>
-                <td class="{status_class}">{status}</td>
-            </tr>
-            """
-        
-        html += "</table>"
-        html += '<p class="note">★ = Governing Load Combination</p>'
-        return html
-    
-    def _generate_conclusion(self, member):
-        """Generate Design Conclusion section"""
-        interactions = member.get('interaction_results', [])
-        
-        if not interactions:
-            max_ratio = 0
-            governing_lc = "—"
-            governing_state = "—"
-        else:
-            max_idx = max(range(len(interactions)), key=lambda i: interactions[i].get('interaction_ratio', 0))
-            max_inter = interactions[max_idx]
-            max_ratio = max_inter.get('interaction_ratio', 0)
-            governing_lc = max_inter.get('LC', '—')
-            governing_state = max_inter.get('equation_used', '—')
-        
-        design_ok = max_ratio <= 1.0
-        status_class = 'conclusion-pass' if design_ok else 'conclusion-fail'
-        status_text = 'PASS ✓' if design_ok else 'FAIL ✗'
-        
-        html = f"""
-        <div class="section-title">7. Design Conclusion</div>
-        <div class="conclusion-box {status_class}">
-            <table>
-                <tr>
-                    <th>Item</th>
-                    <th>Result</th>
-                </tr>
-                <tr>
-                    <td>Governing Load Combination</td>
-                    <td><b>LC-{governing_lc}</b></td>
-                </tr>
-                <tr>
-                    <td>Governing Limit State</td>
-                    <td><b>{governing_state}</b></td>
-                </tr>
-                <tr>
-                    <td>Maximum Strength Ratio</td>
-                    <td><b>{format_number(max_ratio, 3)}</b></td>
-                </tr>
-                <tr>
-                    <td>Design Status</td>
-                    <td class="{'pass' if design_ok else 'fail'}" style="font-size: 12pt;"><b>{status_text}</b></td>
-                </tr>
-            </table>
-        </div>
-        """
-        return html
-    
-    def generate_member_report(self, member):
-        """Generate complete report section for one member"""
-        member_type = member.get('member_type', 'Beam-Column')
-        
-        html = f"""
-        <div class="member-section">
-            <div class="member-header">
-                Member: {member.get('member_no', '—')} | Section: {member.get('section_name', '—')} | Type: {member_type}
-            </div>
-        """
-        
-        # 1. Member & Geometry Summary
-        html += self._generate_member_geometry_table(member)
-        
-        # 2. Section Properties & Classification
-        html += self._generate_section_properties_table(member)
-        
-        # 3. Flexural Strength (if applicable)
-        if member_type in ['Beam', 'Beam-Column']:
-            html += self._generate_flexural_strength_table(member)
-        
-        # 4. Axial Strength
-        if member_type in ['Column', 'Beam-Column']:
-            html += self._generate_compression_strength_table(member)
-        elif member_type == 'Tension Member':
-            html += self._generate_tension_strength_table(member)
-        
-        # 5. Load Combination Summary
-        html += self._generate_load_combination_table(member)
-        
-        # 6. Combined Force Check (if beam-column)
-        if member_type in ['Beam-Column', 'Column']:
-            html += self._generate_interaction_table(member)
-        
-        # 7. Design Conclusion
-        html += self._generate_conclusion(member)
-        
-        html += "</div>"
-        return html
-    
-    def generate_full_report(self):
-        """Generate complete HTML report for all members"""
-        html = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Steel Design Report</title>
-            {self._get_css_styles()}
-        </head>
-        <body>
-            <div class="report-header">
-                <h1 class="report-title">STEEL MEMBER DESIGN REPORT</h1>
-                <p class="report-subtitle">AISC 360-16 Specification for Structural Steel Buildings</p>
-                <p class="report-subtitle">
-                    Project: {self.project_info.get('name', '—')} | 
-                    Date: {self.report_date} |
-                    Prepared by: {self.project_info.get('engineer', '—')}
-                </p>
-            </div>
-        """
-        
-        # Generate report for each member
-        for member in self.members:
-            html += self.generate_member_report(member)
-        
-        html += """
-        </body>
-        </html>
-        """
-        
-        return html
+            is_governing = abs(ratio - max_ratio) < 0.0001
+            status_class = 'pass' if ratio <= 1.0 else 'fail
 
 
 # ==================== STREAMLIT INTEGRATION FUNCTIONS ====================
