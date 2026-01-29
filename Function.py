@@ -242,9 +242,6 @@ def create_dropdown(label, options, default_index=0, key=None, on_change=None, h
         on_change=on_change
     )
 
-    # Update session state
-    st.session_state[key] = selected
-
     return selected
 
 # ==================== SECTION CLASSIFICATION ====================
