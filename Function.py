@@ -135,20 +135,21 @@ class NumberedCanvas(canvas.Canvas):
         return canvas.Canvas.inkAnnotation(self, inkList, mediaBox)
 
     def draw_page_number(self, page_count):
+        page_w, page_h = self._pagesize
         self.setFont("Helvetica", 9)
         self.setFillColor(rl_colors.grey)
 
         # Header
-        self.line(0.75*inch, letter[1] - 0.6*inch, letter[0] - 0.75*inch, letter[1] - 0.6*inch)
+        self.line(0.75*inch, page_h - 0.6*inch, page_w - 0.75*inch, page_h - 0.6*inch)
         self.setFont("Helvetica-Bold", 10)
-        self.setFillColor(rl_colors.HexColor('#667eea'))
-        self.drawString(0.75*inch, letter[1] - 0.5*inch, "AISC 360-16 Steel Design - Calculation Report")
+        self.setFillColor(rl_colors.HexColor('#37474f'))
+        self.drawString(0.75*inch, page_h - 0.5*inch, "MIDAS GEN Style - Steel Design Calculation Report")
 
         # Footer
         self.setFont("Helvetica", 9)
         self.setFillColor(rl_colors.grey)
-        self.line(0.75*inch, 0.6*inch, letter[0] - 0.75*inch, 0.6*inch)
-        self.drawRightString(letter[0] - 0.75*inch, 0.4*inch,
+        self.line(0.75*inch, 0.6*inch, page_w - 0.75*inch, 0.6*inch)
+        self.drawRightString(page_w - 0.75*inch, 0.4*inch,
                              f"Page {self._pageNumber} of {page_count}")
         self.drawString(0.75*inch, 0.4*inch,
                         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
@@ -2590,47 +2591,49 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     title_style = ParagraphStyle(
         'CalcTitle',
         parent=styles['Heading1'],
-        fontSize=18,
-        textColor=rl_colors.HexColor('#1a237e'),
-        spaceAfter=12,
+        fontSize=15,
+        textColor=rl_colors.HexColor('#263238'),
+        spaceAfter=8,
         spaceBefore=6,
-        alignment=TA_CENTER,
+        alignment=TA_LEFT,
         fontName='Helvetica-Bold',
-        leading=22
+        leading=18
     )
     
     heading1_style = ParagraphStyle(
         'CalcHeading1',
         parent=styles['Heading1'],
-        fontSize=14,
-        textColor=rl_colors.white,
+        fontSize=11,
+        textColor=rl_colors.HexColor('#263238'),
         spaceAfter=8,
         spaceBefore=14,
         fontName='Helvetica-Bold',
-        backColor=rl_colors.HexColor('#1a237e'),
-        borderPadding=8,
-        leading=18
+        backColor=rl_colors.HexColor('#eceff1'),
+        borderPadding=6,
+        borderWidth=0.5,
+        borderColor=rl_colors.HexColor('#b0bec5'),
+        leading=14
     )
     
     heading2_style = ParagraphStyle(
         'CalcHeading2',
         parent=styles['Heading2'],
-        fontSize=12,
-        textColor=rl_colors.HexColor('#1565c0'),
+        fontSize=10,
+        textColor=rl_colors.HexColor('#37474f'),
         spaceAfter=6,
         spaceBefore=10,
         fontName='Helvetica-Bold',
         borderWidth=0,
-        borderColor=rl_colors.HexColor('#1565c0'),
+        borderColor=rl_colors.HexColor('#90a4ae'),
         borderPadding=4,
-        leading=16
+        leading=13
     )
     
     body_style = ParagraphStyle(
         'CalcBody',
         parent=styles['Normal'],
         fontSize=10,
-        leading=14,
+        leading=13,
         spaceAfter=4,
         spaceBefore=2,
         alignment=TA_LEFT
@@ -2640,10 +2643,10 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         'CalcEquation',
         parent=styles['Code'],
         fontSize=10,
-        textColor=rl_colors.HexColor('#0d47a1'),
-        backColor=rl_colors.HexColor('#e3f2fd'),
-        borderWidth=1,
-        borderColor=rl_colors.HexColor('#1976d2'),
+        textColor=rl_colors.HexColor('#263238'),
+        backColor=rl_colors.HexColor('#f5f5f5'),
+        borderWidth=0.6,
+        borderColor=rl_colors.HexColor('#b0bec5'),
         borderPadding=10,
         leftIndent=20,
         rightIndent=20,
@@ -2680,8 +2683,10 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         leftIndent=30
     )
     
-    # ==================== PROJECT HEADER TABLE ====================
+    # ==================== PROJECT HEADER TABLE (MIDAS GEN STYLE) ====================
     story.append(Spacer(1, 0.1*inch))
+    story.append(Paragraph("MIDAS GEN - STRUCTURAL DESIGN CALCULATION SHEET", title_style))
+    story.append(Spacer(1, 0.05*inch))
     
     # Project info table (engineering header)
     header_data = [
@@ -2698,11 +2703,11 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
          'Revision:', project_info.get('revision', '0')],
     ]
     
-    header_table = Table(header_data, colWidths=[1.3*inch, page_width - 4.3*inch, 1.0*inch, 2.0*inch])
+    header_table = Table(header_data, colWidths=[1.2*inch, page_width - 4.2*inch, 1.0*inch, 2.0*inch])
     header_table.setStyle(TableStyle([
         # Title row
         ('SPAN', (0, 0), (-1, 0)),
-        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1a237e')),
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#455a64')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -2721,7 +2726,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
         ('TOPPADDING', (0, 1), (-1, -1), 8),
         ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
-        ('GRID', (0, 0), (-1, -1), 1, rl_colors.HexColor('#1a237e')),
+        ('GRID', (0, 0), (-1, -1), 0.6, rl_colors.HexColor('#78909c')),
     ]))
     story.append(header_table)
     story.append(Spacer(1, 0.2*inch))
@@ -2773,7 +2778,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     
     mat_table = Table(mat_table_data, colWidths=[2.2*inch, 0.9*inch, 1.5*inch, page_width - 4.6*inch])
     mat_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1565c0')),
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#607d8b')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -2784,7 +2789,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
         ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#f5f5f5')])
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#f5f7f8')])
     ]))
     story.append(mat_table)
     story.append(Spacer(1, 10))
@@ -2807,7 +2812,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     
     design_table = Table(design_table_data, colWidths=[2.2*inch, 0.9*inch, 1.5*inch, page_width - 4.6*inch])
     design_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#ff6f00')),
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#546e7a')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -2817,7 +2822,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
-        ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
+        ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.HexColor('#90a4ae')),
     ]))
     story.append(design_table)
     
@@ -2885,7 +2890,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     def create_props_table(data):
         table = Table(data, colWidths=[2.0*inch, 0.8*inch, 0.5 * page_width - 2.8*inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#37474f')),
+            ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#455a64')),
             ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('SPAN', (0, 0), (-1, 0)),
@@ -2895,7 +2900,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
             ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
-            ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
+            ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.HexColor('#90a4ae')),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#fafafa')])
         ]))
         return table
