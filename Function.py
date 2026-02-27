@@ -2636,7 +2636,8 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         leading=13,
         spaceAfter=4,
         spaceBefore=2,
-        alignment=TA_LEFT
+        alignment=TA_LEFT,
+        wordWrap='CJK'
     )
     
     equation_style = ParagraphStyle(
@@ -2654,7 +2655,8 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         spaceBefore=6,
         fontName='Courier',
         leading=14,
-        alignment=TA_LEFT
+        alignment=TA_LEFT,
+        wordWrap='CJK'
     )
     
     result_style = ParagraphStyle(
@@ -2680,8 +2682,22 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         textColor=rl_colors.HexColor('#616161'),
         fontName='Helvetica-Oblique',
         leading=12,
-        leftIndent=30
+        leftIndent=30,
+        wordWrap='CJK'
     )
+
+    table_cell_style = ParagraphStyle(
+        'CalcTableCell',
+        parent=body_style,
+        fontSize=9,
+        leading=11,
+        spaceAfter=0,
+        spaceBefore=0,
+        wordWrap='CJK'
+    )
+
+    def _cell(val):
+        return Paragraph(str(val), table_cell_style)
     
     # ==================== PROJECT HEADER TABLE (MIDAS GEN STYLE) ====================
     story.append(Spacer(1, 0.1*inch))
@@ -2702,6 +2718,9 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['Reference:', 'AISC 360-16', 
          'Revision:', project_info.get('revision', '0')],
     ]
+    for r in range(1, len(header_data)):
+        for c in range(4):
+            header_data[r][c] = _cell(header_data[r][c])
     
     header_table = Table(header_data, colWidths=[1.2*inch, page_width - 4.2*inch, 1.0*inch, 2.0*inch])
     header_table.setStyle(TableStyle([
@@ -2743,6 +2762,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['5.', 'Compression Design (AISC Chapter E3)', ''],
         ['6.', 'Design Summary & Conclusion', ''],
     ]
+    toc_data = [[_cell(r[0]), _cell(r[1]), _cell(r[2])] for r in toc_data]
     
     toc_table = Table(toc_data, colWidths=[0.5*inch, page_width - 1.5*inch, 1*inch])
     toc_table.setStyle(TableStyle([
@@ -2775,6 +2795,9 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['Poisson\'s Ratio', 'ν', '0.30', '-'],
         ['Shear Modulus', 'G', f'{E/(2*1.3):,.0f}', 'kgf/cm²'],
     ]
+    for r in range(1, len(mat_table_data)):
+        for c in range(4):
+            mat_table_data[r][c] = _cell(mat_table_data[r][c])
     
     mat_table = Table(mat_table_data, colWidths=[2.2*inch, 0.9*inch, 1.5*inch, page_width - 4.6*inch])
     mat_table.setStyle(TableStyle([
@@ -2809,6 +2832,9 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         design_table_data.append(['Effective Length', 'KL', f"{design_params['KL']:.2f}", 'm'])
     if 'Cb' in design_params:
         design_table_data.append(['Moment Gradient Factor', 'Cb', f"{design_params['Cb']:.2f}", '-'])
+    for r in range(1, len(design_table_data)):
+        for c in range(4):
+            design_table_data[r][c] = _cell(design_table_data[r][c])
     
     design_table = Table(design_table_data, colWidths=[2.2*inch, 0.9*inch, 1.5*inch, page_width - 4.6*inch])
     design_table.setStyle(TableStyle([
