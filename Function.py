@@ -242,6 +242,9 @@ def create_dropdown(label, options, default_index=0, key=None, on_change=None, h
         on_change=on_change
     )
 
+    # Update session state
+    st.session_state[key] = selected
+
     return selected
 
 # ==================== SECTION CLASSIFICATION ====================
@@ -2859,7 +2862,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     Sy = safe_scalar(df.loc[section, 'Sy [cm3]'])
     Zx = safe_scalar(df.loc[section, 'Zx [cm3]'])
     Zy = safe_scalar(df.loc[section, 'Zy [cm3]'])
-    J = safe_scalar(df.loc[section, 'j [cm4]']) if 'j [cm4]' in df.columns else 1.0
+    J = safe_scalar(df.loc[section, 'j [cm4]']) if 'j [cm4]' in df.columns else 0
     ho = safe_scalar(df.loc[section, 'ho [mm]']) if 'ho [mm]' in df.columns else (d - tf)
     rts = safe_scalar(df.loc[section, 'rts [cm]']) if 'rts [cm]' in df.columns else ry * 1.2
     
@@ -4138,8 +4141,7 @@ def aisc_360_16_f2_flexural_design(df, df_mat, section, material, Lb_input, Cb=1
             Lr_cm = Lr * 100.0
             
             Mp_minus_Mr = Mp - 0.7 * Fy * Sx
-            denom = Lr_cm - Lp_cm
-            length_ratio = (Lb_cm - Lp_cm) / denom if denom != 0 else 1.0
+            length_ratio = (Lb_cm - Lp_cm) / (Lr_cm - Lp_cm)
             Mn = Cb * (Mp - Mp_minus_Mr * length_ratio)
             Mn = min(Mp, Mn)
         else:
@@ -6109,7 +6111,7 @@ def get_section_properties_from_df(df_sections, df_materials, section_name, mate
             'Zy': float(sec.get('Zy [cm3]', sec.get('Zy', 0))),
             'rx': float(sec.get('rx [cm]', sec.get('rx', 0))),
             'ry': float(sec.get('ry [cm]', sec.get('ry', 0))),
-            'J': float(sec.get('j [cm4]', sec.get('J [cm4]', sec.get('J', 1)))),
+            'J': float(sec.get('J [cm4]', sec.get('J', 1))),
             'd': float(sec.get('d [mm]', sec.get('d', 0))) / 10,  # Convert mm to cm
             'bf': float(sec.get('bf [mm]', sec.get('bf', 0))) / 10,
             'tf': float(sec.get('tf [mm]', sec.get('tf', 0))) / 10,
@@ -6842,9 +6844,9 @@ with st.sidebar:
             }
         
         st.session_state.project_info['project_name'] = st.text_input(
-            "Project Name:",
+            "Project Name:", 
             value=st.session_state.project_info['project_name'],
-            key="sidebar_proj_name"
+            key="proj_name"
         )
         st.session_state.project_info['project_no'] = st.text_input(
             "Project No.:", 
