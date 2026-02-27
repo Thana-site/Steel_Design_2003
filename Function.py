@@ -3825,6 +3825,27 @@ st.markdown("""
         font-size: 15px;
         transition: border-color 0.3s ease;
     }
+
+    /* Selectbox text styling (selected value + dropdown options) */
+    .stSelectbox [data-baseweb="select"] > div {
+        color: #2c3e50 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .stSelectbox [data-baseweb="select"] [id$="-value"],
+    .stSelectbox [data-baseweb="select"] span,
+    .stSelectbox [data-baseweb="select"] p {
+        color: #2c3e50 !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {
+        color: #2c3e50 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 14px;
+    }
     
     .stNumberInput>div>div>input:focus,
     .stTextInput>div>div>input:focus {
