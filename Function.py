@@ -1763,6 +1763,103 @@ class SteelDesignReportGenerator:
         
         return html
 
+
+def generate_midas_gen_text_report(members, project_info=None, code_name="AISC(15th)-LRFD16"):
+    """Generate MIDAS GEN-style plain text calculation report."""
+    project_info = project_info or {}
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    def line(ch='-', n=98):
+        return ch * n
+
+    def fmt(v, w=10, d=3):
+        try:
+            return f"{float(v):>{w}.{d}f}"
+        except Exception:
+            return f"{str(v):>{w}}"
+
+    report = []
+    report.append(line('-'))
+    report.append(f" midas Gen - Steel Code Checking[ {code_name} ]{'Gen 2025':>44}")
+    report.append(line('='))
+    report.append("")
+    report.append(f" *.PROJECT     : {project_info.get('name', '')}")
+    report.append(" *.UNIT SYSTEM : kN, m")
+    report.append(f" *.GENERATED   : {now_str}")
+    report.append(line('='))
+    report.append(f"   [ {code_name} ]  CODE CHECKING SUMMARY SHEET --- SELECTED MEMBERS")
+    report.append(line('-'))
+    report.append("  MEMB     SECTION                  TYPE         GOV.LC     MAX RATIO     STATUS")
+    report.append(line('='))
+
+    for m in members:
+        interactions = m.get('interaction_results', [])
+        if interactions:
+            gov = max(interactions, key=lambda x: x.get('interaction_ratio', 0))
+            gov_lc = gov.get('LC', '-')
+            gov_ratio = gov.get('interaction_ratio', 0)
+            ok = gov_ratio <= 1.0
+        else:
+            gov_lc = '-'
+            gov_ratio = 0.0
+            ok = True
+        report.append(
+            f"  {str(m.get('member_no','-')):<8} {str(m.get('section_name','-')):<24} {str(m.get('member_type','-')):<12} "
+            f"{str(gov_lc):>6} {gov_ratio:>13.3f}     {'OK' if ok else 'NG'}"
+        )
+
+    report.append(line('-'))
+    report.append("\f")
+
+    for m in members:
+        section = m.get('section_props', {})
+        loads = m.get('loads', [])
+        interactions = m.get('interaction_results', [])
+
+        report.append(line('-'))
+        report.append(f" midas Gen - Steel Code Checking[ {code_name} ]{'Gen 2025':>44}")
+        report.append(line('='))
+        report.append("")
+        report.append(f" *. MEMBER NO   = {m.get('member_no','-')},  ELEMENT TYPE = {m.get('member_type','-')}")
+        report.append(f" *. SECTION     = {m.get('section_name','-')}")
+        report.append(f" *. MATERIAL Fy = {section.get('Fy', 0):.3f},  E = {section.get('E', 0):.1f}")
+        report.append(f" *. LENGTH(m)   = L={m.get('length',0):.3f}, KL={m.get('KL',0):.3f}, Lb={m.get('Lb',0):.3f}")
+        report.append("")
+
+        report.append(line('='))
+        report.append("   [[[*]]]   DEFINITION OF LOAD COMBINATIONS")
+        report.append(line('='))
+        report.append("    LC        Pu(kN)         Mux(kN·m)      Muy(kN·m)")
+        report.append(line('-'))
+        for ld in loads:
+            report.append(
+                f"    {str(ld.get('LC','-')):>2} {fmt(ld.get('Pu',0),14,3)} {fmt(ld.get('Mux',0),16,3)} {fmt(ld.get('Muy',0),14,3)}"
+            )
+        if not loads:
+            report.append("    (no load combinations)")
+        report.append("")
+
+        report.append(line('='))
+        report.append("   [[[*]]]   LRFD STRENGTH CHECK RESULTS")
+        report.append(line('='))
+        report.append("    LC      Eqn                      Ratio       Result")
+        report.append(line('-'))
+        for r in interactions:
+            ratio = r.get('interaction_ratio', 0)
+            report.append(
+                f"    {str(r.get('LC','-')):>2}   {str(r.get('equation_used','H1')):<20} {ratio:>8.3f}     {'O.K.' if ratio <= 1.0 else 'N.G.'}"
+            )
+        if not interactions:
+            report.append("    (no check results)")
+
+        max_ratio = max((x.get('interaction_ratio', 0) for x in interactions), default=0)
+        report.append(line('-'))
+        report.append(f"    Governing Ratio = {max_ratio:.3f}  --->  {'O.K.' if max_ratio <= 1.0 else 'N.G.'}")
+        report.append("\f")
+
+    return "\n".join(report)
+
+
 # ==================== STREAMLIT INTEGRATION FUNCTIONS ====================
 
 def create_member_data(member_no, section_name, section_props, member_type, 
@@ -6189,6 +6286,8 @@ def render_design_report_tab(df_sections, df_materials, loaded_data=None, member
         st.session_state.report_members = []
     if 'generated_report' not in st.session_state:
         st.session_state.generated_report = None
+    if 'generated_text_report' not in st.session_state:
+        st.session_state.generated_text_report = None
     
     # Create sub-tabs
     subtab1, subtab2, subtab3 = st.tabs([
@@ -6516,6 +6615,17 @@ def render_design_report_tab(df_sections, df_materials, loaded_data=None, member
                     # Generate HTML
                     html_report = generator.generate_full_report()
                     st.session_state.generated_report = html_report
+
+                    # Generate MIDAS-style plain text report (LRFD format)
+                    st.session_state.generated_text_report = generate_midas_gen_text_report(
+                        st.session_state.report_members,
+                        project_info={
+                            'name': project_name,
+                            'engineer': engineer_name,
+                            'date': report_date.strftime("%Y-%m-%d")
+                        },
+                        code_name="AISC(15th)-LRFD16"
+                    )
                     
                 st.success("✅ Report generated successfully!")
                 st.info("Go to 'Preview & Export' tab to view and download")
@@ -6524,11 +6634,11 @@ def render_design_report_tab(df_sections, df_materials, loaded_data=None, member
     with subtab3:
         st.markdown("### Report Preview & Export")
         
-        if st.session_state.generated_report is None:
+        if st.session_state.generated_report is None and st.session_state.generated_text_report is None:
             st.warning("⚠️ No report generated yet. Go to 'Generate Report' tab.")
         else:
             # Export buttons
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 # HTML download
@@ -6544,24 +6654,51 @@ def render_design_report_tab(df_sections, df_materials, loaded_data=None, member
                 )
             
             with col2:
+                if st.session_state.generated_text_report:
+                    txt_name = f"Steel_Design_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                    st.download_button(
+                        label="📥 Download Text (MIDAS)",
+                        data=st.session_state.generated_text_report,
+                        file_name=txt_name,
+                        mime="text/plain",
+                        key="download_txt"
+                    )
+
+            with col3:
                 st.info("💡 Open HTML in browser, then Print to PDF")
             
-            with col3:
+            with col4:
                 if st.button("🔄 Regenerate", key="regenerate"):
                     st.session_state.generated_report = None
+                    st.session_state.generated_text_report = None
                     st.rerun()
             
             st.markdown("---")
             
             # Preview
             st.markdown("### 📄 Report Preview")
-            
-            # Use iframe for preview
-            st.components.v1.html(
-                st.session_state.generated_report,
-                height=800,
-                scrolling=True
-            )
+            preview_html_tab, preview_text_tab = st.tabs(["HTML Preview", "Text Editor (MIDAS Style)"])
+
+            with preview_html_tab:
+                if st.session_state.generated_report:
+                    st.components.v1.html(
+                        st.session_state.generated_report,
+                        height=800,
+                        scrolling=True
+                    )
+                else:
+                    st.info("No HTML report generated in this session.")
+
+            with preview_text_tab:
+                if st.session_state.generated_text_report:
+                    st.text_area(
+                        "MIDAS-style LRFD Text Report",
+                        value=st.session_state.generated_text_report,
+                        height=800,
+                        key="midas_text_preview"
+                    )
+                else:
+                    st.info("No text report generated in this session.")
 
 
 # ==================== STANDALONE TAB CODE ====================
