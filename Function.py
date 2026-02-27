@@ -3825,6 +3825,25 @@ st.markdown("""
         font-size: 15px;
         transition: border-color 0.3s ease;
     }
+
+    /* Selectbox text styling (selected value + dropdown options) */
+    .stSelectbox [data-baseweb="select"] > div {
+        color: #2c3e50;
+        font-family: 'Inter', sans-serif;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .stSelectbox [data-baseweb="select"] [id$="-value"] {
+        color: #2c3e50;
+        font-family: 'Inter', sans-serif;
+    }
+
+    div[role="listbox"] div[role="option"] {
+        color: #2c3e50;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+    }
     
     .stNumberInput>div>div>input:focus,
     .stTextInput>div>div>input:focus {
