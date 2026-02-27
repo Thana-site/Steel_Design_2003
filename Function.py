@@ -131,24 +131,27 @@ class NumberedCanvas(canvas.Canvas):
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
 
+    def inkAnnotation(self, inkList, mediaBox=None):
+        return canvas.Canvas.inkAnnotation(self, inkList, mediaBox)
+
     def draw_page_number(self, page_count):
         self.setFont("Helvetica", 9)
         self.setFillColor(rl_colors.grey)
-        
+
         # Header
         self.line(0.75*inch, letter[1] - 0.6*inch, letter[0] - 0.75*inch, letter[1] - 0.6*inch)
         self.setFont("Helvetica-Bold", 10)
         self.setFillColor(rl_colors.HexColor('#667eea'))
         self.drawString(0.75*inch, letter[1] - 0.5*inch, "AISC 360-16 Steel Design - Calculation Report")
-        
+
         # Footer
         self.setFont("Helvetica", 9)
         self.setFillColor(rl_colors.grey)
         self.line(0.75*inch, 0.6*inch, letter[0] - 0.75*inch, 0.6*inch)
-        self.drawRightString(letter[0] - 0.75*inch, 0.4*inch, 
-                            f"Page {self._pageNumber} of {page_count}")
-        self.drawString(0.75*inch, 0.4*inch, 
-                       f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        self.drawRightString(letter[0] - 0.75*inch, 0.4*inch,
+                             f"Page {self._pageNumber} of {page_count}")
+        self.drawString(0.75*inch, 0.4*inch,
+                        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 # ==================== HELPER FUNCTIONS ====================
 
 def safe_scalar(value):
@@ -231,7 +234,7 @@ def create_dropdown(label, options, default_index=0, key=None, on_change=None, h
 
 # ==================== SECTION CLASSIFICATION ====================
 
-def classify_section_flange(bf, tf, tw, d, Fy, E=200000):
+def classify_section_flange(bf, tf, tw, _d, Fy, E=200000):
     """
     Classify section flange per AISC 360-16 Table B4.1b
     Returns: 'Compact', 'Noncompact', or 'Slender'
@@ -294,11 +297,9 @@ def calculate_flexural_strength(section_props, Lb, Cb=1.0, E=200000):
     # Convert units if needed (assuming cm to mm)
     Zx_mm3 = Zx * 1000  # cm³ to mm³
     Sx_mm3 = Sx * 1000
-    Iy_mm4 = Iy * 10000  # cm⁴ to mm⁴
     ry_mm = ry * 10
     Lb_mm = Lb * 1000  # m to mm
     J_mm4 = J * 10000 if J else 1
-    Cw_mm6 = Cw * 1000000 if Cw else 1
     ho_mm = ho * 10 if ho else 1
     rts_mm = rts * 10 if rts else ry_mm
     c = 1.0  # For doubly symmetric I-shapes
@@ -314,7 +315,7 @@ def calculate_flexural_strength(section_props, Lb, Cb=1.0, E=200000):
         term1 = (J_mm4 * c) / (Sx_mm3 * ho_mm)
         term2 = math.sqrt(term1**2 + 6.76 * (0.7 * Fy / E)**2)
         Lr = 1.95 * rts_mm * (E / (0.7 * Fy)) * math.sqrt(term1 + term2)
-    except:
+    except Exception:
         Lr = Lp * 3  # Fallback estimate
     
     # Determine limit state
@@ -337,7 +338,7 @@ def calculate_flexural_strength(section_props, Lb, Cb=1.0, E=200000):
             term_a = (Cb * math.pi**2 * E) / (Lb_mm / rts_mm)**2
             term_b = math.sqrt(1 + 0.078 * (J_mm4 * c / (Sx_mm3 * ho_mm)) * (Lb_mm / rts_mm)**2)
             Fcr = term_a * term_b
-        except:
+        except Exception:
             Fcr = 0.7 * Fy
         Mn = Fcr * Sx_mm3 / 1e6
         Mn = min(Mn, Mp)
@@ -1063,7 +1064,7 @@ class SteelDesignReportGenerator:
         else:
             class_style = 'fail'
         
-        html = f"""
+        html = """
         <div class="section-title">
             <span class="section-number">2</span>
             Section Properties & Classification
@@ -1126,8 +1127,7 @@ class SteelDesignReportGenerator:
         
         # Determine which section modulus to use
         use_Zx = classification == 'Compact'
-        S_label = 'Zx' if use_Zx else 'Sx'
-        
+
         # Get values with defaults
         ry_mm = section.get('ry', 0) * 10  # cm to mm
         Fy = section.get('Fy', 345)
@@ -2366,11 +2366,11 @@ def generate_excel_report(df, df_mat, section, material, analysis_results, desig
                 try:
                     if cell.value:
                         max_length = max(max_length, len(str(cell.value)))
-                except:
+                except Exception:
                     pass
             adjusted_width = min(max_length + 2, 60)
             ws_summary.column_dimensions[column_letter].width = adjusted_width
-    except:
+    except Exception:
         ws_summary.column_dimensions['A'].width = 40
         ws_summary.column_dimensions['B'].width = 25
         ws_summary.column_dimensions['C'].width = 30
@@ -2532,11 +2532,11 @@ def generate_excel_report(df, df_mat, section, material, analysis_results, desig
                         try:
                             if cell.value:
                                 max_length = max(max_length, len(str(cell.value)))
-                        except:
+                        except Exception:
                             pass
                     adjusted_width = min(max_length + 2, 60)
                     ws.column_dimensions[column_letter].width = adjusted_width
-            except:
+            except Exception:
                 ws.column_dimensions['A'].width = 40
                 ws.column_dimensions['B'].width = 30
     
@@ -3038,7 +3038,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         Mp_tm = Mp_kgcm / 100000
 
         story.append(Paragraph(
-            f"<font face='Courier'>Mp = Fy × Zx</font>",
+            "<font face='Courier'>Mp = Fy × Zx</font>",
             equation_style
         ))
         story.append(Paragraph(
@@ -3061,7 +3061,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         
         Lp_cm = 1.76 * ry * math.sqrt(E / Fy)
         story.append(Paragraph(
-            f"<font face='Courier'>Lp = 1.76 × ry × √(E/Fy)</font>",
+            "<font face='Courier'>Lp = 1.76 × ry × √(E/Fy)</font>",
             equation_style
         ))
         story.append(Paragraph(
@@ -3079,7 +3079,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         story.append(Paragraph("<i>Reference: AISC 360-16, Equation F2-6</i>", reference_style))
         
         story.append(Paragraph(
-            f"<font face='Courier'>Lr = 1.95 × rts × (E/0.7Fy) × √(Jc/Sxho) × √(1 + √(1 + 6.76(0.7Fy/E)²(Sxho/Jc)²))</font>",
+            "<font face='Courier'>Lr = 1.95 × rts × (E/0.7Fy) × √(Jc/Sxho) × √(1 + √(1 + 6.76(0.7Fy/E)²(Sxho/Jc)²))</font>",
             equation_style
         ))
         story.append(Paragraph(
@@ -3118,7 +3118,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
             
             Mr = 0.7 * Fy * Sx / 100000
             story.append(Paragraph(
-                f"<font face='Courier'>Mn = Cb × [Mp - (Mp - 0.7FySx) × ((Lb-Lp)/(Lr-Lp))] ≤ Mp</font>",
+                "<font face='Courier'>Mn = Cb × [Mp - (Mp - 0.7FySx) × ((Lb-Lp)/(Lr-Lp))] ≤ Mp</font>",
                 equation_style
             ))
             story.append(Paragraph(
@@ -3139,11 +3139,11 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
             story.append(Paragraph("<i>Reference: AISC 360-16, Equations F2-3 and F2-4</i>", reference_style))
             
             story.append(Paragraph(
-                f"<font face='Courier'>Fcr = (Cb×π²×E)/((Lb/rts)²) × √(1 + 0.078(Jc/Sxho)(Lb/rts)²)</font>",
+                "<font face='Courier'>Fcr = (Cb×π²×E)/((Lb/rts)²) × √(1 + 0.078(Jc/Sxho)(Lb/rts)²)</font>",
                 equation_style
             ))
             story.append(Paragraph(
-                f"<font face='Courier'>Mn = Fcr × Sx ≤ Mp</font>",
+                "<font face='Courier'>Mn = Fcr × Sx ≤ Mp</font>",
                 equation_style
             ))
             story.append(Paragraph(
@@ -3159,7 +3159,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         story.append(Spacer(1, 4))
         
         story.append(Paragraph(
-            f"<font face='Courier'>φb = 0.90 (LRFD)</font>",
+            "<font face='Courier'>φb = 0.90 (LRFD)</font>",
             equation_style
         ))
         story.append(Paragraph(
@@ -3279,7 +3279,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         Fe = (math.pi**2 * E) / (lambda_c**2)
         
         story.append(Paragraph(
-            f"<font face='Courier'>Fe = π²E / (KL/r)²</font>",
+            "<font face='Courier'>Fe = π²E / (KL/r)²</font>",
             equation_style
         ))
         story.append(Paragraph(
@@ -3312,7 +3312,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
             story.append(Paragraph("<i>Reference: AISC 360-16, Equation E3-2</i>", reference_style))
             
             story.append(Paragraph(
-                f"<font face='Courier'>Fcr = [0.658^(Fy/Fe)] × Fy</font>",
+                "<font face='Courier'>Fcr = [0.658^(Fy/Fe)] × Fy</font>",
                 equation_style
             ))
             story.append(Paragraph(
@@ -3328,7 +3328,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
             story.append(Paragraph("<i>Reference: AISC 360-16, Equation E3-3</i>", reference_style))
             
             story.append(Paragraph(
-                f"<font face='Courier'>Fcr = 0.877 × Fe</font>",
+                "<font face='Courier'>Fcr = 0.877 × Fe</font>",
                 equation_style
             ))
             story.append(Paragraph(
@@ -3348,7 +3348,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         story.append(Spacer(1, 4))
         
         story.append(Paragraph(
-            f"<font face='Courier'>Pn = Fcr × Ag</font>",
+            "<font face='Courier'>Pn = Fcr × Ag</font>",
             equation_style
         ))
         story.append(Paragraph(
@@ -3358,7 +3358,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         story.append(Spacer(1, 4))
         
         story.append(Paragraph(
-            f"<font face='Courier'>φc = 0.90 (LRFD)</font>",
+            "<font face='Courier'>φc = 0.90 (LRFD)</font>",
             equation_style
         ))
         story.append(Paragraph(
@@ -4959,8 +4959,7 @@ def generate_enhanced_excel_report(df, df_mat, section, material, analysis_resul
     
     # Equation styles
     equation_fill = PatternFill(start_color="E7F3FF", end_color="E7F3FF", fill_type="solid")
-    equation_font = Font(italic=True, size=10, color="1565C0")
-    
+
     # Calculation styles
     calc_fill = PatternFill(start_color="F5F5F5", end_color="F5F5F5", fill_type="solid")
     
@@ -5614,7 +5613,7 @@ def generate_enhanced_excel_report(df, df_mat, section, material, analysis_resul
         row += 1
         ws_flex[f'A{row}'] = f"  ho = {ho:.2f} cm"
         row += 1
-        ws_flex[f'A{row}'] = f"  c = 1.0 (for doubly symmetric I-shapes)"
+        ws_flex[f'A{row}'] = "  c = 1.0 (for doubly symmetric I-shapes)"
         
         row += 1
         ws_flex[f'A{row}'] = "Result:"
@@ -7140,9 +7139,9 @@ with tab2:
                         'Moment Efficiency': (0.9 * flex_result['Mn']) / weight,
                         'Compression Efficiency': comp_result['phi_Pn'] / weight
                     })
-            except:
+            except Exception:
                 continue
-        
+
         if comparison_data:
             df_comparison = pd.DataFrame(comparison_data)
             
@@ -7430,20 +7429,11 @@ with tab4:
 # Version: 2.0 - Improved Member Grouping, Multiple Member Types, Batch Analysis
 # Features: CSV/Excel Import, Member Groups, Section Assignment, Comprehensive Design Checks
 
-"""
-INTEGRATION INSTRUCTIONS:
-Replace the entire Tab 5 section in your main AISC application with the code below.
-The code should replace everything between:
-    with tab5:
-        ...
-    (until the next tab or end of tabs)
-
-This enhanced Tab 5 includes:
-1. Sub-Tab 5.1: Data Import - Upload and preview load data
-2. Sub-Tab 5.2: Member Groups - Configure sections/materials for each member
-3. Sub-Tab 5.3: Design Check - Run analysis for all load combinations
-4. Sub-Tab 5.4: Summary Report - Export results and visualizations
-"""
+# Tab 5 includes:
+# 1. Sub-Tab 5.1: Data Import - Upload and preview load data
+# 2. Sub-Tab 5.2: Member Groups - Configure sections/materials for each member
+# 3. Sub-Tab 5.3: Design Check - Run analysis for all load combinations
+# 4. Sub-Tab 5.4: Summary Report - Export results and visualizations
 
 # ==================== TAB 5: LOAD IMPORT & MEMBER CHECK (ENHANCED) ====================
 with tab5:
@@ -8060,7 +8050,7 @@ T301,5,0.0,-55.0"""
                                     'φPn (tons)': 0,
                                     'φMn (t·m)': 0,
                                     'Ratio': 999,
-                                    'Status': f"ERROR",
+                                    'Status': "ERROR",
                                     'Equation': "N/A",
                                     'Mode': str(e)[:30]
                                 })
@@ -8167,7 +8157,7 @@ T301,5,0.0,-55.0"""
                                 return 'background-color: #FFEBEE'
                             else:
                                 return 'background-color: #FFF9C4'
-                        except:
+                        except Exception:
                             return ''
                     
                     styled_results = df_result.style.format({
@@ -8413,7 +8403,7 @@ T301,5,0.0,-55.0"""
                                     try:
                                         if cell.value:
                                             max_length = max(max_length, len(str(cell.value)))
-                                    except:
+                                    except Exception:
                                         pass
                                 ws.column_dimensions[column_letter].width = min(max_length + 2, 30)
                     
