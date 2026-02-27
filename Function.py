@@ -3817,15 +3817,50 @@ st.markdown("""
     
     /* Input Fields */
     .stNumberInput>div>div>input,
-    .stTextInput>div>div>input,
-    .stSelectbox>div>div {
+    .stTextInput>div>div>input {
         border-radius: 8px;
         border: 2px solid #e9ecef;
         padding: 10px;
         font-size: 15px;
         transition: border-color 0.3s ease;
     }
-    
+
+    /* Selectbox container + text styling */
+    .stSelectbox [data-baseweb="select"] > div {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        min-height: 44px;
+        padding: 0 10px;
+        background-color: #ffffff;
+        color: #2c3e50 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .stSelectbox [data-baseweb="select"] [id$="-value"],
+    .stSelectbox [data-baseweb="select"] span,
+    .stSelectbox [data-baseweb="select"] p,
+    .stSelectbox [data-baseweb="select"] input {
+        color: #2c3e50 !important;
+        -webkit-text-fill-color: #2c3e50 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 15px !important;
+        opacity: 1 !important;
+    }
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {
+        color: #2c3e50 !important;
+        background-color: #ffffff;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 14px;
+    }
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"][aria-selected="true"] {
+        background-color: #eef2ff;
+        color: #1f2a44 !important;
+    }
+
     .stNumberInput>div>div>input:focus,
     .stTextInput>div>div>input:focus {
         border-color: #667eea;
