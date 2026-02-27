@@ -3849,6 +3849,9 @@ st.markdown("""
         font-size: 15px !important;
         line-height: 1.35 !important;
         opacity: 1 !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .stSelectbox [data-baseweb="select"] input::placeholder {
@@ -3876,6 +3879,11 @@ st.markdown("""
 
     div[data-baseweb="popover"] div[role="listbox"] div[role="option"][aria-selected="true"] {
         background-color: #eef2ff;
+        color: #1f2a44 !important;
+    }
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"]:hover {
+        background-color: #f5f7ff;
         color: #1f2a44 !important;
     }
 
