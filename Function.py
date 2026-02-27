@@ -2561,7 +2561,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     # Create document
     doc = BaseDocTemplate(
         buffer, 
-        pagesize=letter,
+        pagesize=A4,
         rightMargin=0.6*inch, 
         leftMargin=0.6*inch,
         topMargin=1.2*inch,
@@ -2584,6 +2584,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     
     story = []
     styles = getSampleStyleSheet()
+    page_width = doc.width
     
     # ==================== CUSTOM STYLES ====================
     title_style = ParagraphStyle(
@@ -2697,7 +2698,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
          'Revision:', project_info.get('revision', '0')],
     ]
     
-    header_table = Table(header_data, colWidths=[1.2*inch, 2.8*inch, 1.0*inch, 1.5*inch])
+    header_table = Table(header_data, colWidths=[1.3*inch, page_width - 4.3*inch, 1.0*inch, 2.0*inch])
     header_table.setStyle(TableStyle([
         # Title row
         ('SPAN', (0, 0), (-1, 0)),
@@ -2719,6 +2720,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
         ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
         ('GRID', (0, 0), (-1, -1), 1, rl_colors.HexColor('#1a237e')),
     ]))
     story.append(header_table)
@@ -2737,7 +2739,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['6.', 'Design Summary & Conclusion', ''],
     ]
     
-    toc_table = Table(toc_data, colWidths=[0.4*inch, 5*inch, 1*inch])
+    toc_table = Table(toc_data, colWidths=[0.5*inch, page_width - 1.5*inch, 1*inch])
     toc_table.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
@@ -2769,7 +2771,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['Shear Modulus', 'G', f'{E/(2*1.3):,.0f}', 'kgf/cm²'],
     ]
     
-    mat_table = Table(mat_table_data, colWidths=[2.2*inch, 1*inch, 1.5*inch, 1.3*inch])
+    mat_table = Table(mat_table_data, colWidths=[2.2*inch, 0.9*inch, 1.5*inch, page_width - 4.6*inch])
     mat_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1565c0')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
@@ -2780,6 +2782,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
         ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#f5f5f5')])
     ]))
@@ -2802,7 +2805,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     if 'Cb' in design_params:
         design_table_data.append(['Moment Gradient Factor', 'Cb', f"{design_params['Cb']:.2f}", '-'])
     
-    design_table = Table(design_table_data, colWidths=[2.2*inch, 1*inch, 1.5*inch, 1.3*inch])
+    design_table = Table(design_table_data, colWidths=[2.2*inch, 0.9*inch, 1.5*inch, page_width - 4.6*inch])
     design_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#ff6f00')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
@@ -2813,12 +2816,12 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
         ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
     ]))
     story.append(design_table)
     
     # ==================== 2. SECTION PROPERTIES ====================
-    story.append(PageBreak())
     story.append(Paragraph("2. SECTION PROPERTIES", heading1_style))
     story.append(Spacer(1, 8))
     
@@ -2880,7 +2883,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     
     # Create combined table
     def create_props_table(data):
-        table = Table(data, colWidths=[2.2*inch, 0.8*inch, 1.2*inch])
+        table = Table(data, colWidths=[2.0*inch, 0.8*inch, 0.5 * page_width - 2.8*inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#37474f')),
             ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
@@ -2891,6 +2894,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
             ('ALIGN', (0, 0), (0, -1), 'LEFT'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
             ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#fafafa')])
         ]))
@@ -2898,7 +2902,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     
     # Create a combined layout
     combined_data = [[create_props_table(props_data_1), create_props_table(props_data_2)]]
-    combined_table = Table(combined_data, colWidths=[3.3*inch, 3.3*inch])
+    combined_table = Table(combined_data, colWidths=[0.5 * page_width, 0.5 * page_width])
     combined_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 5),
