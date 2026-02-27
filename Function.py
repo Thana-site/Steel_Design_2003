@@ -14,39 +14,28 @@ st.set_page_config(
 
 # ==================== IMPORTS ====================
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from matplotlib.patches import Rectangle
 import math
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
-import io
 import base64
 from io import BytesIO
 
-# Add these imports at the top with other imports
+# ==================== PDF GENERATION ====================
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
+from reportlab.lib.units import inch, cm
+from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle, Paragraph,
+                                Spacer, PageBreak, Image, PageTemplate, Frame,
+                                BaseDocTemplate, KeepTogether, Flowable)
 from reportlab.lib import colors as rl_colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.pdfgen import canvas
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
-import matplotlib.pyplot as plt
-
-# ==================== PDF GENERATION WITH FIXED FORMATTING ====================
-from reportlab.platypus import PageTemplate, Frame, BaseDocTemplate, KeepTogether
-from reportlab.lib.units import inch, cm
-from reportlab.pdfgen import canvas
-
-from reportlab.platypus import PageTemplate, Frame, BaseDocTemplate, KeepTogether, Flowable
-from reportlab.lib.units import inch, cm
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
 
 class EquationBox(Flowable):
     """Custom flowable for equation boxes with proper padding and no overlap"""
@@ -56,7 +45,7 @@ class EquationBox(Flowable):
         self.width = width
         self.height = 0
         
-    def wrap(self, availWidth, availHeight):
+    def wrap(self, availWidth, _availHeight):
         # Calculate required height with padding
         self.width = availWidth
         # Estimate height based on text length (adjust as needed)
@@ -109,25 +98,16 @@ try:
 except ImportError:
     AGGRID_AVAILABLE = False
 
-# PDF Export Libraries (silent import, warnings shown later)
-try:
-    from reportlab.lib.pagesizes import letter, A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
-    from reportlab.lib import colors as rl_colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-    PDF_AVAILABLE = True
-except ImportError:
-    PDF_AVAILABLE = False
+# PDF is already imported at the top level
+PDF_AVAILABLE = True
 
-# Excel Export Libraries (silent import, warnings shown later)
+# Excel Export Libraries
 try:
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from openpyxl.chart import BarChart, Reference, LineChart
     from openpyxl.utils.dataframe import dataframe_to_rows
-    from openpyxl.utils import get_column_letter  # ADD THIS LINE
+    from openpyxl.utils import get_column_letter
     EXCEL_AVAILABLE = True
 except ImportError:
     EXCEL_AVAILABLE = False
@@ -189,10 +169,15 @@ def safe_scalar(value):
         return 0.0
 
 def format_number(value, decimals=2):
-    """Format number with specified decimals"""
+    """Format number with specified decimal places"""
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return "—"
-    return f"{value:,.{decimals}f}"
+    try:
+        if decimals == 0:
+            return f"{int(round(value)):,}"
+        return f"{value:,.{decimals}f}"
+    except (ValueError, TypeError):
+        return str(value)
 
 def format_equation_result(value, decimals=2, unit=""):
     """Format equation result with unit"""
@@ -219,24 +204,24 @@ def create_dropdown(label, options, default_index=0, key=None, on_change=None, h
     if key is None:
         raise ValueError("A unique key must be provided for the dropdown")
 
-    # Initialize session state for this dropdown
-    if key not in st.session_state:
-        st.session_state[key] = options[default_index] if options else None
+    if not options:
+        return None
 
-    # Get current selection from session state
-    current_selection = st.session_state[key]
+    # Determine initial index: use session_state value if it exists in options
+    initial_index = default_index
+    if key in st.session_state:
+        current_val = st.session_state[key]
+        if current_val in options:
+            initial_index = options.index(current_val)
+        else:
+            # Reset stale session state to a valid option
+            st.session_state[key] = options[default_index]
 
-    # Find index of current selection
-    try:
-        current_index = options.index(current_selection) if current_selection in options else default_index
-    except (ValueError, IndexError):
-        current_index = default_index
-
-    # Create the dropdown
+    # Create the dropdown — let Streamlit manage session_state via key
     selected = st.selectbox(
         label=label,
         options=options,
-        index=current_index,
+        index=initial_index,
         key=key,
         help=help_text,
         on_change=on_change
@@ -447,7 +432,7 @@ def calculate_compression_strength(section_props, KL_x, KL_y, E=200000):
         'Fy': Fy
     }
 
-def calculate_tension_strength(section_props, E=200000):
+def calculate_tension_strength(section_props):
     """
     Calculate tension strength per AISC 360-16 Chapter D
     Returns dict with all calculation steps
@@ -562,21 +547,6 @@ def calculate_interaction(Pu, phi_Pn, Mux, phi_Mnx, Muy=0, phi_Mny=None, is_tens
     }
 
 # ==================== HTML REPORT GENERATOR ====================
-
-from datetime import datetime
-
-
-def format_number(value, decimals=2):
-    """Format number with specified decimal places"""
-    if value is None:
-        return "—"
-    try:
-        if decimals == 0:
-            return f"{int(round(value)):,}"
-        else:
-            return f"{value:,.{decimals}f}"
-    except (ValueError, TypeError):
-        return str(value)
 
 
 class SteelDesignReportGenerator:
@@ -4025,7 +3995,7 @@ def create_flexural_capacity_chart(df, df_mat, section, material, Lb, Cb, flex_r
     return fig
 
 
-def create_compression_capacity_chart(E, Fy, Ag, lambda_c, lambda_limit, comp_result, Pu):
+def create_compression_capacity_chart(E, Fy, Ag, _lambda_c, lambda_limit, comp_result, Pu):
     """Create compression capacity curve for PDF report"""
     fig, ax = plt.subplots(figsize=(8, 5))
     
@@ -4073,22 +4043,6 @@ def create_compression_capacity_chart(E, Fy, Ag, lambda_c, lambda_limit, comp_re
     
     plt.tight_layout()
     return fig
-
-# ==================== DATA PATHS ====================
-file_path = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-H-Shape.csv"
-file_path_mat = "https://raw.githubusercontent.com/Thana-site/Steel_Design_2003/main/2003-Steel-Beam-DataBase-Material.csv"
-
-# ==================== HELPER FUNCTIONS ====================
-@st.cache_data
-def load_data():
-    """Load steel section and material databases"""
-    try:
-        df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
-        df_mat = pd.read_csv(file_path_mat, index_col=0, encoding="utf-8")
-        return df, df_mat, True
-    except Exception as e:
-        st.error(f"❌ Error loading data: {e}")
-        return pd.DataFrame(), pd.DataFrame(), False
 
 def safe_sqrt(value):
     """Safe square root that ensures non-negative input"""
@@ -6615,7 +6569,6 @@ if __name__ == "__main__":
     # This demo code will only run if this file is executed directly
     # When imported as part of the main app, this section is skipped
     st.info("ℹ️ Running in demo mode with sample data")
-    # render_design_report_tab(df_sections, df_materials)  # Uncomment if needed
 
 # ==================== EVALUATION FUNCTION ====================
 def evaluate_section_design(df, df_mat, section, material, design_loads, design_lengths):
@@ -6695,7 +6648,7 @@ def load_data():
         df = pd.read_csv(file_path, index_col=0, encoding='ISO-8859-1')
         df_mat = pd.read_csv(file_path_mat, index_col=0, encoding="utf-8")
         return df, df_mat, True
-    except Exception as e:
+    except Exception:
         return pd.DataFrame(), pd.DataFrame(), False
 
 # Load data immediately
@@ -6707,13 +6660,12 @@ if not data_loaded:
     st.stop()
 
 # ==================== NOW SAFE TO INITIALIZE SESSION STATE ====================
-# Initialize selected_material and selected_section
-# Note: Removed 'else None' - if data is missing, app should fail early
+# Initialize with cleaned values (strip whitespace) to match dropdown options
 if 'selected_material' not in st.session_state:
-    st.session_state.selected_material = list(df_mat.index)[0]
+    st.session_state.selected_material = str(df_mat.index[0]).strip()
 
 if 'selected_section' not in st.session_state:
-    st.session_state.selected_section = list(df.index)[0]
+    st.session_state.selected_section = str(df.index[0]).strip()
 
 if 'selected_sections' not in st.session_state:
     st.session_state.selected_sections = []
@@ -6777,16 +6729,16 @@ with st.sidebar:
         key="selected_material"
     )
     if selected_material:
-        Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
-        Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
-        E = safe_scalar(df_mat.loc[selected_material, "E"])
+        mat_Fy = safe_scalar(df_mat.loc[selected_material, "Yield Point (ksc)"])
+        mat_Fu = safe_scalar(df_mat.loc[selected_material, "Tensile Strength (ksc)"])
+        mat_E = safe_scalar(df_mat.loc[selected_material, "E"])
 
         st.markdown(f"""
         <div class="info-box">
         <b>📋 Material: {selected_material}</b><br>
-        • Fy = {Fy:.1f} kgf/cm²<br>
-        • Fu = {Fu:.1f} kgf/cm²<br>
-        • E = {E:,.0f} kgf/cm²
+        • Fy = {mat_Fy:.1f} kgf/cm²<br>
+        • Fu = {mat_Fu:.1f} kgf/cm²<br>
+        • E = {mat_E:,.0f} kgf/cm²
         </div>
         """, unsafe_allow_html=True)
 
@@ -6810,30 +6762,30 @@ with st.sidebar:
     if selected_section:
         weight_col = 'Unit Weight [kg/m]' if 'Unit Weight [kg/m]' in df.columns else 'w [kg/m]'
 
-        # Get section properties
-        weight = safe_scalar(df.loc[selected_section, weight_col])
-        d = safe_scalar(df.loc[selected_section, 'd [mm]'])
-        bf = safe_scalar(df.loc[selected_section, 'bf [mm]'])
-        tf = safe_scalar(df.loc[selected_section, 'tf [mm]'])
-        tw = safe_scalar(df.loc[selected_section, 'tw [mm]'])
-        Zx = safe_scalar(df.loc[selected_section, 'Zx [cm3]'])
-        Ix = safe_scalar(df.loc[selected_section, 'Ix [cm4]'])
-        A = safe_scalar(df.loc[selected_section, 'A [cm2]'])
+        # Get section properties for sidebar display
+        sec_weight = safe_scalar(df.loc[selected_section, weight_col])
+        sec_d = safe_scalar(df.loc[selected_section, 'd [mm]'])
+        sec_bf = safe_scalar(df.loc[selected_section, 'bf [mm]'])
+        sec_tf = safe_scalar(df.loc[selected_section, 'tf [mm]'])
+        sec_tw = safe_scalar(df.loc[selected_section, 'tw [mm]'])
+        sec_Zx = safe_scalar(df.loc[selected_section, 'Zx [cm3]'])
+        sec_Ix = safe_scalar(df.loc[selected_section, 'Ix [cm4]'])
+        sec_A = safe_scalar(df.loc[selected_section, 'A [cm2]'])
 
         st.markdown(f"""
         <div class="success-box">
         <h4 style="margin:0; color:#2E7D32;">✅ {selected_section}</h4>
         <hr style="margin:8px 0; border-color:#4caf50;">
         <b>Dimensions:</b><br>
-        • d = {d:.0f} mm<br>
-        • bf = {bf:.0f} mm<br>
-        • tf = {tf:.1f} mm<br>
-        • tw = {tw:.1f} mm<br>
+        • d = {sec_d:.0f} mm<br>
+        • bf = {sec_bf:.0f} mm<br>
+        • tf = {sec_tf:.1f} mm<br>
+        • tw = {sec_tw:.1f} mm<br>
         <b>Properties:</b><br>
-        • A = {A:.1f} cm²<br>
-        • Ix = {Ix:,.0f} cm⁴<br>
-        • Zx = {Zx:,.0f} cm³<br>
-        • Weight = {weight:.1f} kg/m
+        • A = {sec_A:.1f} cm²<br>
+        • Ix = {sec_Ix:,.0f} cm⁴<br>
+        • Zx = {sec_Zx:,.0f} cm³<br>
+        • Weight = {sec_weight:.1f} kg/m
         </div>
         """, unsafe_allow_html=True)
     
@@ -6917,7 +6869,8 @@ with tab1:
         analysis_type = st.radio(
             "Select Analysis Type:",
             ["Flexural Design (F2)", "Column Design (E3)", "Beam-Column (H1)"],
-            horizontal=True
+            horizontal=True,
+            key="analysis_type"
         )
         
         st.markdown("---")
@@ -7878,7 +7831,8 @@ T301,5,0.0,-55.0"""
                 analysis_scope = st.radio(
                     "Analysis Scope:",
                     ["Single Member", "All Configured Members"],
-                    horizontal=True
+                    horizontal=True,
+                    key="analysis_scope"
                 )
             
             with col_opt2:
