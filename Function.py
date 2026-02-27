@@ -3825,7 +3825,7 @@ st.markdown("""
         transition: border-color 0.3s ease;
     }
 
-    /* Selectbox container + text styling */
+    /* Selectbox styling (container + selected text + dropdown options) */
     .stSelectbox [data-baseweb="select"] > div {
         border-radius: 8px;
         border: 2px solid #e9ecef;
@@ -3835,6 +3835,7 @@ st.markdown("""
         color: #2c3e50 !important;
         font-family: 'Inter', sans-serif !important;
         font-size: 15px;
+        line-height: 1.35;
         font-weight: 500;
     }
 
@@ -3846,6 +3847,7 @@ st.markdown("""
         -webkit-text-fill-color: #2c3e50 !important;
         font-family: 'Inter', sans-serif !important;
         font-size: 15px !important;
+        line-height: 1.35 !important;
         opacity: 1 !important;
     }
 
@@ -3869,6 +3871,7 @@ st.markdown("""
         background-color: #ffffff;
         font-family: 'Inter', sans-serif !important;
         font-size: 14px;
+        line-height: 1.35;
     }
 
     div[data-baseweb="popover"] div[role="listbox"] div[role="option"][aria-selected="true"] {
