@@ -591,7 +591,8 @@ class SteelDesignReportGenerator:
         """Add a member to the report"""
         self.members.append(member_data)
     
-    def _get_css_styles(self):
+    @staticmethod
+    def _get_css_styles():
         """Return CSS styles for the report - optimized to prevent overlap"""
         return """
         <style>
@@ -1022,13 +1023,15 @@ class SteelDesignReportGenerator:
         </style>
         """
     
-    def _format_substitution(self, parts, separator=" "):
+    @staticmethod
+    def _format_substitution(parts, separator=" "):
         """Format substitution string with line breaks for long expressions"""
         if isinstance(parts, list):
             return f'<span style="white-space: nowrap;">{separator}</span>'.join(parts)
         return str(parts)
     
-    def _generate_member_geometry_table(self, member):
+    @staticmethod
+    def _generate_member_geometry_table(member):
         """Generate Member & Geometry Summary table"""
         html = """
         <div class="section-title">
@@ -1076,7 +1079,8 @@ class SteelDesignReportGenerator:
         """
         return html
     
-    def _generate_section_properties_table(self, member):
+    @staticmethod
+    def _generate_section_properties_table(member):
         """Generate Section Properties & Classification table"""
         section = member.get('section_props', {})
         classification = member.get('classification', 'Compact')
@@ -1143,7 +1147,8 @@ class SteelDesignReportGenerator:
         """
         return html
     
-    def _generate_flexural_strength_table(self, member):
+    @staticmethod
+    def _generate_flexural_strength_table(member):
         """Generate Flexural Strength Calculation table"""
         flex = member.get('flexural_results', {})
         section = member.get('section_props', {})
@@ -1241,7 +1246,8 @@ class SteelDesignReportGenerator:
         """
         return html
     
-    def _generate_compression_strength_table(self, member):
+    @staticmethod
+    def _generate_compression_strength_table(member):
         """Generate Compression Strength Calculation table"""
         comp = member.get('compression_results', {})
         section = member.get('section_props', {})
@@ -1351,7 +1357,8 @@ class SteelDesignReportGenerator:
         """
         return html
     
-    def _generate_tension_strength_table(self, member):
+    @staticmethod
+    def _generate_tension_strength_table(member):
         """Generate Tension Strength Calculation table"""
         tens = member.get('tension_results', {})
         section = member.get('section_props', {})
@@ -1425,7 +1432,8 @@ class SteelDesignReportGenerator:
         """
         return html
     
-    def _generate_shear_strength_table(self, member):
+    @staticmethod
+    def _generate_shear_strength_table(member):
         """Generate Shear Strength Calculation table"""
         shear = member.get('shear_results', {})
         section = member.get('section_props', {})
@@ -1489,7 +1497,8 @@ class SteelDesignReportGenerator:
         """
         return html
     
-    def _generate_load_combination_table(self, member):
+    @staticmethod
+    def _generate_load_combination_table(member):
         """Generate Load Combination Summary table"""
         loads = member.get('loads', [])
         
@@ -1539,7 +1548,8 @@ class SteelDesignReportGenerator:
         """
         return html
     
-    def _generate_interaction_table(self, member):
+    @staticmethod
+    def _generate_interaction_table(member):
         """Generate Combined Force Check table"""
         interactions = member.get('interaction_results', [])
         
@@ -1612,7 +1622,8 @@ class SteelDesignReportGenerator:
         """
         return html
     
-    def _generate_conclusion(self, member):
+    @staticmethod
+    def _generate_conclusion(member):
         """Generate Design Conclusion section"""
         interactions = member.get('interaction_results', [])
         flex = member.get('flexural_results', {})
