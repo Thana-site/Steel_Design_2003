@@ -2868,8 +2868,8 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     ry = safe_scalar(df.loc[section, 'ry [cm]'])
     Sx = safe_scalar(df.loc[section, 'Sx [cm3]'])
     Sy = safe_scalar(df.loc[section, 'Sy [cm3]'])
-    Zx = safe_scalar(df.loc[section, 'Zx [cm3]'])
-    Zy = safe_scalar(df.loc[section, 'Zy [cm3]'])
+    Zx_val = safe_scalar(df.loc[section, 'Zx [cm3]'])
+    Zy_val = safe_scalar(df.loc[section, 'Zy [cm3]'])
     J = safe_scalar(df.loc[section, 'j [cm4]']) if 'j [cm4]' in df.columns else 1.0
     ho = safe_scalar(df.loc[section, 'ho [mm]']) if 'ho [mm]' in df.columns else (d - tf)
     rts = safe_scalar(df.loc[section, 'rts [cm]']) if 'rts [cm]' in df.columns else ry * 1.2
@@ -2902,8 +2902,8 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['Section Moduli', '', ''],
         ['Elastic Modulus (x)', 'Sx', f'{Sx:,.1f} cm³'],
         ['Elastic Modulus (y)', 'Sy', f'{Sy:,.1f} cm³'],
-        ['Plastic Modulus (x)', 'Zx', f'{Zx:,.1f} cm³'],
-        ['Plastic Modulus (y)', 'Zy', f'{Zy:,.1f} cm³'],
+        ['Plastic Modulus (x)', 'Zx', f'{Zx_val:,.1f} cm³'],
+        ['Plastic Modulus (y)', 'Zy', f'{Zy_val:,.1f} cm³'],
         ['Distance b/w flanges', 'ho', f'{ho:.1f} mm'],
         ['Effective radius (LTB)', 'rts', f'{rts:.2f} cm'],
     ]
@@ -3064,15 +3064,15 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         story.append(Paragraph("<i>Reference: AISC 360-16, Equation F2-1</i>", reference_style))
         story.append(Spacer(1, 4))
         
-        Mp_kgcm = Fy * Zx
+        Mp_kgcm = Fy * Zx_val
         Mp_tm = Mp_kgcm / 100000
-        
+
         story.append(Paragraph(
             f"<font face='Courier'>Mp = Fy × Zx</font>",
             equation_style
         ))
         story.append(Paragraph(
-            f"<font face='Courier'>Mp = {Fy:.1f} × {Zx:,.1f}</font>",
+            f"<font face='Courier'>Mp = {Fy:.1f} × {Zx_val:,.1f}</font>",
             equation_style
         ))
         story.append(Paragraph(
