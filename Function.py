@@ -3817,8 +3817,7 @@ st.markdown("""
     
     /* Input Fields */
     .stNumberInput>div>div>input,
-    .stTextInput>div>div>input,
-    .stSelectbox>div>div {
+    .stTextInput>div>div>input {
         border-radius: 8px;
         border: 2px solid #e9ecef;
         padding: 10px;
@@ -3826,27 +3825,68 @@ st.markdown("""
         transition: border-color 0.3s ease;
     }
 
-    /* Selectbox text styling (selected value + dropdown options) */
+    /* Selectbox styling (container + selected text + dropdown options) */
     .stSelectbox [data-baseweb="select"] > div {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        min-height: 44px;
+        padding: 0 10px;
+        background-color: #ffffff;
         color: #2c3e50 !important;
         font-family: 'Inter', sans-serif !important;
         font-size: 15px;
+        line-height: 1.35;
         font-weight: 500;
     }
 
     .stSelectbox [data-baseweb="select"] [id$="-value"],
     .stSelectbox [data-baseweb="select"] span,
-    .stSelectbox [data-baseweb="select"] p {
+    .stSelectbox [data-baseweb="select"] p,
+    .stSelectbox [data-baseweb="select"] input {
         color: #2c3e50 !important;
+        -webkit-text-fill-color: #2c3e50 !important;
         font-family: 'Inter', sans-serif !important;
+        font-size: 15px !important;
+        line-height: 1.35 !important;
+        opacity: 1 !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stSelectbox [data-baseweb="select"] input::placeholder {
+        color: #6c757d !important;
+        -webkit-text-fill-color: #6c757d !important;
+        opacity: 1 !important;
+    }
+
+    .stSelectbox [data-baseweb="select"] svg {
+        fill: #2c3e50 !important;
+    }
+
+    .stSelectbox [data-baseweb="select"] > div:focus-within {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
     }
 
     div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {
         color: #2c3e50 !important;
+        background-color: #ffffff;
         font-family: 'Inter', sans-serif !important;
         font-size: 14px;
+        line-height: 1.35;
     }
-    
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"][aria-selected="true"] {
+        background-color: #eef2ff;
+        color: #1f2a44 !important;
+    }
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"]:hover {
+        background-color: #f5f7ff;
+        color: #1f2a44 !important;
+    }
+
     .stNumberInput>div>div>input:focus,
     .stTextInput>div>div>input:focus {
         border-color: #667eea;
