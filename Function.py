@@ -2655,7 +2655,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         spaceBefore=6,
         fontName='Courier',
         leading=14,
-        alignment=TA_LEFT,
+        alignment=TA_CENTER,
         wordWrap='CJK'
     )
     
@@ -2943,22 +2943,8 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     story.append(Spacer(1, 8))
     story.append(create_props_table(props_data_3))
     
-    # Add section diagram
-    story.append(Spacer(1, 0.15*inch))
-    story.append(Paragraph("<b>Section Cross-Section:</b>", body_style))
-    story.append(Spacer(1, 6))
-    
-    # Generate section diagram
-    fig_section = create_detailed_section_diagram(d, bf, tf, tw, section)
-    img_buffer_section = BytesIO()
-    plt.savefig(img_buffer_section, format='png', dpi=150, bbox_inches='tight',
-                facecolor='white', edgecolor='none')
-    plt.close(fig_section)
-    img_buffer_section.seek(0)
-    
-    section_img = Image(img_buffer_section, width=4*inch, height=3*inch)
-    story.append(section_img)
-    
+    # Section visualization removed by request
+
     # ==================== 3. SECTION CLASSIFICATION ====================
     story.append(PageBreak())
     story.append(Paragraph("3. SECTION CLASSIFICATION (AISC Table B4.1)", heading1_style))
@@ -3242,21 +3228,6 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
                               borderColor=rl_colors.HexColor('#f44336'))
             ))
         
-        # Add flexural capacity chart
-        story.append(Spacer(1, 0.15*inch))
-        story.append(Paragraph("<b>Flexural Capacity Curve:</b>", body_style))
-        story.append(Spacer(1, 6))
-        
-        fig_flex = create_flexural_capacity_chart(df, df_mat, section, material, Lb, Cb, flex)
-        img_buffer_flex = BytesIO()
-        plt.savefig(img_buffer_flex, format='png', dpi=150, bbox_inches='tight',
-                    facecolor='white', edgecolor='none')
-        plt.close(fig_flex)
-        img_buffer_flex.seek(0)
-        
-        flex_img = Image(img_buffer_flex, width=5.5*inch, height=3.5*inch)
-        story.append(flex_img)
-    
     # ==================== 5. COMPRESSION DESIGN ====================
     if analysis_results and 'compression' in analysis_results:
         story.append(PageBreak())
@@ -3441,21 +3412,6 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
                               borderColor=rl_colors.HexColor('#f44336'))
             ))
         
-        # Add compression capacity chart
-        story.append(Spacer(1, 0.15*inch))
-        story.append(Paragraph("<b>Column Capacity Curve:</b>", body_style))
-        story.append(Spacer(1, 6))
-        
-        fig_comp = create_compression_capacity_chart(E, Fy, A, lambda_c, lambda_limit, comp, Pu)
-        img_buffer_comp = BytesIO()
-        plt.savefig(img_buffer_comp, format='png', dpi=150, bbox_inches='tight',
-                    facecolor='white', edgecolor='none')
-        plt.close(fig_comp)
-        img_buffer_comp.seek(0)
-        
-        comp_img = Image(img_buffer_comp, width=5.5*inch, height=3.5*inch)
-        story.append(comp_img)
-    
     # ==================== 6. DESIGN SUMMARY ====================
     story.append(PageBreak())
     story.append(Paragraph("6. DESIGN SUMMARY & CONCLUSION", heading1_style))
