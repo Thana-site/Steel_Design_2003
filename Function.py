@@ -135,20 +135,21 @@ class NumberedCanvas(canvas.Canvas):
         return canvas.Canvas.inkAnnotation(self, inkList, mediaBox)
 
     def draw_page_number(self, page_count):
+        page_w, page_h = self._pagesize
         self.setFont("Helvetica", 9)
         self.setFillColor(rl_colors.grey)
 
         # Header
-        self.line(0.75*inch, letter[1] - 0.6*inch, letter[0] - 0.75*inch, letter[1] - 0.6*inch)
+        self.line(0.75*inch, page_h - 0.6*inch, page_w - 0.75*inch, page_h - 0.6*inch)
         self.setFont("Helvetica-Bold", 10)
-        self.setFillColor(rl_colors.HexColor('#667eea'))
-        self.drawString(0.75*inch, letter[1] - 0.5*inch, "AISC 360-16 Steel Design - Calculation Report")
+        self.setFillColor(rl_colors.HexColor('#37474f'))
+        self.drawString(0.75*inch, page_h - 0.5*inch, "MIDAS GEN Style - Steel Design Calculation Report")
 
         # Footer
         self.setFont("Helvetica", 9)
         self.setFillColor(rl_colors.grey)
-        self.line(0.75*inch, 0.6*inch, letter[0] - 0.75*inch, 0.6*inch)
-        self.drawRightString(letter[0] - 0.75*inch, 0.4*inch,
+        self.line(0.75*inch, 0.6*inch, page_w - 0.75*inch, 0.6*inch)
+        self.drawRightString(page_w - 0.75*inch, 0.4*inch,
                              f"Page {self._pageNumber} of {page_count}")
         self.drawString(0.75*inch, 0.4*inch,
                         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
@@ -1762,6 +1763,103 @@ class SteelDesignReportGenerator:
         
         return html
 
+
+def generate_midas_gen_text_report(members, project_info=None, code_name="AISC(15th)-LRFD16"):
+    """Generate MIDAS GEN-style plain text calculation report."""
+    project_info = project_info or {}
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    def line(ch='-', n=98):
+        return ch * n
+
+    def fmt(v, w=10, d=3):
+        try:
+            return f"{float(v):>{w}.{d}f}"
+        except Exception:
+            return f"{str(v):>{w}}"
+
+    report = []
+    report.append(line('-'))
+    report.append(f" midas Gen - Steel Code Checking[ {code_name} ]{'Gen 2025':>44}")
+    report.append(line('='))
+    report.append("")
+    report.append(f" *.PROJECT     : {project_info.get('name', '')}")
+    report.append(" *.UNIT SYSTEM : kN, m")
+    report.append(f" *.GENERATED   : {now_str}")
+    report.append(line('='))
+    report.append(f"   [ {code_name} ]  CODE CHECKING SUMMARY SHEET --- SELECTED MEMBERS")
+    report.append(line('-'))
+    report.append("  MEMB     SECTION                  TYPE         GOV.LC     MAX RATIO     STATUS")
+    report.append(line('='))
+
+    for m in members:
+        interactions = m.get('interaction_results', [])
+        if interactions:
+            gov = max(interactions, key=lambda x: x.get('interaction_ratio', 0))
+            gov_lc = gov.get('LC', '-')
+            gov_ratio = gov.get('interaction_ratio', 0)
+            ok = gov_ratio <= 1.0
+        else:
+            gov_lc = '-'
+            gov_ratio = 0.0
+            ok = True
+        report.append(
+            f"  {str(m.get('member_no','-')):<8} {str(m.get('section_name','-')):<24} {str(m.get('member_type','-')):<12} "
+            f"{str(gov_lc):>6} {gov_ratio:>13.3f}     {'OK' if ok else 'NG'}"
+        )
+
+    report.append(line('-'))
+    report.append("\f")
+
+    for m in members:
+        section = m.get('section_props', {})
+        loads = m.get('loads', [])
+        interactions = m.get('interaction_results', [])
+
+        report.append(line('-'))
+        report.append(f" midas Gen - Steel Code Checking[ {code_name} ]{'Gen 2025':>44}")
+        report.append(line('='))
+        report.append("")
+        report.append(f" *. MEMBER NO   = {m.get('member_no','-')},  ELEMENT TYPE = {m.get('member_type','-')}")
+        report.append(f" *. SECTION     = {m.get('section_name','-')}")
+        report.append(f" *. MATERIAL Fy = {section.get('Fy', 0):.3f},  E = {section.get('E', 0):.1f}")
+        report.append(f" *. LENGTH(m)   = L={m.get('length',0):.3f}, KL={m.get('KL',0):.3f}, Lb={m.get('Lb',0):.3f}")
+        report.append("")
+
+        report.append(line('='))
+        report.append("   [[[*]]]   DEFINITION OF LOAD COMBINATIONS")
+        report.append(line('='))
+        report.append("    LC        Pu(kN)         Mux(kN·m)      Muy(kN·m)")
+        report.append(line('-'))
+        for ld in loads:
+            report.append(
+                f"    {str(ld.get('LC','-')):>2} {fmt(ld.get('Pu',0),14,3)} {fmt(ld.get('Mux',0),16,3)} {fmt(ld.get('Muy',0),14,3)}"
+            )
+        if not loads:
+            report.append("    (no load combinations)")
+        report.append("")
+
+        report.append(line('='))
+        report.append("   [[[*]]]   LRFD STRENGTH CHECK RESULTS")
+        report.append(line('='))
+        report.append("    LC      Eqn                      Ratio       Result")
+        report.append(line('-'))
+        for r in interactions:
+            ratio = r.get('interaction_ratio', 0)
+            report.append(
+                f"    {str(r.get('LC','-')):>2}   {str(r.get('equation_used','H1')):<20} {ratio:>8.3f}     {'O.K.' if ratio <= 1.0 else 'N.G.'}"
+            )
+        if not interactions:
+            report.append("    (no check results)")
+
+        max_ratio = max((x.get('interaction_ratio', 0) for x in interactions), default=0)
+        report.append(line('-'))
+        report.append(f"    Governing Ratio = {max_ratio:.3f}  --->  {'O.K.' if max_ratio <= 1.0 else 'N.G.'}")
+        report.append("\f")
+
+    return "\n".join(report)
+
+
 # ==================== STREAMLIT INTEGRATION FUNCTIONS ====================
 
 def create_member_data(member_no, section_name, section_props, member_type, 
@@ -2561,7 +2659,7 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     # Create document
     doc = BaseDocTemplate(
         buffer, 
-        pagesize=letter,
+        pagesize=A4,
         rightMargin=0.6*inch, 
         leftMargin=0.6*inch,
         topMargin=1.2*inch,
@@ -2584,65 +2682,69 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     
     story = []
     styles = getSampleStyleSheet()
+    page_width = doc.width
     
     # ==================== CUSTOM STYLES ====================
     title_style = ParagraphStyle(
         'CalcTitle',
         parent=styles['Heading1'],
-        fontSize=18,
-        textColor=rl_colors.HexColor('#1a237e'),
-        spaceAfter=12,
+        fontSize=15,
+        textColor=rl_colors.HexColor('#263238'),
+        spaceAfter=8,
         spaceBefore=6,
-        alignment=TA_CENTER,
+        alignment=TA_LEFT,
         fontName='Helvetica-Bold',
-        leading=22
+        leading=18
     )
     
     heading1_style = ParagraphStyle(
         'CalcHeading1',
         parent=styles['Heading1'],
-        fontSize=14,
-        textColor=rl_colors.white,
+        fontSize=11,
+        textColor=rl_colors.HexColor('#263238'),
         spaceAfter=8,
         spaceBefore=14,
         fontName='Helvetica-Bold',
-        backColor=rl_colors.HexColor('#1a237e'),
-        borderPadding=8,
-        leading=18
+        backColor=rl_colors.HexColor('#eceff1'),
+        borderPadding=6,
+        borderWidth=0.5,
+        borderColor=rl_colors.HexColor('#b0bec5'),
+        leading=14
     )
     
     heading2_style = ParagraphStyle(
         'CalcHeading2',
         parent=styles['Heading2'],
-        fontSize=12,
-        textColor=rl_colors.HexColor('#1565c0'),
+        fontSize=10,
+        textColor=rl_colors.HexColor('#37474f'),
         spaceAfter=6,
         spaceBefore=10,
         fontName='Helvetica-Bold',
         borderWidth=0,
-        borderColor=rl_colors.HexColor('#1565c0'),
+        borderColor=rl_colors.HexColor('#90a4ae'),
         borderPadding=4,
-        leading=16
+        leading=13
     )
     
     body_style = ParagraphStyle(
         'CalcBody',
         parent=styles['Normal'],
         fontSize=10,
-        leading=14,
+        leading=13,
         spaceAfter=4,
         spaceBefore=2,
-        alignment=TA_LEFT
+        alignment=TA_LEFT,
+        wordWrap='CJK'
     )
     
     equation_style = ParagraphStyle(
         'CalcEquation',
         parent=styles['Code'],
         fontSize=10,
-        textColor=rl_colors.HexColor('#0d47a1'),
-        backColor=rl_colors.HexColor('#e3f2fd'),
-        borderWidth=1,
-        borderColor=rl_colors.HexColor('#1976d2'),
+        textColor=rl_colors.HexColor('#263238'),
+        backColor=rl_colors.HexColor('#f5f5f5'),
+        borderWidth=0.6,
+        borderColor=rl_colors.HexColor('#b0bec5'),
         borderPadding=10,
         leftIndent=20,
         rightIndent=20,
@@ -2650,7 +2752,8 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         spaceBefore=6,
         fontName='Courier',
         leading=14,
-        alignment=TA_LEFT
+        alignment=TA_CENTER,
+        wordWrap='CJK'
     )
     
     result_style = ParagraphStyle(
@@ -2676,11 +2779,27 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         textColor=rl_colors.HexColor('#616161'),
         fontName='Helvetica-Oblique',
         leading=12,
-        leftIndent=30
+        leftIndent=30,
+        wordWrap='CJK'
     )
+
+    table_cell_style = ParagraphStyle(
+        'CalcTableCell',
+        parent=body_style,
+        fontSize=9,
+        leading=11,
+        spaceAfter=0,
+        spaceBefore=0,
+        wordWrap='CJK'
+    )
+
+    def _cell(val):
+        return Paragraph(str(val), table_cell_style)
     
-    # ==================== PROJECT HEADER TABLE ====================
+    # ==================== PROJECT HEADER TABLE (MIDAS GEN STYLE) ====================
     story.append(Spacer(1, 0.1*inch))
+    story.append(Paragraph("MIDAS GEN - STRUCTURAL DESIGN CALCULATION SHEET", title_style))
+    story.append(Spacer(1, 0.05*inch))
     
     # Project info table (engineering header)
     header_data = [
@@ -2696,12 +2815,15 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['Reference:', 'AISC 360-16', 
          'Revision:', project_info.get('revision', '0')],
     ]
+    for r in range(1, len(header_data)):
+        for c in range(4):
+            header_data[r][c] = _cell(header_data[r][c])
     
-    header_table = Table(header_data, colWidths=[1.2*inch, 2.8*inch, 1.0*inch, 1.5*inch])
+    header_table = Table(header_data, colWidths=[1.2*inch, page_width - 4.2*inch, 1.0*inch, 2.0*inch])
     header_table.setStyle(TableStyle([
         # Title row
         ('SPAN', (0, 0), (-1, 0)),
-        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1a237e')),
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#455a64')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -2719,7 +2841,8 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
         ('TOPPADDING', (0, 1), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, rl_colors.HexColor('#1a237e')),
+        ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
+        ('GRID', (0, 0), (-1, -1), 0.6, rl_colors.HexColor('#78909c')),
     ]))
     story.append(header_table)
     story.append(Spacer(1, 0.2*inch))
@@ -2736,8 +2859,9 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['5.', 'Compression Design (AISC Chapter E3)', ''],
         ['6.', 'Design Summary & Conclusion', ''],
     ]
+    toc_data = [[_cell(r[0]), _cell(r[1]), _cell(r[2])] for r in toc_data]
     
-    toc_table = Table(toc_data, colWidths=[0.4*inch, 5*inch, 1*inch])
+    toc_table = Table(toc_data, colWidths=[0.5*inch, page_width - 1.5*inch, 1*inch])
     toc_table.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
@@ -2768,10 +2892,13 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ['Poisson\'s Ratio', 'ν', '0.30', '-'],
         ['Shear Modulus', 'G', f'{E/(2*1.3):,.0f}', 'kgf/cm²'],
     ]
+    for r in range(1, len(mat_table_data)):
+        for c in range(4):
+            mat_table_data[r][c] = _cell(mat_table_data[r][c])
     
-    mat_table = Table(mat_table_data, colWidths=[2.2*inch, 1*inch, 1.5*inch, 1.3*inch])
+    mat_table = Table(mat_table_data, colWidths=[2.2*inch, 0.9*inch, 1.5*inch, page_width - 4.6*inch])
     mat_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1565c0')),
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#607d8b')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -2780,8 +2907,9 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
         ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#f5f5f5')])
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#f5f7f8')])
     ]))
     story.append(mat_table)
     story.append(Spacer(1, 10))
@@ -2801,10 +2929,13 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         design_table_data.append(['Effective Length', 'KL', f"{design_params['KL']:.2f}", 'm'])
     if 'Cb' in design_params:
         design_table_data.append(['Moment Gradient Factor', 'Cb', f"{design_params['Cb']:.2f}", '-'])
+    for r in range(1, len(design_table_data)):
+        for c in range(4):
+            design_table_data[r][c] = _cell(design_table_data[r][c])
     
-    design_table = Table(design_table_data, colWidths=[2.2*inch, 1*inch, 1.5*inch, 1.3*inch])
+    design_table = Table(design_table_data, colWidths=[2.2*inch, 0.9*inch, 1.5*inch, page_width - 4.6*inch])
     design_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#ff6f00')),
+        ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#546e7a')),
         ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -2813,12 +2944,12 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
+        ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
+        ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.HexColor('#90a4ae')),
     ]))
     story.append(design_table)
     
     # ==================== 2. SECTION PROPERTIES ====================
-    story.append(PageBreak())
     story.append(Paragraph("2. SECTION PROPERTIES", heading1_style))
     story.append(Spacer(1, 8))
     
@@ -2880,9 +3011,9 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     
     # Create combined table
     def create_props_table(data):
-        table = Table(data, colWidths=[2.2*inch, 0.8*inch, 1.2*inch])
+        table = Table(data, colWidths=[2.0*inch, 0.8*inch, 0.5 * page_width - 2.8*inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#37474f')),
+            ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#455a64')),
             ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('SPAN', (0, 0), (-1, 0)),
@@ -2891,14 +3022,15 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
             ('ALIGN', (0, 0), (0, -1), 'LEFT'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.grey),
+            ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
+            ('GRID', (0, 0), (-1, -1), 0.5, rl_colors.HexColor('#90a4ae')),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#fafafa')])
         ]))
         return table
     
     # Create a combined layout
     combined_data = [[create_props_table(props_data_1), create_props_table(props_data_2)]]
-    combined_table = Table(combined_data, colWidths=[3.3*inch, 3.3*inch])
+    combined_table = Table(combined_data, colWidths=[0.5 * page_width, 0.5 * page_width])
     combined_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 5),
@@ -2908,22 +3040,8 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
     story.append(Spacer(1, 8))
     story.append(create_props_table(props_data_3))
     
-    # Add section diagram
-    story.append(Spacer(1, 0.15*inch))
-    story.append(Paragraph("<b>Section Cross-Section:</b>", body_style))
-    story.append(Spacer(1, 6))
-    
-    # Generate section diagram
-    fig_section = create_detailed_section_diagram(d, bf, tf, tw, section)
-    img_buffer_section = BytesIO()
-    plt.savefig(img_buffer_section, format='png', dpi=150, bbox_inches='tight',
-                facecolor='white', edgecolor='none')
-    plt.close(fig_section)
-    img_buffer_section.seek(0)
-    
-    section_img = Image(img_buffer_section, width=4*inch, height=3*inch)
-    story.append(section_img)
-    
+    # Section visualization removed by request
+
     # ==================== 3. SECTION CLASSIFICATION ====================
     story.append(PageBreak())
     story.append(Paragraph("3. SECTION CLASSIFICATION (AISC Table B4.1)", heading1_style))
@@ -3207,21 +3325,6 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
                               borderColor=rl_colors.HexColor('#f44336'))
             ))
         
-        # Add flexural capacity chart
-        story.append(Spacer(1, 0.15*inch))
-        story.append(Paragraph("<b>Flexural Capacity Curve:</b>", body_style))
-        story.append(Spacer(1, 6))
-        
-        fig_flex = create_flexural_capacity_chart(df, df_mat, section, material, Lb, Cb, flex)
-        img_buffer_flex = BytesIO()
-        plt.savefig(img_buffer_flex, format='png', dpi=150, bbox_inches='tight',
-                    facecolor='white', edgecolor='none')
-        plt.close(fig_flex)
-        img_buffer_flex.seek(0)
-        
-        flex_img = Image(img_buffer_flex, width=5.5*inch, height=3.5*inch)
-        story.append(flex_img)
-    
     # ==================== 5. COMPRESSION DESIGN ====================
     if analysis_results and 'compression' in analysis_results:
         story.append(PageBreak())
@@ -3406,21 +3509,6 @@ def generate_calculation_report(df, df_mat, section, material, analysis_results,
                               borderColor=rl_colors.HexColor('#f44336'))
             ))
         
-        # Add compression capacity chart
-        story.append(Spacer(1, 0.15*inch))
-        story.append(Paragraph("<b>Column Capacity Curve:</b>", body_style))
-        story.append(Spacer(1, 6))
-        
-        fig_comp = create_compression_capacity_chart(E, Fy, A, lambda_c, lambda_limit, comp, Pu)
-        img_buffer_comp = BytesIO()
-        plt.savefig(img_buffer_comp, format='png', dpi=150, bbox_inches='tight',
-                    facecolor='white', edgecolor='none')
-        plt.close(fig_comp)
-        img_buffer_comp.seek(0)
-        
-        comp_img = Image(img_buffer_comp, width=5.5*inch, height=3.5*inch)
-        story.append(comp_img)
-    
     # ==================== 6. DESIGN SUMMARY ====================
     story.append(PageBreak())
     story.append(Paragraph("6. DESIGN SUMMARY & CONCLUSION", heading1_style))
@@ -3817,15 +3905,76 @@ st.markdown("""
     
     /* Input Fields */
     .stNumberInput>div>div>input,
-    .stTextInput>div>div>input,
-    .stSelectbox>div>div {
+    .stTextInput>div>div>input {
         border-radius: 8px;
         border: 2px solid #e9ecef;
         padding: 10px;
         font-size: 15px;
         transition: border-color 0.3s ease;
     }
-    
+
+    /* Selectbox styling (container + selected text + dropdown options) */
+    .stSelectbox [data-baseweb="select"] > div {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        min-height: 44px;
+        padding: 0 10px;
+        background-color: #ffffff;
+        color: #2c3e50 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 15px;
+        line-height: 1.35;
+        font-weight: 500;
+    }
+
+    .stSelectbox [data-baseweb="select"] [id$="-value"],
+    .stSelectbox [data-baseweb="select"] span,
+    .stSelectbox [data-baseweb="select"] p,
+    .stSelectbox [data-baseweb="select"] input {
+        color: #2c3e50 !important;
+        -webkit-text-fill-color: #2c3e50 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 15px !important;
+        line-height: 1.35 !important;
+        opacity: 1 !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stSelectbox [data-baseweb="select"] input::placeholder {
+        color: #6c757d !important;
+        -webkit-text-fill-color: #6c757d !important;
+        opacity: 1 !important;
+    }
+
+    .stSelectbox [data-baseweb="select"] svg {
+        fill: #2c3e50 !important;
+    }
+
+    .stSelectbox [data-baseweb="select"] > div:focus-within {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+    }
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"] {
+        color: #2c3e50 !important;
+        background-color: #ffffff;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 14px;
+        line-height: 1.35;
+    }
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"][aria-selected="true"] {
+        background-color: #eef2ff;
+        color: #1f2a44 !important;
+    }
+
+    div[data-baseweb="popover"] div[role="listbox"] div[role="option"]:hover {
+        background-color: #f5f7ff;
+        color: #1f2a44 !important;
+    }
+
     .stNumberInput>div>div>input:focus,
     .stTextInput>div>div>input:focus {
         border-color: #667eea;
@@ -6137,6 +6286,8 @@ def render_design_report_tab(df_sections, df_materials, loaded_data=None, member
         st.session_state.report_members = []
     if 'generated_report' not in st.session_state:
         st.session_state.generated_report = None
+    if 'generated_text_report' not in st.session_state:
+        st.session_state.generated_text_report = None
     
     # Create sub-tabs
     subtab1, subtab2, subtab3 = st.tabs([
@@ -6464,6 +6615,17 @@ def render_design_report_tab(df_sections, df_materials, loaded_data=None, member
                     # Generate HTML
                     html_report = generator.generate_full_report()
                     st.session_state.generated_report = html_report
+
+                    # Generate MIDAS-style plain text report (LRFD format)
+                    st.session_state.generated_text_report = generate_midas_gen_text_report(
+                        st.session_state.report_members,
+                        project_info={
+                            'name': project_name,
+                            'engineer': engineer_name,
+                            'date': report_date.strftime("%Y-%m-%d")
+                        },
+                        code_name="AISC(15th)-LRFD16"
+                    )
                     
                 st.success("✅ Report generated successfully!")
                 st.info("Go to 'Preview & Export' tab to view and download")
@@ -6472,11 +6634,11 @@ def render_design_report_tab(df_sections, df_materials, loaded_data=None, member
     with subtab3:
         st.markdown("### Report Preview & Export")
         
-        if st.session_state.generated_report is None:
+        if st.session_state.generated_report is None and st.session_state.generated_text_report is None:
             st.warning("⚠️ No report generated yet. Go to 'Generate Report' tab.")
         else:
             # Export buttons
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 # HTML download
@@ -6492,24 +6654,51 @@ def render_design_report_tab(df_sections, df_materials, loaded_data=None, member
                 )
             
             with col2:
+                if st.session_state.generated_text_report:
+                    txt_name = f"Steel_Design_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                    st.download_button(
+                        label="📥 Download Text (MIDAS)",
+                        data=st.session_state.generated_text_report,
+                        file_name=txt_name,
+                        mime="text/plain",
+                        key="download_txt"
+                    )
+
+            with col3:
                 st.info("💡 Open HTML in browser, then Print to PDF")
             
-            with col3:
+            with col4:
                 if st.button("🔄 Regenerate", key="regenerate"):
                     st.session_state.generated_report = None
+                    st.session_state.generated_text_report = None
                     st.rerun()
             
             st.markdown("---")
             
             # Preview
             st.markdown("### 📄 Report Preview")
-            
-            # Use iframe for preview
-            st.components.v1.html(
-                st.session_state.generated_report,
-                height=800,
-                scrolling=True
-            )
+            preview_html_tab, preview_text_tab = st.tabs(["HTML Preview", "Text Editor (MIDAS Style)"])
+
+            with preview_html_tab:
+                if st.session_state.generated_report:
+                    st.components.v1.html(
+                        st.session_state.generated_report,
+                        height=800,
+                        scrolling=True
+                    )
+                else:
+                    st.info("No HTML report generated in this session.")
+
+            with preview_text_tab:
+                if st.session_state.generated_text_report:
+                    st.text_area(
+                        "MIDAS-style LRFD Text Report",
+                        value=st.session_state.generated_text_report,
+                        height=800,
+                        key="midas_text_preview"
+                    )
+                else:
+                    st.info("No text report generated in this session.")
 
 
 # ==================== STANDALONE TAB CODE ====================
