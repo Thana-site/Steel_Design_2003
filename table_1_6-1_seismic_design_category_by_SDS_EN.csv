@@ -1,0 +1,5 @@
+SDS Range,Occupancy Category I or II,Occupancy Category III,Occupancy Category IV
+SDS < 0.167,A (no seismic design required),A (no seismic design required),A (no seismic design required)
+0.167 ≤ SDS < 0.33,B,B,C
+0.33 ≤ SDS < 0.50,C,C,D
+0.50 ≤ SDS,D,D,D

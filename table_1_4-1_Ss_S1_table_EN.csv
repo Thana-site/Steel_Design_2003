@@ -1,0 +1,817 @@
+Province,District,Ss,S1
+Krabi,Kolanta,0.143,0.089
+Krabi,Khaophanom,0.227,0.108
+Krabi,Khlongthom,0.147,0.129
+Krabi,Plaiphraya,0.263,0.1
+Krabi,Mueangkrabi,0.218,0.105
+Krabi,Lamthap,0.158,0.09
+Krabi,Enuekhlong,0.195,0.088
+Krabi,Aoluek,0.267,0.11
+Kanchanaburi,Danmakhamtia,0.862,0.316
+Kanchanaburi,Thongphaphumi,0.728,0.2
+Kanchanaburi,Thamuang,0.802,0.275
+Kanchanaburi,Thamaka,0.481,0.154
+Kanchanaburi,Thraiyok,0.747,0.21
+Kanchanaburi,Bophloi,0.659,0.197
+Kanchanaburi,Phanomthuan,0.452,0.136
+Kanchanaburi,Mueangkantnburi,0.642,0.241
+Kanchanaburi,Laokhwan,0.487,0.138
+Kanchanaburi,Sritwat,0.752,0.208
+Kanchanaburi,Sangklaburi,0.84,0.234
+Kanchanaburi,Nongprue,0.674,0.199
+Kanchanaburi,Huaikrachao,0.52,0.155
+Kalasin,Kamlasai,0.046,0.028
+Kalasin,Kuchinarai,0.049,0.028
+Kalasin,Khaowong,0.054,0.029
+Kalasin,Khammuang,0.059,0.031
+Kalasin,Khongchai,0.046,0.028
+Kalasin,Donchan,0.048,0.028
+Kalasin,Thakhantho,0.07,0.033
+Kalasin,Nakhu,0.055,0.029
+Kalasin,Namon,0.05,0.029
+Kalasin,Mueangkansin,0.048,0.028
+Kalasin,Yangtlat,0.048,0.028
+Kalasin,Rongkham,0.045,0.027
+Kalasin,Samchai,0.061,0.031
+Kalasin,Samadet,0.053,0.03
+Kalasin,Sahatkhan,0.055,0.03
+Kalasin,Nongkungsri,0.055,0.03
+Kalasin,Huaiphueng,0.052,0.029
+Kalasin,Huaimek,0.054,0.03
+Kamphaeng Phet,Kosamphinakhon,0.469,0.133
+Kamphaeng Phet,Khanuwonlaksburi,0.363,0.108
+Kamphaeng Phet,Khlongkhlung,0.332,0.104
+Kamphaeng Phet,Khlonglan,0.496,0.149
+Kamphaeng Phet,Thraithongwatna,0.252,0.086
+Kamphaeng Phet,Thraingam,0.252,0.084
+Kamphaeng Phet,Buengsamakkhi,0.205,0.077
+Kamphaeng Phet,Pangsilathong,0.493,0.147
+Kamphaeng Phet,Phrankratai,0.433,0.117
+Kamphaeng Phet,Mueangkamphaengphetn,0.434,0.122
+Kamphaeng Phet,Lankrabue,0.327,0.094
+Khon Kaen,Kranuan,0.06,0.031
+Khon Kaen,Khaosuankwang,0.074,0.033
+Khon Kaen,Khokphochai,0.05,0.031
+Khon Kaen,Chanabot,0.048,0.029
+Khon Kaen,Chumphae,0.08,0.035
+Khon Kaen,Samsung,0.054,0.03
+Khon Kaen,Nonsila,0.045,0.029
+Khon Kaen,Namphong,0.064,0.032
+Khon Kaen,Banhaed,0.049,0.029
+Khon Kaen,Banphai,0.047,0.029
+Khon Kaen,Banfang,0.056,0.031
+Khon Kaen,Nongnakham,0.087,0.036
+Khon Kaen,Pueainoi,0.043,0.028
+Khon Kaen,Phrayuen,0.053,0.03
+Khon Kaen,Phon,0.044,0.029
+Khon Kaen,Phuphaman,0.11,0.038
+Khon Kaen,Phuwiang,0.074,0.034
+Khon Kaen,Manchakhiri,0.05,0.03
+Khon Kaen,Mueangkhonkaen,0.053,0.03
+Khon Kaen,Waengnoi,0.045,0.03
+Khon Kaen,Waengain,0.047,0.029
+Khon Kaen,Sitmphu,0.098,0.037
+Khon Kaen,Nongruea,0.059,0.032
+Khon Kaen,Nongsongong,0.042,0.028
+Khon Kaen,Upnrat,0.072,0.033
+Chanthaburi,Kaengangmaeo,0.049,0.033
+Chanthaburi,Khlung,0.04,0.03
+Chanthaburi,Khaokhittkut,0.043,0.031
+Chanthaburi,Thaaim,0.044,0.032
+Chanthaburi,Nayaiam,0.049,0.033
+Chanthaburi,Pongnamron,0.04,0.029
+Chanthaburi,Makham,0.041,0.03
+Chanthaburi,Mueangchantburi,0.041,0.03
+Chanthaburi,Soidao,0.041,0.029
+Chanthaburi,Aenmsing,0.042,0.031
+Chachoengsao,Thatakiap,0.054,0.034
+Chachoengsao,Paenngyao,0.089,0.042
+Chachoengsao,Phanamasankham,0.058,0.036
+Chachoengsao,Sanamchaikhet,0.068,0.038
+Chonburi,Kochan,0.096,0.042
+Chonburi,Kosichang,0.153,0.056
+Chonburi,Bothong,0.084,0.039
+Chonburi,Banglamung,0.117,0.048
+Chonburi,Banbueng,0.118,0.045
+Chonburi,Phanatnikm,0.114,0.046
+Chonburi,Sriracha,0.141,0.049
+Chonburi,Sathip,0.116,0.049
+Chonburi,Nongain,0.094,0.04
+Chai Nat,Noenkham,0.362,0.116
+Chai Nat,Nongmamong,0.385,0.119
+Chai Nat,Manonm,0.15,0.069
+Chai Nat,Mueangchainat,0.17,0.075
+Chai Nat,Watsing,0.207,0.083
+Chai Nat,Sankhburi,0.161,0.073
+Chai Nat,Sapya,0.126,0.064
+Chai Nat,Ankha,0.22,0.088
+Chaiyaphum,Kettnsamabun,0.075,0.035
+Chaiyaphum,Kaengkro,0.052,0.032
+Chaiyaphum,Khonsuaan,0.048,0.031
+Chaiyaphum,Khonsan,0.104,0.038
+Chaiyaphum,Chaturat,0.045,0.032
+Chaiyaphum,Sapain,0.048,0.034
+Chaiyaphum,Thepsathit,0.048,0.035
+Chaiyaphum,Noensanga,0.045,0.032
+Chaiyaphum,Bankhewa,0.049,0.032
+Chaiyaphum,Banthaen,0.061,0.032
+Chaiyaphum,Bamhen็tnrong,0.047,0.033
+Chaiyaphum,Phakdichumpn,0.059,0.036
+Chaiyaphum,Phukhiao,0.06,0.032
+Chaiyaphum,Mueangchaiphumi,0.047,0.031
+Chaiyaphum,Nongbuadaeng,0.059,0.034
+Chaiyaphum,Nongbuaraheo,0.05,0.033
+Chumphon,Thasae,0.108,0.078
+Chumphon,Thungtako,0.16,0.079
+Chumphon,Pathio,0.097,0.075
+Chumphon,Phato,0.286,0.093
+Chumphon,Mueangchumpn,0.12,0.08
+Chumphon,Lamae,0.188,0.082
+Chumphon,Swi,0.149,0.08
+Chumphon,Langsuan,0.18,0.082
+Chiang Rai,Khuntan,0.769,0.175
+Chiang Rai,Chiangkhong,0.796,0.202
+Chiang Rai,Chiangsaen,0.984,0.296
+Chiang Rai,Doiluang,1.015,0.329
+Chiang Rai,Thoeng,0.763,0.16
+Chiang Rai,Padaet,0.772,0.157
+Chiang Rai,Phayamengrai,0.787,0.188
+Chiang Rai,Phan,0.831,0.175
+Chiang Rai,Mueangchiangrai,0.917,0.25
+Chiang Rai,Maechan,1.022,0.306
+Chiang Rai,Maefaluang,1.015,0.292
+Chiang Rai,Maelao,0.884,0.22
+Chiang Rai,Maesonwo,0.894,0.212
+Chiang Rai,Maesai,0.981,0.278
+Chiang Rai,Wiangkaen,0.767,0.182
+Chiang Rai,Wiangchiangrung,0.931,0.267
+Chiang Rai,Wiangchai,0.879,0.229
+Chiang Rai,Wiangpapao,0.855,0.195
+Chiang Mai,Chomthong,0.893,0.243
+Chiang Mai,Chiangdao,1.019,0.266
+Chiang Mai,Chaiprakan,1.018,0.265
+Chiang Mai,Doitao,0.834,0.237
+Chiang Mai,Doisaket,0.91,0.225
+Chiang Mai,Doilo,0.926,0.248
+Chiang Mai,Fang,1.038,0.282
+Chiang Mai,Phrao,0.953,0.238
+Chiang Mai,Mueangchianghaim,0.963,0.248
+Chiang Mai,Maechaem,0.891,0.242
+Chiang Mai,Maetaeng,0.992,0.26
+Chiang Mai,Maerim,0.984,0.254
+Chiang Mai,Maewang,0.936,0.248
+Chiang Mai,Maeai,1.08,0.317
+Chiang Mai,Maeon,0.867,0.187
+Chiang Mai,Wiangaeng,1.032,0.274
+Chiang Mai,Samoeng,0.967,0.258
+Chiang Mai,Sankamphaeng,0.926,0.23
+Chiang Mai,Santhrai,0.973,0.251
+Chiang Mai,Sanpatong,0.938,0.244
+Chiang Mai,Sanphi,0.927,0.236
+Chiang Mai,Angadong,0.931,0.243
+Chiang Mai,Makoi,0.857,0.244
+Chiang Mai,Hot,0.849,0.237
+Trang,Kantang,0.199,0.096
+Trang,Nayong,0.199,0.089
+Trang,Paelin,0.196,0.094
+Trang,Mueangtrang,0.195,0.091
+Trang,Ratda,0.149,0.085
+Trang,Yantakhao,0.216,0.092
+Trang,Wangwiset,0.164,0.094
+Trang,Sikao,0.154,0.097
+Trang,Atsamran,0.192,0.097
+Trang,Huaiyot,0.161,0.091
+Trat,Kokut,0.036,0.027
+Trat,Kochang,0.038,0.029
+Trat,Khaosaming,0.038,0.028
+Trat,Khlongain,0.034,0.023
+Trat,Borai,0.037,0.027
+Trat,Mueangtrat,0.036,0.027
+Trat,Aenmngop,0.037,0.028
+Tak,Thasongyang,0.733,0.185
+Tak,Bantak,0.561,0.154
+Tak,Phopphra,0.597,0.156
+Tak,Mueangtak,0.543,0.142
+Tak,Maeramat,0.635,0.172
+Tak,Maesot,0.609,0.156
+Tak,Wangchao,0.535,0.137
+Tak,Samngao,0.577,0.163
+Tak,Umphang,0.607,0.184
+Nakhon Pathom,Kamphaengsaen,0.279,0.101
+Nakhon Phanom,Thauthen,0.307,0.064
+Nakhon Phanom,Thatuphanom,0.087,0.032
+Nakhon Phanom,Nakae,0.077,0.031
+Nakhon Phanom,Nathom,0.255,0.059
+Nakhon Phanom,Nawa,0.129,0.04
+Nakhon Phanom,Banphaeng,0.336,0.072
+Nakhon Phanom,Plapak,0.125,0.038
+Nakhon Phanom,Phonsuaan,0.213,0.05
+Nakhon Phanom,Mueangnakhraphanom,0.283,0.06
+Nakhon Phanom,Renunakhon,0.109,0.035
+Nakhon Phanom,Wangyang,0.091,0.033
+Nakhon Phanom,Srisangakhram,0.228,0.053
+Nakhon Ratchasima,Kaengsanamnang,0.045,0.03
+Nakhon Ratchasima,Khamthaleso,0.042,0.031
+Nakhon Ratchasima,Khamsakaesaeng,0.043,0.03
+Nakhon Ratchasima,Khong,0.041,0.029
+Nakhon Ratchasima,Khraburi,0.04,0.029
+Nakhon Ratchasima,Chakrat,0.039,0.028
+Nakhon Ratchasima,Chelimprakianti,0.04,0.029
+Nakhon Ratchasima,Chumphuang,0.039,0.027
+Nakhon Ratchasima,Chokchai,0.04,0.03
+Nakhon Ratchasima,Dankhunathot,0.045,0.033
+Nakhon Ratchasima,Thepharak,0.047,0.035
+Nakhon Ratchasima,Nondaeng,0.041,0.028
+Nakhon Ratchasima,Nonthai,0.043,0.031
+Nakhon Ratchasima,Nonsung,0.041,0.029
+Nakhon Ratchasima,Bualai,0.043,0.029
+Nakhon Ratchasima,Buaain,0.043,0.029
+Nakhon Ratchasima,Baneluem,0.045,0.031
+Nakhon Ratchasima,Prathai,0.041,0.028
+Nakhon Ratchasima,Pakthangachai,0.042,0.032
+Nakhon Ratchasima,Pakchong,0.048,0.036
+Nakhon Ratchasima,Phrathongkham,0.043,0.031
+Nakhon Ratchasima,Phimai,0.04,0.028
+Nakhon Ratchasima,Mueangnakhaatsima,0.041,0.03
+Nakhon Ratchasima,Mueangyang,0.039,0.027
+Nakhon Ratchasima,Lamthamenchai,0.039,0.026
+Nakhon Ratchasima,Wangnamkhiao,0.043,0.032
+Nakhon Ratchasima,Sida,0.042,0.028
+Nakhon Ratchasima,Sikhio,0.043,0.033
+Nakhon Ratchasima,Sungnoen,0.043,0.032
+Nakhon Ratchasima,Soengsang,0.038,0.028
+Nakhon Ratchasima,Nongbunnak,0.039,0.028
+Nakhon Ratchasima,Huaithaenng,0.039,0.028
+Nakhon Si Thammarat,Khanom,0.116,0.067
+Nakhon Si Thammarat,Chulapn,0.156,0.079
+Nakhon Si Thammarat,Chwang,0.18,0.082
+Nakhon Si Thammarat,Chelimprakianti,0.167,0.074
+Nakhon Si Thammarat,Chauat,0.143,0.077
+Nakhon Si Thammarat,Changklang,0.181,0.081
+Nakhon Si Thammarat,Chianhain,0.162,0.071
+Nakhon Si Thammarat,Thamphanra,0.195,0.086
+Nakhon Si Thammarat,Thasala,0.211,0.07
+Nakhon Si Thammarat,Thungtng,0.162,0.082
+Nakhon Si Thammarat,Thungain,0.174,0.087
+Nakhon Si Thammarat,Nopphitam,0.186,0.075
+Nakhon Si Thammarat,Nabon,0.17,0.082
+Nakhon Si Thammarat,Bangkhan,0.147,0.088
+Nakhon Si Thammarat,Pakphanang,0.169,0.068
+Nakhon Si Thammarat,Phrahomkhiri,0.205,0.074
+Nakhon Si Thammarat,Phrapnm,0.184,0.074
+Nakhon Si Thammarat,Phipun,0.192,0.079
+Nakhon Si Thammarat,Mueangnakhrasritamrat,0.201,0.072
+Nakhon Si Thammarat,Ronphibun,0.156,0.077
+Nakhon Si Thammarat,Lantka,0.193,0.077
+Nakhon Si Thammarat,Sichon,0.16,0.068
+Nakhon Si Thammarat,Huathrai,0.112,0.069
+Nakhon Sawan,Kaoliao,0.171,0.07
+Nakhon Sawan,Konkphra,0.226,0.084
+Nakhon Sawan,Chumtabong,0.473,0.141
+Nakhon Sawan,Chumsaeng,0.116,0.058
+Nakhon Sawan,Takfa,0.09,0.054
+Nakhon Sawan,Takhli,0.112,0.061
+Nakhon Sawan,Thatako,0.091,0.053
+Nakhon Sawan,Baptphisai,0.221,0.081
+Nakhon Sawan,Phayuhakhiri,0.165,0.072
+Nakhon Sawan,Phaisali,0.077,0.049
+Nakhon Sawan,Mueangnakhrasuaan,0.175,0.072
+Nakhon Sawan,Maepoen,0.518,0.155
+Nakhon Sawan,Maewong,0.494,0.148
+Nakhon Sawan,Latyao,0.449,0.13
+Nakhon Sawan,Nongbua,0.083,0.05
+Narathiwat,Chanae,0.063,0.061
+Narathiwat,Choairong,0.058,0.057
+Narathiwat,Takbai,0.056,0.053
+Narathiwat,Bacho,0.058,0.058
+Narathiwat,Mueangnrathioาt,0.057,0.056
+Narathiwat,Yingo,0.059,0.058
+Narathiwat,Rangae,0.06,0.059
+Narathiwat,Rueso,0.062,0.061
+Narathiwat,Waeng,0.061,0.058
+Narathiwat,Srisakn,0.063,0.062
+Narathiwat,Sukhirin,0.062,0.06
+Narathiwat,Sungaikolok,0.059,0.056
+Narathiwat,Sungaipadi,0.059,0.057
+Nan,Chelimprakianti,0.705,0.148
+Nan,Chiangklang,0.826,0.216
+Nan,Thawangpha,0.927,0.222
+Nan,Thungchang,0.773,0.192
+Nan,Nanoi,0.709,0.124
+Nan,Namuen,0.718,0.128
+Nan,Bokelue,0.664,0.138
+Nan,Banluang,0.714,0.133
+Nan,Pua,0.924,0.236
+Nan,Phuphiang,0.732,0.154
+Nan,Mueangnan,0.738,0.15
+Nan,Maechrim,0.668,0.133
+Nan,Wiangsa,0.689,0.126
+Nan,Songkhaeo,0.793,0.168
+Nan,Santisuk,0.738,0.177
+Bueng Kan,Seka,0.206,0.053
+Bueng Kan,Sophisai,0.196,0.052
+Bueng Kan,Mueangbuengkan,0.31,0.071
+Bueng Kan,Buengkhonglong,0.302,0.067
+Bueng Kan,Bungkla,0.33,0.075
+Bueng Kan,Pakkhat,0.241,0.059
+Bueng Kan,Phoncherin,0.202,0.053
+Bueng Kan,Sriwilai,0.263,0.064
+Buri Ram,Krasang,0.036,0.024
+Buri Ram,Khaenadong,0.038,0.026
+Buri Ram,Bandan,0.037,0.025
+Buri Ram,Khumueang,0.038,0.026
+Buri Ram,Chelimprakianti,0.036,0.025
+Buri Ram,Chamni,0.037,0.026
+Buri Ram,Nangrong,0.037,0.026
+Buri Ram,Napho,0.041,0.027
+Buri Ram,Nondindaeng,0.036,0.026
+Buri Ram,Nonsuan,0.037,0.027
+Buri Ram,Bankruat,0.034,0.024
+Buri Ram,Banaimchaiph,0.041,0.027
+Buri Ram,Prakhonchai,0.035,0.025
+Buri Ram,Pakham,0.037,0.026
+Buri Ram,Phlapplachai,0.035,0.024
+Buri Ram,Phuthathasaing,0.04,0.027
+Buri Ram,Mueangburiram,0.036,0.025
+Buri Ram,Lahanthrai,0.036,0.026
+Buri Ram,Lamplaimat,0.037,0.026
+Buri Ram,Satuek,0.037,0.025
+Buri Ram,Nongki,0.038,0.028
+Buri Ram,Nongong,0.038,0.027
+Buri Ram,Huairat,0.036,0.025
+Prachuap Khiri Khan,Kuiburi,0.277,0.085
+Prachuap Khiri Khan,Thapsakae,0.185,0.079
+Prachuap Khiri Khan,Bangsaphan,0.158,0.078
+Prachuap Khiri Khan,Bangsaphannoi,0.12,0.074
+Prachuap Khiri Khan,Pranburi,0.275,0.085
+Prachuap Khiri Khan,Mueangprachuapkhirikhan,0.263,0.086
+Prachuap Khiri Khan,Samroiyot,0.29,0.087
+Prachuap Khiri Khan,Huain,0.246,0.081
+Prachin Buri,Kabinburi,0.047,0.033
+Prachin Buri,Nadi,0.045,0.033
+Prachin Buri,Prachantkham,0.05,0.035
+Prachin Buri,Mueangprachinburi,0.052,0.036
+Prachin Buri,Srimahaphothi,0.051,0.034
+Prachin Buri,Srimahott,0.061,0.038
+Pattani,Kapho,0.06,0.059
+Pattani,Khokpho,0.065,0.066
+Pattani,Thungyangdaeng,0.061,0.06
+Pattani,Panareะ,0.058,0.058
+Pattani,Mayo,0.06,0.06
+Pattani,Mueangpattani,0.062,0.062
+Pattani,Maelan,0.064,0.064
+Pattani,Maikaen,0.058,0.057
+Pattani,Yarang,0.062,0.062
+Pattani,Yaring,0.06,0.061
+Pattani,Saiburi,0.058,0.057
+Pattani,Nongchik,0.064,0.065
+Phra Nakhon Si Ayutthaya,Nakhrahluang,0.108,0.059
+Phra Nakhon Si Ayutthaya,Bangsai,0.16,0.073
+Phra Nakhon Si Ayutthaya,Bangpaan,0.114,0.06
+Phra Nakhon Si Ayutthaya,Banphaenk,0.103,0.057
+Phra Nakhon Si Ayutthaya,Phakhai,0.15,0.07
+Phra Nakhon Si Ayutthaya,Phachi,0.095,0.055
+Phra Nakhon Si Ayutthaya,Maharat,0.108,0.059
+Phayao,Chun,0.756,0.141
+Phayao,Chiangkham,0.737,0.142
+Phayao,Chiangmuan,0.745,0.132
+Phayao,Dokkhamtai,0.756,0.138
+Phayao,Pong,0.714,0.137
+Phayao,Phukamyao,0.768,0.143
+Phayao,Phusang,0.74,0.146
+Phayao,Mueangphayao,0.781,0.146
+Phayao,Maechai,0.797,0.156
+Phangnga,Kapong,0.253,0.117
+Phangnga,Koyao,0.282,0.117
+Phangnga,Khuraburi,0.323,0.116
+Phangnga,Takuathung,0.273,0.118
+Phangnga,Takuapa,0.261,0.119
+Phangnga,Thapput,0.267,0.109
+Phangnga,Thaiemueng,0.267,0.125
+Phangnga,Mueangphangnga,0.272,0.114
+Phatthalung,Kongra,0.078,0.085
+Phatthalung,Khaochaison,0.074,0.08
+Phatthalung,Khuankhanun,0.072,0.078
+Phatthalung,Tahomt,0.078,0.084
+Phatthalung,Bangkaeo,0.074,0.08
+Phatthalung,Pakphyun,0.072,0.077
+Phatthalung,Paphayom,0.075,0.082
+Phatthalung,Pabon,0.076,0.082
+Phatthalung,Mueangphatlung,0.073,0.079
+Phatthalung,Srinkrin,0.077,0.084
+Phatthalung,Sribapt,0.077,0.083
+Phichit,Dongcherin,0.088,0.05
+Phichit,Taphanin,0.106,0.053
+Phichit,Thapkhlo,0.085,0.047
+Phichit,Bangmunnak,0.106,0.055
+Phichit,Buengnarang,0.155,0.064
+Phichit,Phothale,0.134,0.062
+Phichit,Phoprathabachang,0.131,0.059
+Phichit,Mueangphichitn,0.132,0.058
+Phichit,Wachinbanmi,0.192,0.07
+Phichit,Wangthraiphun,0.109,0.051
+Phichit,Sakel็k,0.121,0.054
+Phichit,Samngam,0.165,0.064
+Phitsanulok,Chatitrakan,0.418,0.096
+Phitsanulok,Nakhonthai,0.291,0.07
+Phitsanulok,Noenmaprang,0.125,0.051
+Phitsanulok,Bangkrathum,0.14,0.057
+Phitsanulok,Bangrakam,0.268,0.08
+Phitsanulok,Phrahomphiram,0.415,0.104
+Phitsanulok,Mueangphitnulok,0.249,0.074
+Phitsanulok,Wangthong,0.225,0.068
+Phitsanulok,Watbot,0.368,0.091
+Phetchaburi,Kaengkrachan,0.29,0.111
+Phetchaburi,Chaam,0.223,0.083
+Phetchaburi,Thayang,0.207,0.085
+Phetchaburi,Banlat,0.191,0.085
+Phetchaburi,Banaenm,0.202,0.089
+Phetchaburi,Mueangphetnburi,0.179,0.079
+Phetchaburi,Nongyaplong,0.269,0.11
+Phetchabun,Khaokho,0.153,0.049
+Phetchabun,Chondaen,0.079,0.044
+Phetchabun,Namnao,0.2,0.049
+Phetchabun,Buengsamphan,0.06,0.04
+Phetchabun,Mueangphetnbun,0.11,0.042
+Phetchabun,Wangpong,0.093,0.046
+Phetchabun,Wichianburi,0.055,0.039
+Phetchabun,Srithep,0.055,0.04
+Phetchabun,Nongphai,0.065,0.039
+Phetchabun,Lomkao,0.221,0.054
+Phetchabun,Lamasak,0.205,0.052
+Phrae,Denchai,0.853,0.197
+Phrae,Mueangphaen,0.919,0.214
+Phrae,Rongkwang,0.795,0.146
+Phrae,Long,0.88,0.185
+Phrae,Wangchin,1.086,0.275
+Phrae,Song,0.794,0.142
+Phrae,Sungmen,0.854,0.197
+Phrae,Nongmuangkhai,0.843,0.191
+Phuket,Kathu,0.306,0.13
+Phuket,Thlang,0.313,0.129
+Phuket,Mueangphuket,0.299,0.129
+Maha Sarakham,Kantnwichai,0.048,0.028
+Maha Sarakham,Kutrang,0.045,0.028
+Maha Sarakham,Kaedam,0.043,0.027
+Maha Sarakham,Kosumphisai,0.047,0.029
+Maha Sarakham,Chuentm,0.053,0.03
+Maha Sarakham,Chiangyuen,0.05,0.029
+Maha Sarakham,Nachueak,0.042,0.027
+Maha Sarakham,Nadun,0.04,0.026
+Maha Sarakham,Bonbue,0.044,0.028
+Maha Sarakham,Phayakkphumiphisai,0.039,0.026
+Maha Sarakham,Mueangmahasankham,0.045,0.028
+Maha Sarakham,Yangsisurat,0.04,0.027
+Maha Sarakham,Wapipathum,0.041,0.026
+Mukdahan,Khamchai,0.052,0.028
+Mukdahan,Dongluang,0.06,0.03
+Mukdahan,Dontan,0.045,0.026
+Mukdahan,Nikmkhamtroi,0.047,0.026
+Mukdahan,Mueangmukdahan,0.052,0.027
+Mukdahan,Nongsung,0.048,0.027
+Mukdahan,Wanain,0.062,0.029
+Mae Hong Son,Khunyuam,0.888,0.208
+Mae Hong Son,Pangmapha,1.059,0.27
+Mae Hong Son,Pai,1.019,0.269
+Mae Hong Son,Mueangmaehongson,0.962,0.227
+Mae Hong Son,Maelanoi,0.837,0.199
+Mae Hong Son,Maesariang,0.832,0.195
+Mae Hong Son,Sopmey,0.834,0.201
+Yasothon,Kutchum,0.041,0.025
+Yasothon,Khowang,0.035,0.023
+Yasothon,Khamkhueankaeo,0.037,0.024
+Yasothon,Thraimun,0.04,0.025
+Yasothon,Thaicherin,0.041,0.025
+Yasothon,Patio,0.038,0.024
+Yasothon,Mahachanachai,0.036,0.024
+Yasothon,Mueangyasotn,0.039,0.025
+Yasothon,Loenganoktha,0.043,0.026
+Yala,Krangapinang,0.066,0.066
+Yala,Kabang,0.071,0.072
+Yala,Thanto,0.071,0.071
+Yala,Bannangtta,0.067,0.066
+Yala,Betng,0.078,0.076
+Yala,Mueangyala,0.064,0.064
+Yala,Yaha,0.067,0.068
+Yala,Raman,0.062,0.062
+Roi Et,Kettnwisai,0.038,0.025
+Roi Et,Chatunphaktnphiman,0.04,0.026
+Roi Et,Changan,0.044,0.027
+Roi Et,Chiangkhwan,0.043,0.027
+Roi Et,Thungkhaoluang,0.041,0.026
+Roi Et,Thwatburi,0.042,0.026
+Roi Et,Pathumrat,0.039,0.026
+Roi Et,Phanomphrai,0.038,0.024
+Roi Et,Phochaya,0.044,0.027
+Roi Et,Phonthrai,0.037,0.024
+Roi Et,Phonthong,0.045,0.027
+Roi Et,Meywadi,0.046,0.027
+Roi Et,Mueangroiet,0.042,0.027
+Roi Et,Mueangsruang,0.04,0.026
+Roi Et,Sritmdet,0.042,0.027
+Roi Et,Suanphumi,0.038,0.025
+Roi Et,Senphumi,0.041,0.026
+Roi Et,Nongphok,0.045,0.027
+Roi Et,Nonghi,0.037,0.024
+Roi Et,Atsamant,0.04,0.025
+Ranong,Kraburi,0.184,0.089
+Ranong,Kapoe,0.352,0.105
+Ranong,Mueangranong,0.31,0.098
+Ranong,Laun,0.249,0.092
+Ranong,Suksamran,0.355,0.112
+Rayong,Kaelong,0.056,0.036
+Rayong,Khaochamao,0.057,0.035
+Rayong,Nikmphatna,0.094,0.042
+Rayong,Bankhai,0.08,0.04
+Rayong,Banchang,0.094,0.044
+Rayong,Pluakdaeng,0.118,0.045
+Rayong,Mueangrayong,0.088,0.042
+Rayong,Wangchan,0.067,0.037
+Ratchaburi,Bankha,0.308,0.121
+Ratchaburi,Chombueng,0.498,0.179
+Ratchaburi,Banpong,0.361,0.128
+Ratchaburi,Photharam,0.348,0.123
+Ratchaburi,Suanphueng,0.421,0.15
+Lop Buri,Khokcherin,0.066,0.045
+Lop Buri,Khoksamrong,0.08,0.052
+Lop Buri,Chaibadan,0.054,0.04
+Lop Buri,Thaoุng,0.107,0.06
+Lop Buri,Thaluang,0.055,0.041
+Lop Buri,Banmi,0.094,0.055
+Lop Buri,Phatnanikm,0.063,0.044
+Lop Buri,Mueanglaphaburi,0.08,0.051
+Lop Buri,Lamsanathi,0.048,0.036
+Lop Buri,Srabot,0.07,0.047
+Lop Buri,Nongmuang,0.08,0.051
+Lampang,Kokha,0.813,0.184
+Lampang,Ngao,0.784,0.142
+Lampang,Chaeom,0.811,0.16
+Lampang,Thoen,0.651,0.166
+Lampang,Mueangpan,0.814,0.17
+Lampang,Mueanglampang,0.835,0.177
+Lampang,Maetha,0.93,0.21
+Lampang,Maephrik,0.636,0.162
+Lampang,Maemo,0.838,0.155
+Lampang,Wangenue,0.898,0.195
+Lampang,Sopprap,0.935,0.264
+Lampang,Serimngam,0.775,0.195
+Lampang,Angchatn,0.814,0.178
+Lamphun,Thunghuachang,0.809,0.213
+Lamphun,Banthi,0.872,0.209
+Lamphun,Banhong,0.876,0.237
+Lamphun,Pasang,0.915,0.24
+Lamphun,Mueanglamphun,0.908,0.232
+Lamphun,Maetha,0.851,0.211
+Lamphun,Li,0.765,0.209
+Lamphun,Wiangnonglong,0.894,0.245
+Loei,Chiangkhan,0.265,0.066
+Loei,Dansai,0.287,0.068
+Loei,Thali,0.283,0.069
+Loei,Naduang,0.172,0.047
+Loei,Nahaeo,0.39,0.087
+Loei,Pakachom,0.202,0.053
+Loei,Phakhao,0.152,0.043
+Loei,Phukradueng,0.148,0.042
+Loei,Phuruea,0.279,0.066
+Loei,Phuluang,0.239,0.055
+Loei,Mueangloei,0.215,0.054
+Loei,Wangsaphung,0.222,0.053
+Loei,Nongin,0.193,0.049
+Loei,Eraoัn,0.177,0.047
+Si Sa Ket,Kantnlak,0.03,0.02
+Si Sa Ket,Kantranm,0.033,0.022
+Si Sa Ket,Khukhan,0.032,0.021
+Si Sa Ket,Khunan,0.031,0.021
+Si Sa Ket,Namkeling,0.032,0.021
+Si Sa Ket,Nonkhun,0.032,0.021
+Si Sa Ket,Buengbun,0.035,0.024
+Si Sa Ket,Bentlak,0.031,0.02
+Si Sa Ket,Prangku,0.033,0.022
+Si Sa Ket,Phayu,0.033,0.022
+Si Sa Ket,Phosrisuan,0.035,0.023
+Si Sa Ket,Phraibueng,0.032,0.021
+Si Sa Ket,Phusing,0.031,0.021
+Si Sa Ket,Mueangchan,0.035,0.023
+Si Sa Ket,Mueangsrisaket,0.034,0.022
+Si Sa Ket,Yangchumnoi,0.034,0.022
+Si Sa Ket,Rasislai,0.035,0.023
+Si Sa Ket,Wangin,0.033,0.022
+Si Sa Ket,Silalat,0.036,0.024
+Si Sa Ket,Sriratna,0.032,0.021
+Si Sa Ket,Huaithapthan,0.034,0.023
+Si Sa Ket,Uthumpnphisai,0.034,0.023
+Sakon Nakhon,Kutbak,0.069,0.033
+Sakon Nakhon,Kusuman,0.123,0.038
+Sakon Nakhon,Khamtakla,0.176,0.048
+Sakon Nakhon,Khoksrisupan,0.075,0.032
+Sakon Nakhon,Cherinsin,0.113,0.039
+Sakon Nakhon,Taongoi,0.065,0.031
+Sakon Nakhon,Nikmnamun,0.074,0.034
+Sakon Nakhon,Banmuang,0.15,0.045
+Sakon Nakhon,Phonrananikm,0.087,0.035
+Sakon Nakhon,Phangkhon,0.088,0.036
+Sakon Nakhon,Phonnakaeo,0.102,0.035
+Sakon Nakhon,Phuphan,0.061,0.031
+Sakon Nakhon,Mueangsaklanakhon,0.082,0.033
+Sakon Nakhon,Wannnioาt,0.119,0.04
+Sakon Nakhon,Waritphumi,0.082,0.035
+Sakon Nakhon,Swangdaendin,0.094,0.037
+Sakon Nakhon,Songdao,0.093,0.037
+Sakon Nakhon,Akatanuai,0.143,0.043
+Songkhla,Krasaesin,0.069,0.074
+Songkhla,Khlongoikhong,0.077,0.082
+Songkhla,Khuanniang,0.073,0.078
+Songkhla,Chana,0.069,0.073
+Songkhla,Thepha,0.066,0.068
+Songkhla,Nathwi,0.072,0.075
+Songkhla,Namom,0.072,0.076
+Songkhla,Bangklam,0.074,0.079
+Songkhla,Mueangsangakhla,0.069,0.073
+Songkhla,Ranot,0.068,0.072
+Songkhla,Ratphumi,0.077,0.083
+Songkhla,Singnakhon,0.069,0.073
+Songkhla,Sathingpra,0.069,0.073
+Songkhla,Sadao,0.079,0.084
+Songkhla,Sabaio,0.069,0.071
+Songkhla,Athain,0.074,0.079
+Satun,Khuankanng,0.083,0.089
+Satun,Khuandon,0.084,0.09
+Satun,Thaphae,0.088,0.094
+Satun,Thungwa,0.088,0.094
+Satun,Manang,0.084,0.091
+Satun,Mueangsatun,0.087,0.093
+Satun,Langu,0.092,0.096
+Sa Kaeo,Khaochakan,0.043,0.031
+Sa Kaeo,Khlongat,0.04,0.029
+Sa Kaeo,Khoksung,0.036,0.026
+Sa Kaeo,Taphraya,0.035,0.025
+Sa Kaeo,Mueangsrakaeo,0.042,0.03
+Sa Kaeo,Wangnamyen,0.042,0.03
+Sa Kaeo,Wangsamabun,0.043,0.03
+Sa Kaeo,Watnankn,0.039,0.029
+Sa Kaeo,Ranprathet,0.037,0.027
+Saraburi,Kaengkhoi,0.067,0.045
+Saraburi,Chelimprakianti,0.078,0.05
+Saraburi,Donphut,0.101,0.057
+Saraburi,Banmo,0.087,0.053
+Saraburi,Phraphuttbat,0.082,0.052
+Saraburi,Muakhel็k,0.057,0.041
+Saraburi,Wangmuang,0.057,0.042
+Saraburi,Wihandaeng,0.071,0.053
+Saraburi,Mueangsraburi,0.07,0.053
+Saraburi,Saohai,0.081,0.051
+Saraburi,Nongkhae,0.076,0.055
+Saraburi,Nongsaeng,0.089,0.053
+Saraburi,Nongdon,0.09,0.054
+Sing Buri,Khaibangrachan,0.121,0.063
+Sing Buri,Thachang,0.119,0.063
+Sing Buri,Bangrachan,0.127,0.065
+Sing Buri,Phrahomburi,0.109,0.059
+Sing Buri,Mueangsingburi,0.114,0.061
+Sing Buri,Inburi,0.12,0.063
+Sukhothai,Kongkrailas,0.431,0.109
+Sukhothai,Khirimat,0.435,0.111
+Sukhothai,Thungselim,0.49,0.126
+Sukhothai,Bandanlanhoi,0.451,0.12
+Sukhothai,Mueangsukhothai,0.449,0.117
+Sukhothai,Srinakhon,0.621,0.154
+Sukhothai,Srisatnalai,0.526,0.131
+Sukhothai,Srisamrong,0.464,0.118
+Sukhothai,Suaaklok,0.503,0.126
+Suphan Buri,Donchedi,0.349,0.114
+Suphan Buri,Danchang,0.494,0.146
+Suphan Buri,Doembangnangbuat,0.188,0.08
+Suphan Buri,Bangplama,0.204,0.083
+Suphan Buri,Mueangsupanburi,0.258,0.096
+Suphan Buri,Sriprachan,0.186,0.079
+Suphan Buri,Songphinong,0.246,0.093
+Suphan Buri,Samchuk,0.2,0.082
+Suphan Buri,Nongyasai,0.311,0.106
+Suphan Buri,Uthong,0.346,0.115
+Surat Thani,Kayachondit,0.138,0.076
+Surat Thani,Kophangan,0.066,0.061
+Surat Thani,Kosamui,0.076,0.062
+Surat Thani,Khiriratnikm,0.276,0.091
+Surat Thani,Khiansa,0.236,0.086
+Surat Thani,Chaiburi,0.228,0.094
+Surat Thani,Chaiา,0.163,0.08
+Surat Thani,Donsak,0.109,0.069
+Surat Thani,Thachang,0.199,0.083
+Surat Thani,Thachana,0.175,0.081
+Surat Thani,Bantakhun,0.31,0.095
+Surat Thani,Bannadoem,0.207,0.083
+Surat Thani,Bannasan,0.195,0.083
+Surat Thani,Phanom,0.291,0.098
+Surat Thani,Phrasaeng,0.264,0.095
+Surat Thani,Phunphin,0.218,0.083
+Surat Thani,Mueangsurattthani,0.188,0.08
+Surat Thani,Wiphaodi,0.296,0.093
+Surat Thani,Wiangsra,0.201,0.084
+Surin,Kapchoeng,0.033,0.023
+Surin,Khewasinrin,0.035,0.024
+Surin,Chomphra,0.036,0.024
+Surin,Chumpnburi,0.037,0.025
+Surin,Thatum,0.036,0.024
+Surin,Nonnarai,0.035,0.024
+Surin,Buachet,0.032,0.022
+Surin,Prasat,0.034,0.024
+Surin,Phanomdongrak,0.034,0.023
+Surin,Mueangsurin,0.035,0.024
+Surin,Ratnburi,0.036,0.024
+Surin,Lamduan,0.034,0.023
+Surin,Siknphumi,0.034,0.023
+Surin,Srinrong,0.033,0.023
+Surin,Sanom,0.036,0.024
+Surin,Sangkha,0.033,0.022
+Surin,Samrongthap,0.034,0.023
+Nong Khai,Thabo,0.212,0.051
+Nong Khai,Faorai,0.191,0.05
+Nong Khai,Photak,0.208,0.052
+Nong Khai,Phonphisai,0.218,0.052
+Nong Khai,Mueangnongkhai,0.196,0.048
+Nong Khai,Ratnwapi,0.211,0.053
+Nong Khai,Srichianghaim,0.197,0.05
+Nong Khai,Srakhain,0.192,0.047
+Nong Khai,Sangkm,0.2,0.053
+Nong Bua Lam Phu,Naklang,0.165,0.045
+Nong Bua Lam Phu,Nawang,0.178,0.047
+Nong Bua Lam Phu,Nonsang,0.083,0.035
+Nong Bua Lam Phu,Mueangnongbualamphu,0.132,0.041
+Nong Bua Lam Phu,Sribunrueang,0.102,0.037
+Nong Bua Lam Phu,Suankhuha,0.198,0.05
+Ang Thong,Chaiyo,0.116,0.062
+Ang Thong,Pamok,0.121,0.062
+Ang Thong,Phothong,0.146,0.07
+Ang Thong,Mueangangthong,0.12,0.062
+Ang Thong,Wisetchaichan,0.135,0.066
+Ang Thong,Samko,0.151,0.071
+Ang Thong,Saeongha,0.13,0.065
+Amnat Charoen,Chanuman,0.043,0.025
+Amnat Charoen,Pathumratwangasa,0.038,0.024
+Amnat Charoen,Phana,0.036,0.023
+Amnat Charoen,Mueangamnatcherin,0.038,0.024
+Amnat Charoen,Lueamnat,0.037,0.023
+Amnat Charoen,Senangkhnikm,0.04,0.025
+Amnat Charoen,Huataphan,0.037,0.024
+Udon Thani,Kukaew,0.095,0.036
+Udon Thani,Kutchap,0.184,0.047
+Udon Thani,Kumpwapi,0.104,0.037
+Udon Thani,Chaiwan,0.108,0.038
+Udon Thani,Thungafon,0.132,0.041
+Udon Thani,Nayung,0.213,0.054
+Udon Thani,Namsom,0.215,0.053
+Udon Thani,Nonsaat,0.083,0.035
+Udon Thani,Bandung,0.181,0.048
+Udon Thani,Banphue,0.208,0.051
+Udon Thani,Prachaksinpakhom,0.124,0.039
+Udon Thani,Phibunrak,0.18,0.047
+Udon Thani,Phen,0.254,0.057
+Udon Thani,Mueangutnthani,0.176,0.045
+Udon Thani,Wangsammo,0.066,0.032
+Udon Thani,Srithatu,0.074,0.033
+Udon Thani,Srangkhom,0.25,0.057
+Udon Thani,Nongwuaso,0.124,0.04
+Udon Thani,Nongsaeng,0.108,0.038
+Udon Thani,Nonghan,0.128,0.04
+Uttaradit,Tron,0.684,0.167
+Uttaradit,Thongsaenkhan,0.57,0.134
+Uttaradit,Thapla,0.671,0.159
+Uttaradit,Nampat,0.526,0.118
+Uttaradit,Bankhok,0.484,0.108
+Uttaradit,Phichai,0.617,0.154
+Uttaradit,Faktha,0.505,0.114
+Uttaradit,Mueangutndit,0.579,0.139
+Uttaradit,Laplae,0.558,0.135
+Uthai Thani,Thapthan,0.244,0.091
+Uthai Thani,Banrai,0.299,0.107
+Uthai Thani,Mueanguthaithani,0.165,0.074
+Uthai Thani,Lansak,0.321,0.109
+Uthai Thani,Swangan,0.202,0.081
+Uthai Thani,Nongkhayang,0.189,0.08
+Uthai Thani,Nongchang,0.281,0.1
+Uthai Thani,Huaikhot,0.379,0.123
+Ubon Ratchathani,Kutkhaopun,0.037,0.023
+Ubon Ratchathani,Khemrath,0.039,0.024
+Ubon Ratchathani,Khueangnai,0.035,0.023
+Ubon Ratchathani,Khongchiam,0.032,0.02
+Ubon Ratchathani,Donmadadaeng,0.034,0.022
+Ubon Ratchathani,Detutm,0.031,0.02
+Ubon Ratchathani,Trakanphuetpn,0.035,0.022
+Ubon Ratchathani,Tansum,0.033,0.021
+Ubon Ratchathani,Thungsriutm,0.03,0.02
+Ubon Ratchathani,Nachaluai,0.028,0.018
+Ubon Ratchathani,Natan,0.037,0.023
+Ubon Ratchathani,Nayia,0.031,0.02
+Ubon Ratchathani,Namkhun,0.029,0.019
+Ubon Ratchathani,Namyuen,0.029,0.019
+Ubon Ratchathani,Buntrik,0.029,0.019
+Ubon Ratchathani,Phibunmangsahan,0.031,0.02
+Ubon Ratchathani,Phothrai,0.036,0.023
+Ubon Ratchathani,Muangsamsip,0.035,0.023
+Ubon Ratchathani,Mueangupnratthani,0.033,0.021
+Ubon Ratchathani,Warinchamrap,0.033,0.021
+Ubon Ratchathani,Srimueangaim,0.034,0.021
+Ubon Ratchathani,Swangwirawong,0.032,0.021
+Ubon Ratchathani,Sirintn,0.031,0.02
+Ubon Ratchathani,Samrong,0.032,0.021
+Ubon Ratchathani,Elasueakok,0.034,0.022

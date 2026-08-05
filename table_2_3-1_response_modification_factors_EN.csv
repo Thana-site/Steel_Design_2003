@@ -1,0 +1,29 @@
+﻿No.,Overall Structural System,Lateral Force-Resisting System,R,Omega0,Cd,SDC_B,SDC_C,SDC_D
+1,Bearing Wall System,Ordinary Reinforced Concrete Shear Wall,4,2.5,4,Permitted,Permitted,"Permitted (with height limit, see 2.3.1.2)"
+1,Bearing Wall System,Special Reinforced Concrete Shear Wall,5,2.5,5,Permitted,Permitted,Permitted
+1,Bearing Wall System,Ordinary Precast Shear Wall ++,3,2.5,3,Permitted,Not Permitted,Not Permitted
+1,Bearing Wall System,Intermediate Precast Shear Wall ++,4,2.5,4,Permitted,Permitted,Not Permitted
+2,Building Frame System,Steel Eccentrically Braced Frame with Moment-Resisting Connections,8,2,4,Permitted,Permitted,Permitted
+2,Building Frame System,Steel Eccentrically Braced Frame with Non-Moment-Resisting Connections,7,2,4,Permitted,Permitted,Permitted
+2,Building Frame System,Special Steel Concentric Braced Frame,6,2,5,Permitted,Permitted,Permitted
+2,Building Frame System,Ordinary Steel Concentric Braced Frame,3.5,2,3.5,Permitted,Permitted,Not Permitted
+2,Building Frame System,Special Reinforced Concrete Shear Wall,6,2.5,5,Permitted,Permitted,Permitted
+2,Building Frame System,Ordinary Reinforced Concrete Shear Wall,5,2.5,4.5,Permitted,Permitted,"Permitted (with height limit, see 2.3.1.2)"
+2,Building Frame System,Ordinary Precast Shear Wall ++,4,2.5,4,Permitted,Not Permitted,Not Permitted
+2,Building Frame System,Intermediate Precast Shear Wall ++,5,2.5,4.5,Permitted,Permitted,Not Permitted
+3,Moment Resisting Frame,Ductile/Special Steel Moment-Resisting Frame,8,3,5.5,Permitted,Permitted,Permitted
+3,Moment Resisting Frame,Special Truss Moment Frame,7,3,5.5,Permitted,Permitted,Permitted
+3,Moment Resisting Frame,Intermediate Steel Moment Resisting Frame,4.5,3,4,Permitted,Permitted,"Permitted (with height limit, see 2.3.1.2)"
+3,Moment Resisting Frame,Ordinary Steel Moment Resisting Frame,3.5,3,3,Permitted,Permitted,Not Permitted
+3,Moment Resisting Frame,Precast or Cast-in-Place Ductile/Special Reinforced Concrete Moment Resisting Frame ++,8,3,5.5,Permitted,Permitted,Permitted
+3,Moment Resisting Frame,Ductile RC Moment-Resisting Frame with Limited Ductility / Intermediate RC Moment-Resisting Frame,5,3,4.5,Permitted,Permitted,"Permitted (with height limit, see 2.3.1.2)"
+3,Moment Resisting Frame,Ordinary Reinforced Concrete Moment Resisting Frame,3,3,2.5,Permitted,Not Permitted,Not Permitted
+4,Dual System with Ductile/Special Moment Resisting Frame,Combined with Special Steel Concentrically Braced Frame,7,2.5,5.5,Permitted,Permitted,Permitted
+4,Dual System with Ductile/Special Moment Resisting Frame,Combined with Steel Eccentrically Braced Frame,8,2.5,4,Permitted,Permitted,Permitted
+4,Dual System with Ductile/Special Moment Resisting Frame,Combined with Special Reinforced Concrete Shear Wall,7,2.5,5.5,Permitted,Permitted,Permitted
+4,Dual System with Ductile/Special Moment Resisting Frame,Combined with Ordinary Reinforced Concrete Shear Wall,6,2.5,5,Permitted,Permitted,"Permitted (with height limit, see 2.3.1.2)"
+5,Dual System with Moment Resisting Frame with Limited Ductility / Dual System with Intermediate Moment Resisting Frame,Combined with Special Steel Concentrically Braced Frame,6,2.5,5,Permitted,Permitted,Not Permitted
+5,Dual System with Moment Resisting Frame with Limited Ductility / Dual System with Intermediate Moment Resisting Frame,Combined with Special Reinforced Concrete Shear Wall,6.5,2.5,5,Permitted,Permitted,Permitted
+5,Dual System with Moment Resisting Frame with Limited Ductility / Dual System with Intermediate Moment Resisting Frame,Combined with Ordinary Reinforced Concrete Shear Wall,5.5,2.5,4.5,Permitted,Permitted,"Permitted (with height limit, see 2.3.1.2)"
+6,Shear Wall Frame Interactive System,Shear Wall Frame Interactive System with Ordinary Reinforced Concrete Moment Frame and Ordinary Concrete Shear Wall,4.5,2.5,4,Permitted,Not Permitted,Not Permitted
+7,Steel Systems Not Specifically Detailed for Seismic Resistance,Steel Systems Not Specifically Detailed for Seismic Resistance,3,3,3,Permitted,Permitted,Not Permitted

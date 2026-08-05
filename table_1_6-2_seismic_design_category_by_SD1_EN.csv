@@ -1,0 +1,5 @@
+SD1 Range,Occupancy Category I or II,Occupancy Category III,Occupancy Category IV
+SD1 < 0.067,A (no seismic design required),A (no seismic design required),A (no seismic design required)
+0.067 ≤ SD1 < 0.133,B,B,C
+0.133 ≤ SD1 < 0.20,C,C,D
+0.20 ≤ SD1,D,D,D
